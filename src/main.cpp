@@ -153,6 +153,8 @@ uint8_t sequenceStage = 0;
 unsigned long sequenceStableMs = 50; // must see stable limit for 50ms
 // Sequence timeout: abort the sequence if it runs longer than this (ms)
 unsigned long sequenceTimeoutMs = 30000; // default 30s
+// Per-stage timeout (each stage may run up to this long)
+unsigned long sequenceStageTimeoutMs = 30000; // ms
 // Additional start-debounce: require 3+5 to be stable for this long before starting sequence
 unsigned long sequenceStartStableMs = 100; // ms (increased from 30ms to be robust against loop jitter)
 // Internal timers
@@ -162,6 +164,11 @@ unsigned long sequenceLastLimitChangeMillis = 0; // last time limit input change
 unsigned long sequenceStartCandidateMillis = 0;
 // last published sequence state for MQTT (avoid duplicate publishes)
 int lastPublishedSequenceState = 0;
+
+// After R1 comes on we allow releasing the start buttons; if any button 2..5 is pressed
+// again (new press) while the sequence is active we should abort the sequence.
+bool sequenceIgnoreButtonRelease = false;
+bool sequencePinLastState[6] = { false }; // parallel to watchPins
 
 // Pending single-press handling: defer immediate R1 toggles to allow detecting 3+5 sequence
 int pendingPressPin = 0; // 3 if pending R1 press
@@ -322,6 +329,9 @@ void controlStep() {
 				printWatchedPins();
 				setRelayState(1, true);
 				setRelayState(2, false);
+				// allow release of starting buttons once R1 is on; capture pin states
+				sequenceIgnoreButtonRelease = true;
+				for (size_t _i = 0; _i < watchCount; ++_i) sequencePinLastState[_i] = pinState[_i];
 				publishSequenceStatus();
 				// clear any pending press since sequence now owns R1
 				pendingPressPin = 0;
@@ -352,9 +362,9 @@ void controlStep() {
 	// If no sequence active, skip sequence-specific checks
 	if (!sequenceActive) return;
 
-	// If sequence exceeded timeout, abort
-	if (sequenceStageEnterMillis > 0 && (now - sequenceStageEnterMillis) > sequenceTimeoutMs) {
-		Serial.println("Sequence timeout: aborting");
+	// If sequence stage exceeded per-stage timeout, abort
+	if (sequenceStageEnterMillis > 0 && (now - sequenceStageEnterMillis) > sequenceStageTimeoutMs) {
+		debugPrintf("Sequence timeout: aborting (stage %u exceeded %lu ms)\n", (unsigned)sequenceStage, sequenceStageTimeoutMs);
 		// update state then turn off outputs and publish status
 		sequenceActive = false;
 		sequenceStage = 0;
@@ -362,6 +372,7 @@ void controlStep() {
 		sequenceLastLimitChangeMillis = 0;
 		setRelayState(1, false);
 		setRelayState(2, false);
+		sequenceIgnoreButtonRelease = false;
 		publishSequenceStatus();
 		if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("timeout_abort"); mqttClient.endMessage(); } }
 		return;
@@ -503,20 +514,52 @@ void handleInputChange(uint8_t pin, bool state) {
 
 	// If sequence active, progress or abort based on inputs and limits
 	if (sequenceActive) {
+		// find index for this pin in watchPins
+		int idxPin = -1;
+		for (size_t ii = 0; ii < watchCount; ++ii) if (watchPins[ii] == pin) { idxPin = ii; break; }
+
+		// If we've started the sequence and allowed release of the start buttons,
+		// a new press of any button 2..5 (i.e. state==true and it was not active at start)
+		// should abort the sequence.
+		if (sequenceIgnoreButtonRelease && idxPin >= 0) {
+			uint8_t pnum = watchPins[idxPin];
+			if (pnum >= 2 && pnum <= 5 && state) {
+				if (!sequencePinLastState[idxPin]) {
+					debugPrintf("Sequence aborted: new press on pin %d during active sequence\n", pnum);
+					// abort sequence
+					setRelayState(1, false);
+					setRelayState(2, false);
+					sequenceActive = false;
+					sequenceStage = 0;
+					sequenceStageEnterMillis = 0;
+					sequenceLastLimitChangeMillis = 0;
+					sequenceIgnoreButtonRelease = false;
+					publishSequenceStatus();
+					if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("abort"); mqttClient.endMessage(); } if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("aborted_newpress"); mqttClient.endMessage(); } }
+					return;
+				}
+			}
+		}
+
 		// If 3 or 5 released, abort the sequence and turn off R1/R2
 		if (!seq3and5) {
-			Serial.println("Sequence aborted: 3+5 released");
-			printWatchedPins();
-			setRelayState(1, false);
-			setRelayState(2, false);
-			sequenceActive = false;
-			sequenceStage = 0;
-			sequenceStageEnterMillis = 0;
-			sequenceLastLimitChangeMillis = 0;
-			publishSequenceStatus();
-			if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("abort"); mqttClient.endMessage(); } if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("aborted_released"); mqttClient.endMessage(); } }
-			if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/control/resp")) { mqttClient.print("Sequence aborted"); mqttClient.endMessage(); } }
-			return;
+			// If releases are not allowed (i.e., we haven't yet turned R1 on), abort.
+			if (!sequenceIgnoreButtonRelease) {
+				Serial.println("Sequence aborted: 3+5 released");
+				printWatchedPins();
+				setRelayState(1, false);
+				setRelayState(2, false);
+				sequenceActive = false;
+				sequenceStage = 0;
+				sequenceStageEnterMillis = 0;
+				sequenceLastLimitChangeMillis = 0;
+				publishSequenceStatus();
+				if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("abort"); mqttClient.endMessage(); } if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("aborted_released"); mqttClient.endMessage(); } }
+				if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/control/resp")) { mqttClient.print("Sequence aborted"); mqttClient.endMessage(); } }
+				sequenceIgnoreButtonRelease = false;
+				return;
+			}
+			// otherwise releases are allowed; don't abort here
 		}
 
 		// If in stage 1, check limit on pin6
@@ -544,6 +587,7 @@ void handleInputChange(uint8_t pin, bool state) {
 				sequenceStage = 0;
 				sequenceStageEnterMillis = 0;
 				sequenceLastLimitChangeMillis = 0;
+				sequenceIgnoreButtonRelease = false;
 				if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("complete"); mqttClient.endMessage(); } if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("complete"); mqttClient.endMessage(); } }
 			}
 			return;
