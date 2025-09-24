@@ -75,6 +75,10 @@ void printWiFiInfo();
 void scanNetworksDebug();
 // publish sequence/telemetry status
 void publishSequenceStatus();
+// debug helper forward declaration
+void printWatchedPins();
+// timestamped debug printf helper
+void debugPrintf(const char *fmt, ...);
 
 // Control framework (stubs)
 void controlInit();
@@ -150,7 +154,7 @@ unsigned long sequenceStableMs = 50; // must see stable limit for 50ms
 // Sequence timeout: abort the sequence if it runs longer than this (ms)
 unsigned long sequenceTimeoutMs = 30000; // default 30s
 // Additional start-debounce: require 3+5 to be stable for this long before starting sequence
-unsigned long sequenceStartStableMs = 30; // ms
+unsigned long sequenceStartStableMs = 100; // ms (increased from 30ms to be robust against loop jitter)
 // Internal timers
 unsigned long sequenceStageEnterMillis = 0; // when current stage started
 unsigned long sequenceLastLimitChangeMillis = 0; // last time limit input changed state while sequence active
@@ -158,6 +162,10 @@ unsigned long sequenceLastLimitChangeMillis = 0; // last time limit input change
 unsigned long sequenceStartCandidateMillis = 0;
 // last published sequence state for MQTT (avoid duplicate publishes)
 int lastPublishedSequenceState = 0;
+
+// Pending single-press handling: defer immediate R1 toggles to allow detecting 3+5 sequence
+int pendingPressPin = 0; // 3 if pending R1 press
+unsigned long pendingPressMillis = 0;
 
 // Set relay state if changed (1..9)
 void setRelayState(int relayNumber, bool on) {
@@ -167,6 +175,8 @@ void setRelayState(int relayNumber, bool on) {
 	sendRelayCommand(relayNumber, on);
 	// publish updated sequence/relay status for telemetry consumers
 	publishSequenceStatus();
+	// debug print with timestamp
+	debugPrintf("[DBG] setRelayState R%d -> %s\n", relayNumber, on ? "ON" : "OFF");
 }
 
 // Send a relay command to Serial1 in the format "R<digit> ON" or "R<digit> OFF"
@@ -179,7 +189,7 @@ void sendRelayCommand(int relayNumber, bool on) {
 	delay(10);
 	// mark powered true if R9 ON
 	if (relayNumber == 9 && on) relayBoardPowered = true;
-	Serial.print("Relay cmd -> "); Serial.println(buf);
+	debugPrintf("Relay cmd -> %s\n", buf);
 }
 
 
@@ -240,9 +250,23 @@ void loadCalibration() {
 		emaValue = 0.0f; // reset EMA state
 
 		// restore sequence timing if present (non-zero)
-		if (s.seqStableMs > 0) sequenceStableMs = s.seqStableMs;
-		if (s.seqStartStableMs > 0) sequenceStartStableMs = s.seqStartStableMs;
-		if (s.seqTimeoutMs > 0) sequenceTimeoutMs = s.seqTimeoutMs;
+		// restore sequence timing if present and within sane bounds
+		// ignore obviously invalid values (e.g., 0xFFFFFFFF) which may come from corrupted EEPROM
+		if (s.seqStableMs > 0 && s.seqStableMs <= 10000) {
+			sequenceStableMs = s.seqStableMs;
+		} else if (s.seqStableMs != 0) {
+			debugPrintf("[EEPROM] ignored invalid seqStableMs=%lu\n", (unsigned long)s.seqStableMs);
+		}
+		if (s.seqStartStableMs > 0 && s.seqStartStableMs <= 10000) {
+			sequenceStartStableMs = s.seqStartStableMs;
+		} else if (s.seqStartStableMs != 0) {
+			debugPrintf("[EEPROM] ignored invalid seqStartStableMs=%lu\n", (unsigned long)s.seqStartStableMs);
+		}
+		if (s.seqTimeoutMs > 0 && s.seqTimeoutMs <= 600000) {
+			sequenceTimeoutMs = s.seqTimeoutMs;
+		} else if (s.seqTimeoutMs != 0) {
+			debugPrintf("[EEPROM] ignored invalid seqTimeoutMs=%lu\n", (unsigned long)s.seqTimeoutMs);
+		}
 		// restore per-pin modes from bitmap
 		for (size_t i = 0; i < watchCount; ++i) {
 			pinIsNC[i] = (s.pinModesBitmap & (1 << i)) != 0;
@@ -270,17 +294,75 @@ void controlInit() {
 
 void controlStep() {
 	// periodic control tasks: handle sequence timeouts and stable-limit checks
-	if (!sequenceActive) return;
-
+	// Process pending single-press mappings even when sequence not active
 	unsigned long now = millis();
+
+	// If a sequence start candidate timer exists, check it here so the sequence can start
+	// even if handleInputChange returned early due to pending press logic.
+	if (!sequenceActive && sequenceStartCandidateMillis > 0) {
+		unsigned long elapsed = now - sequenceStartCandidateMillis;
+		// diagnostic: log evaluation of sequence start candidate
+		debugPrintf("[DBG] evaluating sequence start candidate elapsed=%lu/%lu ms\n", elapsed, sequenceStartStableMs);
+		if (elapsed >= sequenceStartStableMs) {
+			// verify both pins still active
+			int cidx3 = -1, cidx5 = -1;
+			for (size_t ii = 0; ii < watchCount; ++ii) {
+				if (watchPins[ii] == 3) cidx3 = ii;
+				if (watchPins[ii] == 5) cidx5 = ii;
+			}
+			bool both = (cidx3 >= 0 && cidx5 >= 0) ? (pinState[cidx3] && pinState[cidx5]) : false;
+			if (both) {
+				// start sequence
+				sequenceActive = true;
+				sequenceStage = 1;
+				sequenceStageEnterMillis = now;
+				sequenceLastLimitChangeMillis = 0;
+				sequenceStartCandidateMillis = 0;
+				Serial.println("Sequence started (controlStep): R1 until limit pin6");
+				printWatchedPins();
+				setRelayState(1, true);
+				setRelayState(2, false);
+				publishSequenceStatus();
+				// clear any pending press since sequence now owns R1
+				pendingPressPin = 0;
+				pendingPressMillis = 0;
+				return; // sequence takes precedence; skip pending apply below
+			} else {
+				// not both still active -> cancel candidate
+				sequenceStartCandidateMillis = 0;
+			}
+		}
+	}
+	if (!sequenceActive && pendingPressPin == 3 && pendingPressMillis > 0) {
+		if (now - pendingPressMillis >= sequenceStartStableMs) {
+			// No sequence started during pending window; apply mapping for pin3
+			int idx3 = -1;
+			for (size_t ii = 0; ii < watchCount; ++ii) if (watchPins[ii] == 3) { idx3 = ii; break; }
+			if (idx3 >= 0) {
+				Serial.println("[DBG] pending press timeout: applying pin3 mapping");
+				setRelayState(1, pinState[idx3]);
+			}
+			pendingPressPin = 0;
+			pendingPressMillis = 0;
+			// publish status
+			publishSequenceStatus();
+		}
+	}
+
+	// If no sequence active, skip sequence-specific checks
+	if (!sequenceActive) return;
 
 	// If sequence exceeded timeout, abort
 	if (sequenceStageEnterMillis > 0 && (now - sequenceStageEnterMillis) > sequenceTimeoutMs) {
 		Serial.println("Sequence timeout: aborting");
-		setRelayState(1, false);
-		setRelayState(2, false);
+		// update state then turn off outputs and publish status
 		sequenceActive = false;
 		sequenceStage = 0;
+		sequenceStageEnterMillis = 0;
+		sequenceLastLimitChangeMillis = 0;
+		setRelayState(1, false);
+		setRelayState(2, false);
+		publishSequenceStatus();
 		if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("timeout_abort"); mqttClient.endMessage(); } }
 		return;
 	}
@@ -300,11 +382,14 @@ void controlStep() {
 			if (now - sequenceLastLimitChangeMillis >= sequenceStableMs) {
 				// accept transition
 				Serial.println("Sequence: stable limit6 detected in controlStep -> switching to R2");
-				setRelayState(1, false);
-				setRelayState(2, true);
+				printWatchedPins();
+				// advance stage first so published status reflects new stage
 				sequenceStage = 2;
 				sequenceStageEnterMillis = now;
 				sequenceLastLimitChangeMillis = 0;
+				setRelayState(1, false);
+				setRelayState(2, true);
+				publishSequenceStatus();
 				if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("switched_to_R2"); mqttClient.endMessage(); } }
 			}
 		} else {
@@ -316,10 +401,14 @@ void controlStep() {
 			if (sequenceLastLimitChangeMillis == 0) sequenceLastLimitChangeMillis = now;
 			if (now - sequenceLastLimitChangeMillis >= sequenceStableMs) {
 				Serial.println("Sequence: stable limit7 detected in controlStep -> completing sequence");
-				setRelayState(2, false);
+				printWatchedPins();
+				// clear state then turn off relay and publish
 				sequenceActive = false;
 				sequenceStage = 0;
+				sequenceStageEnterMillis = 0;
 				sequenceLastLimitChangeMillis = 0;
+				setRelayState(2, false);
+				publishSequenceStatus();
 				if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("complete"); mqttClient.endMessage(); } }
 			}
 		} else {
@@ -331,7 +420,7 @@ void controlStep() {
 void handleInputChange(uint8_t pin, bool state) {
 	// Called when an input is debounced and changes state
 	// pin: hardware pin number (e.g., 2..5), state:true=active (pressed)
-	Serial.print("Input changed: pin "); Serial.print(pin); Serial.print(" -> "); Serial.println(state);
+	debugPrintf("Input changed: pin %d -> %d\n", pin, state ? 1 : 0);
 
 	// Sequence control state (see globals below)
 	// If a sequence is active, certain inputs are handled by the sequence state machine
@@ -346,33 +435,69 @@ void handleInputChange(uint8_t pin, bool state) {
 		if (watchPins[ii] == 7) idx7 = ii;
 	}
 
-	bool seq3and5 = (idx3 >= 0 && idx5 >= 0) ? (pinState[idx3] && pinState[idx5]) : false;
+	// Determine whether pins 3 and 5 are both active. Use the incoming 'state' for the pin
+	// that triggered this callback to avoid races where pinState[] hasn't been updated yet.
+	bool state3 = false, state5 = false;
+	if (idx3 >= 0) state3 = (pin == 3) ? state : pinState[idx3];
+	if (idx5 >= 0) state5 = (pin == 5) ? state : pinState[idx5];
+	bool seq3and5 = (idx3 >= 0 && idx5 >= 0) ? (state3 && state5) : false;
 
-	// If sequence not active and 3+5 are active, use a short start-debounce before starting
+	// If sequence not active, handle potential sequence start candidate first
 	if (!sequenceActive) {
 		if (seq3and5) {
+			// Both buttons are currently active; set a start candidate timer and return
 			if (sequenceStartCandidateMillis == 0) sequenceStartCandidateMillis = millis();
-			else {
-				if (millis() - sequenceStartCandidateMillis >= sequenceStartStableMs) {
-					// start sequence
-					sequenceActive = true;
-					sequenceStage = 1; // stage 1: R1 ON until pin6 active
-					sequenceStageEnterMillis = millis();
-					sequenceLastLimitChangeMillis = 0;
-					sequenceStartCandidateMillis = 0;
-					Serial.println("Sequence started: R1 until limit pin6");
-					setRelayState(1, true); // R1 on
-					setRelayState(2, false); // ensure R2 off
-					if (mqttClient.connected()) {
-						if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("start"); mqttClient.endMessage(); }
-						if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("started_R1"); mqttClient.endMessage(); }
-					}
-					return; // sequence takes precedence
-				}
-			}
+				debugPrintf("[DBG] sequence start candidate set\n");
+			return; // don't proceed to pending single-press mapping
 		} else {
-			// reset candidate timer if not both held
-			sequenceStartCandidateMillis = 0;
+			// If we had a candidate and both are no longer held, check if candidate timed out to start
+			if (sequenceStartCandidateMillis != 0) {
+				unsigned long now = millis();
+				if (now - sequenceStartCandidateMillis >= sequenceStartStableMs) {
+					// verify both pins are still active (use pinState which was updated prior to this call)
+					bool both = (idx3 >= 0 && idx5 >= 0) ? (pinState[idx3] && pinState[idx5]) : false;
+					if (both) {
+						// Start the sequence
+						sequenceActive = true;
+						sequenceStage = 1; // stage 1: R1 ON until pin6 active
+						sequenceStageEnterMillis = now;
+						sequenceLastLimitChangeMillis = 0;
+						sequenceStartCandidateMillis = 0;
+						Serial.println("Sequence started: R1 until limit pin6");
+						Serial.print("[DBG] start time="); Serial.println(sequenceStageEnterMillis);
+						printWatchedPins();
+						setRelayState(1, true); // R1 on
+						setRelayState(2, false); // ensure R2 off
+						// publish status after starting
+						publishSequenceStatus();
+						if (mqttClient.connected()) {
+							if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("start"); mqttClient.endMessage(); }
+							if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("started_R1"); mqttClient.endMessage(); }
+						}
+						return; // sequence takes precedence
+					}
+				}
+				// otherwise cancel the candidate
+				sequenceStartCandidateMillis = 0;
+			}
+		}
+	}
+
+	// If not starting a sequence and pin 3 changed, defer immediate mapping briefly to allow a simultaneous press of pin5
+	if (!sequenceActive && pin == 3) {
+		if (state) {
+			// pin3 pressed: set pending press and wait for sequenceStartStableMs to see if pin5 also pressed
+			pendingPressPin = 3;
+			pendingPressMillis = millis();
+			debugPrintf("[DBG] pending press registered for pin3\n");
+			return;
+		} else {
+			// release of pin3: if pending, clear it
+			if (pendingPressPin == 3) {
+				pendingPressPin = 0;
+				pendingPressMillis = 0;
+			}
+			// If not pending, fall through to normal mapping
 		}
 	}
 
@@ -381,12 +506,14 @@ void handleInputChange(uint8_t pin, bool state) {
 		// If 3 or 5 released, abort the sequence and turn off R1/R2
 		if (!seq3and5) {
 			Serial.println("Sequence aborted: 3+5 released");
+			printWatchedPins();
 			setRelayState(1, false);
 			setRelayState(2, false);
 			sequenceActive = false;
 			sequenceStage = 0;
 			sequenceStageEnterMillis = 0;
 			sequenceLastLimitChangeMillis = 0;
+			publishSequenceStatus();
 			if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/sequence/state")) { mqttClient.print("abort"); mqttClient.endMessage(); } if (mqttClient.beginMessage("r4/sequence/event")) { mqttClient.print("aborted_released"); mqttClient.endMessage(); } }
 			if (mqttClient.connected()) { if (mqttClient.beginMessage("r4/control/resp")) { mqttClient.print("Sequence aborted"); mqttClient.endMessage(); } }
 			return;
@@ -429,7 +556,8 @@ void handleInputChange(uint8_t pin, bool state) {
 	if (pin == 2) {
 		setRelayState(2, state);
 	} else if (pin == 3) {
-		setRelayState(1, state);
+		// if we reached here and there's no pending press, apply mapping
+		if (pendingPressPin != 3) setRelayState(1, state);
 	}
 
 	// Clear previous simple two-button R4 action (no longer used)
@@ -574,6 +702,50 @@ void scanNetworksDebug() {
 		Serial.print(")");
 		Serial.print("  Encryption: ");
 		Serial.println(WiFi.encryptionType(i));
+	}
+}
+
+// Debug helper: print current watched pin states
+void printWatchedPins() {
+	Serial.print("[DBG] pins:");
+	for (size_t i = 0; i < watchCount; ++i) {
+		Serial.print(" "); Serial.print(watchPins[i]); Serial.print(":"); Serial.print(pinState[i] ? "ON" : "OFF");
+	}
+	Serial.println();
+}
+
+// Simple printf-style helper that prefixes messages with a millisecond timestamp.
+// Usage: debugPrintf("[DBG] message x=%d\n", x);
+void debugPrintf(const char *fmt, ...) {
+	char buf[256];
+	unsigned long ts = millis();
+	int off = snprintf(buf, sizeof(buf), "[TS %6lu] ", ts);
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(buf + off, sizeof(buf) - off, fmt, ap);
+	va_end(ap);
+	Serial.print(buf);
+}
+
+// Publish a compact sequence status to MQTT topic r4/sequence/status
+void publishSequenceStatus() {
+	if (!mqttClient.connected()) return;
+	// Build a simple payload: stage=<n> active=<0|1> stageMillis=<since> relays=R1:0,R2:1,... seqStableMs=.. seqStartStableMs=.. seqTimeoutMs=..
+	char payload[256];
+	unsigned long now = millis();
+	unsigned long stageElapsed = 0;
+	if (sequenceStageEnterMillis > 0) stageElapsed = now - sequenceStageEnterMillis;
+	int off = 0;
+	off += snprintf(payload + off, sizeof(payload) - off, "stage=%u active=%d elapsed=%lu", (unsigned)sequenceStage, sequenceActive ? 1 : 0, stageElapsed);
+	off += snprintf(payload + off, sizeof(payload) - off, " seqStableMs=%lu seqStartStableMs=%lu seqTimeoutMs=%lu", (unsigned long)sequenceStableMs, (unsigned long)sequenceStartStableMs, (unsigned long)sequenceTimeoutMs);
+	off += snprintf(payload + off, sizeof(payload) - off, " relays=");
+	for (int r = 1; r <= 9; ++r) {
+		off += snprintf(payload + off, sizeof(payload) - off, "R%d:%d", r, relayStates[r] ? 1 : 0);
+		if (r < 9) off += snprintf(payload + off, sizeof(payload) - off, ",");
+	}
+	if (mqttClient.beginMessage("r4/sequence/status")) {
+		mqttClient.print(payload);
+		mqttClient.endMessage();
 	}
 }
 
@@ -777,7 +949,7 @@ void setup() {
 	// Initialize watch pins and state
 	// Default mode: treat pins as normally-open (NO); user can change to NC later
 	for (size_t i = 0; i < watchCount; ++i) {
-		pinMode(watchPins[i], INPUT_PULLUP);
+		
 		// Default per-pin mode: set pins 6 and 7 to NO (false) by default
 		if (watchPins[i] == 6 || watchPins[i] == 7) pinIsNC[i] = false;
 
@@ -785,9 +957,11 @@ void setup() {
 		bool v;
 		if (pinIsNC[i]) {
 			// normally-closed: active when pin reads HIGH (open)
+			pinMode(watchPins[i], INPUT);
 			v = digitalRead(watchPins[i]) == HIGH;
 		} else {
 			// normally-open with INPUT_PULLUP: active when pin reads LOW
+			pinMode(watchPins[i], INPUT_PULLUP);
 			v = digitalRead(watchPins[i]) == LOW;
 		}
 		pinState[i] = v;
@@ -928,6 +1102,18 @@ void loop() {
 					Serial.print("  filter=");
 					if (filterMode == FILTER_NONE) Serial.print("none"); else if (filterMode == FILTER_MEDIAN3) Serial.print("median3"); else Serial.print("ema");
 					Serial.print("  emaAlpha="); Serial.println(emaAlpha, 3);
+					// sequence settings
+					Serial.print("sequence: active="); Serial.print(sequenceActive ? "1" : "0");
+					Serial.print(" stage="); Serial.print(sequenceStage);
+					Serial.print(" seqStableMs="); Serial.print(sequenceStableMs);
+					Serial.print(" seqStartStableMs="); Serial.print(sequenceStartStableMs);
+					Serial.print(" seqTimeoutMs="); Serial.println(sequenceTimeoutMs);
+					// relay states
+					Serial.print("relays:");
+					for (int r = 1; r <= 9; ++r) {
+						Serial.print(" R"); Serial.print(r); Serial.print("="); Serial.print(relayStates[r] ? "ON" : "OFF");
+					}
+					Serial.println();
 				} else if (strcasecmp(cmd, "set") == 0) {
 					char *sub = strtok(NULL, " ");
 					char *val = strtok(NULL, " ");
@@ -1034,7 +1220,7 @@ void loop() {
 		bool reading;
 		if (pin == 6 || pin == 7) {
 			// NC limit switches: active when HIGH
-			reading = digitalRead(pin) == HIGH;
+			reading = digitalRead(pin) == LOW;
 		} else {
 			// regular active-low switches
 			reading = digitalRead(pin) == LOW;
