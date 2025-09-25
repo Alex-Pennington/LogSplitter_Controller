@@ -166,9 +166,10 @@ relay r3 on
 
 The controller publishes real-time data to the following MQTT topics:
 
-### Pressure Data
-- **r4/pressure**: Combined pressure readings
-- **r4/pressure/hydraulic**: Main hydraulic pressure (A1 sensor)
+### Pressure Data (Published every 10 seconds)
+- **r4/pressure**: Combined pressure readings (backward compatibility)
+- **r4/pressure/hydraulic_system**: Hydraulic system pressure (A1 sensor)
+- **r4/pressure/hydraulic_filter**: Hydraulic filter pressure (A5 sensor)
 - **r4/pressure/status**: Pressure system status and alerts
 
 ### Sequence Control
@@ -201,8 +202,8 @@ All commands undergo strict validation:
 ## Hardware Configuration
 
 ### Pressure Sensors
-- **A1 (Pin A1)**: Main hydraulic pressure sensor (0-4.5V → 0-5000 PSI)
-- **A5 (Pin A5)**: Hydraulic oil pressure sensor (0-4.5V → 0-5000 PSI)
+- **A1 (Pin A1)**: Hydraulic system pressure sensor (0-4.5V → 0-5000 PSI)
+- **A5 (Pin A5)**: Hydraulic filter pressure sensor (0-4.5V → 0-5000 PSI)
 
 ### Digital Inputs
 - **Pin 6**: Extend limit switch (INPUT_PULLUP)

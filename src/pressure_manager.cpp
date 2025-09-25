@@ -115,10 +115,10 @@ void PressureManager::begin() {
     lastPublishTime = 0;
     
     Serial.println("PressureManager initialized with 2 sensors:");
-    Serial.print("  - Hydraulic System (A1): 0-");
+    Serial.print("  - Hydraulic System Pressure (A1): 0-");
     Serial.print(HYDRAULIC_MAX_PRESSURE_PSI);
     Serial.println(" PSI");
-    Serial.print("  - Hydraulic Oil (A5): 0-");  
+    Serial.print("  - Hydraulic Filter Pressure (A5): 0-");  
     Serial.print(HYDRAULIC_MAX_PRESSURE_PSI);
     Serial.println(" PSI");
 }
@@ -144,15 +144,16 @@ void PressureManager::publishPressures() {
     
     char buffer[64];
     
-    // Publish individual pressure readings
+    // Publish individual pressure readings with clear labels
     if (sensors[SENSOR_HYDRAULIC].isReady()) {
         snprintf(buffer, sizeof(buffer), "%.1f", getHydraulicPressure());
+        networkManager->publish(TOPIC_HYDRAULIC_SYSTEM_PRESSURE, buffer);
         networkManager->publish(TOPIC_PRESSURE, buffer); // Backward compatibility
     }
     
     if (sensors[SENSOR_HYDRAULIC_OIL].isReady()) {
         snprintf(buffer, sizeof(buffer), "%.1f", getHydraulicOilPressure());
-        networkManager->publish(TOPIC_HYDRAULIC_PRESSURE, buffer);
+        networkManager->publish(TOPIC_HYDRAULIC_FILTER_PRESSURE, buffer);
     }
     
     // Publish combined status

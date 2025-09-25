@@ -62,7 +62,7 @@ class PressureManager {
 private:
     PressureSensorChannel sensors[SENSOR_COUNT];
     unsigned long lastPublishTime = 0;
-    const unsigned long publishInterval = 1000; // 1 second
+    const unsigned long publishInterval = 10000; // 10 seconds
     
     // External dependencies
     class NetworkManager* networkManager = nullptr;
