@@ -118,7 +118,7 @@ void PressureManager::begin() {
     Serial.print("  - Hydraulic System (A1): 0-");
     Serial.print(HYDRAULIC_MAX_PRESSURE_PSI);
     Serial.println(" PSI");
-    Serial.print("  - Hydraulic Oil (A4): 0-");  
+    Serial.print("  - Hydraulic Oil (A5): 0-");  
     Serial.print(HYDRAULIC_MAX_PRESSURE_PSI);
     Serial.println(" PSI");
 }
