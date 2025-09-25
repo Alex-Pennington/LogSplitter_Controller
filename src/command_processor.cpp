@@ -173,16 +173,33 @@ void CommandProcessor::handlePins(char* response, size_t responseSize, bool from
     }
     
     // This will be printed directly to Serial, not stored in response
-    Serial.println("Watched pins:");
+    Serial.println("=== Pin Configuration ===");
     for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
         bool isNC = configManager ? configManager->isPinNC(i) : false;
-        Serial.print("pin ");
-        Serial.print(WATCH_PINS[i]);
-        Serial.print(" mode=");
+        uint8_t pin = WATCH_PINS[i];
+        
+        Serial.print("Pin ");
+        Serial.print(pin);
+        Serial.print(": ");
+        
+        // Add function labels for known pins
+        if (pin == LIMIT_EXTEND_PIN) {
+            Serial.print("EXTEND_LIMIT ");
+        } else if (pin == LIMIT_RETRACT_PIN) {
+            Serial.print("RETRACT_LIMIT ");
+        } else if (pin == 2 || pin == 3) {
+            Serial.print("MANUAL_CTRL ");
+        } else if (pin == 4 || pin == 5) {
+            Serial.print("SEQUENCE_CTRL ");
+        }
+        
+        Serial.print("mode=");
         Serial.print(isNC ? "NC" : "NO");
-        // Note: We'd need InputManager reference to show current state
         Serial.println();
     }
+    
+    Serial.println("\nUsage: set pinmode <pin> <NO|NC>");
+    Serial.println("Example: set pinmode 6 NC  (set extend limit to normally closed)");
     
     response[0] = '\0'; // No MQTT response
 }
@@ -249,6 +266,63 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             configManager->save();
         }
         snprintf(response, responseSize, "seqStableMs set %lu", val);
+    }
+    else if (strcasecmp(param, "seqstartstable") == 0) {
+        unsigned long val = strtoul(value, NULL, 10);
+        if (sequenceController) sequenceController->setStartStableTime(val);
+        if (configManager) {
+            configManager->loadFromSequenceController(*sequenceController);
+            configManager->save();
+        }
+        snprintf(response, responseSize, "seqStartStableMs set %lu", val);
+    }
+    else if (strcasecmp(param, "seqtimeout") == 0) {
+        unsigned long val = strtoul(value, NULL, 10);
+        if (sequenceController) sequenceController->setTimeout(val);
+        if (configManager) {
+            configManager->loadFromSequenceController(*sequenceController);
+            configManager->save();
+        }
+        snprintf(response, responseSize, "seqTimeoutMs set %lu", val);
+    }
+    else if (strcasecmp(param, "emaalpha") == 0) {
+        float val = atof(value);
+        if (val > 0.0f && val <= 1.0f) {
+            // Note: This would need PressureManager integration to work properly
+            snprintf(response, responseSize, "emaAlpha set %.3f (Note: requires PressureManager integration)", val);
+        } else {
+            snprintf(response, responseSize, "emaAlpha must be between 0.0 and 1.0");
+        }
+    }
+    else if (strcasecmp(param, "pinmode") == 0) {
+        // Parse format: "pinmode 6 NC" or "pinmode 7 NO"
+        char* pinStr = value;
+        char* modeStr = strchr(value, ' ');
+        
+        if (!modeStr) {
+            snprintf(response, responseSize, "Usage: set pinmode <pin> <NO|NC>");
+            return;
+        }
+        
+        *modeStr = '\0'; // Split the string
+        modeStr++; // Move to mode part
+        
+        uint8_t pin = atoi(pinStr);
+        bool isNC = (strcasecmp(modeStr, "NC") == 0);
+        bool isNO = (strcasecmp(modeStr, "NO") == 0);
+        
+        if (!isNC && !isNO) {
+            snprintf(response, responseSize, "Mode must be NO or NC");
+            return;
+        }
+        
+        if (configManager) {
+            configManager->setPinMode(pin, isNC);
+            configManager->save();
+            snprintf(response, responseSize, "Pin %d set to %s", pin, isNC ? "NC" : "NO");
+        } else {
+            snprintf(response, responseSize, "Config manager not available");
+        }
     }
     // Add more parameter handlers as needed
     else {
