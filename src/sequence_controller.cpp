@@ -77,11 +77,10 @@ bool SequenceController::areStartButtonsActive(const bool* pinStates) {
     bool pin3Active = false, pin5Active = false;
     
     for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
-        if (WATCH_PINS[i] == 3) pin3Active = pinStates[i];
         if (WATCH_PINS[i] == 5) pin5Active = pinStates[i];
     }
     
-    return pin3Active && pin5Active;
+    return pin5Active;
 }
 
 uint8_t SequenceController::getStage() const {
@@ -171,19 +170,12 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
     switch (currentState) {
         case SEQ_IDLE:
             // Check for sequence start condition
-            if (startButtonsActive && !startButtonsActive) {
+            if (startButtonsActive) {
                 // Just became active, start debounce timer
                 enterState(SEQ_WAIT_START_DEBOUNCE);
                 return true; // Handled by sequence
             }
-            
-            // Handle single button presses with delay to detect dual press
-            if (pin == 3 && state) {
-                pendingPressPin = 3;
-                pendingPressTime = now;
-                return true; // Defer handling
-            }
-            
+                      
             // Handle other pins normally (return false to allow normal processing)
             return false;
             

@@ -132,14 +132,15 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     
     // Let sequence controller handle input first
     bool handledBySequence = sequenceController.processInputChange(pin, state, allStates);
-    
+    //debugPrintf("handledBySequence: %s\n", handledBySequence ? "ACTIVE" : "INACTIVE");
+    //debugPrintf("sequenceController: %s\n", sequenceController.isActive() ? "ACTIVE" : "INACTIVE");
     if (!handledBySequence && !sequenceController.isActive()) {
         // Handle simple pin->relay mapping when no sequence active
         if (pin == 2) {
             relayController.setRelay(RELAY_RETRACT, state);  // Pin 2 -> Retract
         } else if (pin == 3) {
             relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
-        }
+        } 
     }
 }
 
