@@ -25,6 +25,7 @@ public:
     // Safety checks
     void update(float currentPressure);
     void checkPressure(float pressure);
+    void checkPressure(float pressure, bool atLimitSwitch);
     void emergencyStop(const char* reason);
     
     // Manual control

@@ -21,7 +21,7 @@
 // Module includes
 #include "constants.h"
 #include "network_manager.h"
-#include "pressure_sensor.h"
+#include "pressure_manager.h"
 #include "sequence_controller.h"
 #include "relay_controller.h"
 #include "config_manager.h"
@@ -44,7 +44,7 @@ char g_response_buffer[SHARED_BUFFER_SIZE];
 // ============================================================================
 
 NetworkManager networkManager;
-PressureSensor pressureSensor;
+PressureManager pressureManager;
 SequenceController sequenceController;
 RelayController relayController;
 ConfigManager configManager;
@@ -55,6 +55,10 @@ CommandProcessor commandProcessor;
 // Global pointers for cross-module access
 NetworkManager* g_networkManager = &networkManager;
 RelayController* g_relayController = &relayController;
+
+// Global limit switch states for safety system
+bool g_limitExtendActive = false;   // Pin 6 - Cylinder fully extended
+bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
 
 // ============================================================================
 // System State
@@ -117,15 +121,24 @@ void debugPrintf(const char* fmt, ...) {
 void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     debugPrintf("Input change: pin %d -> %s\n", pin, state ? "ACTIVE" : "INACTIVE");
     
+    // Update limit switch states for safety system
+    if (pin == LIMIT_EXTEND_PIN) {
+        g_limitExtendActive = state;
+        debugPrintf("Limit EXTEND: %s\n", state ? "ACTIVE" : "INACTIVE");
+    } else if (pin == LIMIT_RETRACT_PIN) {
+        g_limitRetractActive = state;
+        debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
+    }
+    
     // Let sequence controller handle input first
     bool handledBySequence = sequenceController.processInputChange(pin, state, allStates);
     
     if (!handledBySequence && !sequenceController.isActive()) {
         // Handle simple pin->relay mapping when no sequence active
         if (pin == 2) {
-            relayController.setRelay(2, state);
+            relayController.setRelay(RELAY_RETRACT, state);  // Pin 2 -> Retract
         } else if (pin == 3) {
-            relayController.setRelay(1, state);
+            relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
         }
     }
 }
@@ -177,8 +190,9 @@ bool initializeSystem() {
     }
     
     // Initialize pressure sensor
-    pressureSensor.begin();
-    configManager.applyToPressureSensor(pressureSensor);
+    pressureManager.begin();
+    pressureManager.setNetworkManager(&networkManager);
+    // Note: Individual sensor configuration can be added via pressureManager.getSensor() if needed
     
     // Initialize relay controller
     relayController.begin();
@@ -198,7 +212,7 @@ bool initializeSystem() {
     
     // Initialize command processor
     commandProcessor.setConfigManager(&configManager);
-    commandProcessor.setPressureSensor(&pressureSensor);
+    // commandProcessor.setPressureSensor(&pressureManager); // Update if needed
     commandProcessor.setSequenceController(&sequenceController);
     commandProcessor.setRelayController(&relayController);
     commandProcessor.setNetworkManager(&networkManager);
@@ -232,14 +246,14 @@ void updateSystem() {
     
     // Update all subsystems
     networkManager.update();
-    pressureSensor.update();
+    pressureManager.update();
     sequenceController.update();
     relayController.update();
     inputManager.update();
     
     // Update safety system with current pressure
-    if (pressureSensor.isReady()) {
-        safetySystem.update(pressureSensor.getPressure());
+    if (pressureManager.isReady()) {
+        safetySystem.update(pressureManager.getPressure());
     }
     
     checkSystemHealth();
@@ -252,10 +266,8 @@ void publishTelemetry() {
         lastPublishTime = now;
         
         // Publish pressure
-        if (pressureSensor.isReady()) {
-            snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "pressure %.2f", pressureSensor.getPressure());
-            networkManager.publish(TOPIC_PRESSURE, g_message_buffer);
-        }
+        // Pressure publishing now handled by PressureManager.publishPressures()
+        // Individual pressures are automatically published via MQTT
         
         // Publish sequence status
         sequenceController.getStatusString(g_message_buffer, SHARED_BUFFER_SIZE);
@@ -336,7 +348,7 @@ void loop() {
         case SYS_SAFE_MODE:
             // Safe mode: minimal operations, safety monitoring only
             relayController.update();
-            safetySystem.update(pressureSensor.getPressure());
+            safetySystem.update(pressureManager.getPressure());
             processSerialCommands();
             delay(100);
             break;

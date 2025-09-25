@@ -51,10 +51,10 @@ bool SequenceController::checkStableLimit(uint8_t pin, bool active) {
 void SequenceController::abortSequence(const char* reason) {
     debugPrintf("[SEQ] Aborting sequence: %s\n", reason ? reason : "unknown");
     
-    // Turn off all relays involved in sequence
+    // Turn off all hydraulic relays involved in sequence
     if (g_relayController) {
-        g_relayController->setRelay(1, false);
-        g_relayController->setRelay(2, false);
+        g_relayController->setRelay(RELAY_EXTEND, false);
+        g_relayController->setRelay(RELAY_RETRACT, false);
     }
     
     // Reset state
@@ -137,8 +137,8 @@ void SequenceController::update() {
                 // Start the actual sequence
                 enterState(SEQ_STAGE1_ACTIVE);
                 if (g_relayController) {
-                    g_relayController->setRelay(1, true);
-                    g_relayController->setRelay(2, false);
+                    g_relayController->setRelay(RELAY_EXTEND, true);
+                    g_relayController->setRelay(RELAY_RETRACT, false);
                 }
                 allowButtonRelease = true;
                 
@@ -223,8 +223,8 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
                     // Transition to stage 2
                     enterState(SEQ_STAGE2_ACTIVE);
                     if (g_relayController) {
-                        g_relayController->setRelay(1, false);
-                        g_relayController->setRelay(2, true);
+                        g_relayController->setRelay(RELAY_EXTEND, false);
+                        g_relayController->setRelay(RELAY_RETRACT, true);
                     }
                     
                     if (g_networkManager && g_networkManager->isConnected()) {
@@ -254,7 +254,7 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
                 if (checkStableLimit(pin, state)) {
                     // Sequence complete
                     if (g_relayController) {
-                        g_relayController->setRelay(2, false);
+                        g_relayController->setRelay(RELAY_RETRACT, false);
                     }
                     
                     enterState(SEQ_IDLE);

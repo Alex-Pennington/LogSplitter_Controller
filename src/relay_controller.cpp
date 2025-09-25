@@ -61,6 +61,10 @@ void RelayController::update() {
 }
 
 void RelayController::setRelay(uint8_t relayNumber, bool on) {
+    setRelay(relayNumber, on, false); // Default to automatic (sequence) operation
+}
+
+void RelayController::setRelay(uint8_t relayNumber, bool on, bool isManualCommand) {
     if (relayNumber < 1 || relayNumber > MAX_RELAYS) {
         return;
     }
@@ -70,10 +74,15 @@ void RelayController::setRelay(uint8_t relayNumber, bool on) {
         return; // No change needed
     }
     
-    // Safety check - don't allow relay operations if safety is active
-    if (safetyActive && on && relayNumber != RELAY_POWER_PIN) {
-        debugPrintf("Safety active - blocking relay R%d ON\n", relayNumber);
+    // Safety check - block automatic operations when safety is active, but allow manual
+    if (safetyActive && on && relayNumber != RELAY_POWER_PIN && !isManualCommand) {
+        debugPrintf("Safety active - blocking automatic relay R%d ON (use manual override)\n", relayNumber);
         return;
+    }
+    
+    // Log manual override during safety condition
+    if (safetyActive && isManualCommand) {
+        debugPrintf("Manual override: R%d %s during safety condition\n", relayNumber, on ? "ON" : "OFF");
     }
     
     // Ensure relay board is powered (except when controlling power relay itself)
@@ -85,7 +94,8 @@ void RelayController::setRelay(uint8_t relayNumber, bool on) {
     sendCommand(relayNumber, on);
     relayStates[relayNumber] = on;
     
-    debugPrintf("[RelayController] R%d -> %s\n", relayNumber, on ? "ON" : "OFF");
+    debugPrintf("[RelayController] R%d -> %s %s\n", relayNumber, on ? "ON" : "OFF", 
+        isManualCommand ? "(manual)" : "(auto)");
 }
 
 bool RelayController::getRelayState(uint8_t relayNumber) const {
@@ -148,8 +158,8 @@ bool RelayController::processCommand(const char* relayToken, const char* stateTo
         return false;
     }
     
-    // Execute command
-    setRelay(relayNum, on);
+    // Execute command as manual operation (allows override during safety)
+    setRelay(relayNum, on, true); // Manual command flag set
     
     // Provide feedback
     char response[32];

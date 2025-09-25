@@ -30,6 +30,7 @@ public:
     
     // Relay control
     void setRelay(uint8_t relayNumber, bool on);
+    void setRelay(uint8_t relayNumber, bool on, bool isManualCommand);
     bool getRelayState(uint8_t relayNumber) const;
     void allRelaysOff();
     

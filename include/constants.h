@@ -19,6 +19,8 @@ const char TOPIC_SUBSCRIBE[] PROGMEM = "r4/example/sub";
 const char TOPIC_CONTROL[] PROGMEM = "r4/control";
 const char TOPIC_CONTROL_RESP[] PROGMEM = "r4/control/resp";
 const char TOPIC_PRESSURE[] PROGMEM = "r4/pressure";
+const char TOPIC_HYDRAULIC_PRESSURE[] PROGMEM = "r4/pressure/hydraulic";
+const char TOPIC_PRESSURE_STATUS[] PROGMEM = "r4/pressure/status";
 const char TOPIC_SEQUENCE_STATUS[] PROGMEM = "r4/sequence/status";
 const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "r4/sequence/event";
 const char TOPIC_SEQUENCE_STATE[] PROGMEM = "r4/sequence/state";
@@ -27,6 +29,16 @@ const char TOPIC_SEQUENCE_STATE[] PROGMEM = "r4/sequence/state";
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
 const unsigned long DEBOUNCE_DELAY_MS = 20;
+
+// Limit Switch Configuration
+const uint8_t LIMIT_EXTEND_PIN = 6;   // Cylinder fully extended limit switch
+const uint8_t LIMIT_RETRACT_PIN = 7;  // Cylinder fully retracted limit switch
+
+// Relay Configuration Labels
+const uint8_t RELAY_EXTEND = 1;       // Relay 1 - Cylinder extend (hydraulic valve)
+const uint8_t RELAY_RETRACT = 2;      // Relay 2 - Cylinder retract (hydraulic valve)
+const uint8_t RELAY_ENGINE_STOP = 8;  // Relay 8 - Engine stop relay (safety)
+// Note: RELAY_POWER_PIN = 9 (relay board power control)
 
 // Relay Configuration
 const unsigned long RELAY_BAUD = 115200;
@@ -42,6 +54,15 @@ const float DEFAULT_ADC_VREF = 3.3f;
 const float DEFAULT_MAX_PRESSURE_PSI = 3000.0f;
 const float DEFAULT_SENSOR_GAIN = 1.0f;
 const float DEFAULT_SENSOR_OFFSET = 0.0f;
+
+// Dual Pressure Sensor Pins
+const uint8_t HYDRAULIC_PRESSURE_PIN = A1;      // Main hydraulic pressure (A1)
+const uint8_t HYDRAULIC_OIL_PRESSURE_PIN = A5;  // Hydraulic oil pressure (A4)
+
+// Pressure Sensor Specifications (0-4.5V sensors)
+const float SENSOR_MIN_VOLTAGE = 0.0f;    // 0V = 0 PSI
+const float SENSOR_MAX_VOLTAGE = 4.5f;    // 4.5V = max PSI
+const float HYDRAULIC_MAX_PRESSURE_PSI = 3000.0f; // Hydraulic system pressure range
 
 // Safety Constants
 const float SAFETY_THRESHOLD_PSI = 2750.0f;
