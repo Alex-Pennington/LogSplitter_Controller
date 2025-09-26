@@ -60,10 +60,24 @@ const float DEFAULT_SENSOR_OFFSET = 0.0f;
 const uint8_t HYDRAULIC_PRESSURE_PIN = A1;      // Main hydraulic pressure (A1)
 const uint8_t HYDRAULIC_OIL_PRESSURE_PIN = A5;  // Hydraulic oil pressure (A5)
 
-// Pressure Sensor Specifications (0-4.5V sensors)
-const float SENSOR_MIN_VOLTAGE = 0.0f;    // 0V = 0 PSI
-const float SENSOR_MAX_VOLTAGE = 4.5f;    // 4.5V = max PSI
-const float HYDRAULIC_MAX_PRESSURE_PSI = 3000.0f; // Hydraulic system pressure range
+// Pressure Sensor Specifications
+const float SENSOR_MIN_VOLTAGE = 0.0f;          // 0V reference
+const float SENSOR_MAX_VOLTAGE = 4.5f;          // Default sensor full-scale (most ratiometric 0-4.5V sensors)
+
+// Main hydraulic channel (A1) extended scaling:
+//   Electrical span 0–5.0V represents -25% .. +125% of nominal hydraulic max (1.5 * nominal span).
+//   0V  -> -0.25 * nominalMax   (discarded after clamp)
+//   5V  -> +1.25 * nominalMax   (reported as nominalMax after clamp)
+// Rationale:
+//   * Provides headroom so slight sensor over-range does not instantly saturate reading.
+//   * Negative zone absorbs noise / offset drift without going below 0 after clamp.
+//   * Operator display + safety logic always see a bounded 0..nominal range.
+//   * Safety threshold (SAFETY_THRESHOLD_PSI) intentionally compares against clamped value only.
+// NOTE: If future requirements need raw (unclamped) pressure, preserve pre-clamp value before applying bounds.
+const float HYDRAULIC_MAX_PRESSURE_PSI = 5000.0f;   // Nominal displayed/safety range (clamp target)
+const float MAIN_PRESSURE_EXT_NEG_FRAC = 0.25f;     // 25% below zero head-room
+const float MAIN_PRESSURE_EXT_POS_FRAC = 0.25f;     // 25% above nominal head-room
+const float MAIN_PRESSURE_EXT_FSV = 5.0f;           // Extended full-scale voltage for A1 mapping
 
 // Safety Constants
 const float SAFETY_THRESHOLD_PSI = 2750.0f;

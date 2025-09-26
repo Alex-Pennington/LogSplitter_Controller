@@ -35,8 +35,35 @@ void PressureSensorChannel::update() {
         
         // Calculate current pressure
         float avgCounts = computeAverageCount();
-        float voltage = (avgCounts / (float)(1 << ADC_RESOLUTION_BITS)) * adcVref;
-        currentPressure = voltageToPressure(voltage);
+            float voltage = (avgCounts / (float)(1 << ADC_RESOLUTION_BITS)) * adcVref;
+
+            // Extended scaling only for main hydraulic sensor (A1)
+            if (analogPin == HYDRAULIC_PRESSURE_PIN) {
+                // Extended scaling path (A1 only):
+                // Voltage 0..vfs (nominally 5.0V) spans -NEG_FRAC .. (1 + POS_FRAC) of nominal pressure.
+                // Example with fractions 0.25 & 0.25 and nominal=5000:
+                //   0V  -> -1250 PSI (clamped to 0 for reporting)
+                //   5V  ->  6250 PSI (clamped to 5000 for reporting)
+                // This creates over-range headroom and sub-zero dead-band while keeping published values bounded.
+                const float nominal = HYDRAULIC_MAX_PRESSURE_PSI;
+                const float span = (1.0f + MAIN_PRESSURE_EXT_NEG_FRAC + MAIN_PRESSURE_EXT_POS_FRAC) * nominal; // e.g. 1.5 * nominal
+                float vfs = MAIN_PRESSURE_EXT_FSV;
+                if (vfs <= 0.1f) vfs = adcVref; // Fallback: avoid divide-by-near-zero if constant misconfigured
+
+                // Bound measured voltage to modeled full-scale
+                if (voltage < 0.0f) voltage = 0.0f;
+                if (voltage > vfs) voltage = vfs;
+
+                // Compute raw (unclamped) extended pressure then shift negative offset
+                float rawPsi = (voltage / vfs) * span - (MAIN_PRESSURE_EXT_NEG_FRAC * nominal);
+
+                // NOTE: If raw (unclamped) value is ever needed for diagnostics, store before clamp.
+                if (rawPsi < 0.0f) rawPsi = 0.0f;
+                if (rawPsi > nominal) rawPsi = nominal;
+                currentPressure = rawPsi; // Only clamped value used by safety & telemetry
+            } else {
+                currentPressure = voltageToPressure(voltage);
+            }
         
         lastSampleTime = now;
     }
@@ -95,12 +122,23 @@ float PressureSensorChannel::computeAverageCount() {
 }
 
 float PressureSensorChannel::voltageToPressure(float voltage) {
-    // Convert 0-4.5V signal to 0-maxPressurePsi
-    if (voltage < SENSOR_MIN_VOLTAGE) voltage = SENSOR_MIN_VOLTAGE;
-    if (voltage > SENSOR_MAX_VOLTAGE) voltage = SENSOR_MAX_VOLTAGE;
-    
-    // Linear scaling: pressure = (voltage / 4.5V) * maxPressure
-    return (voltage / SENSOR_MAX_VOLTAGE) * maxPressurePsi;
+    // Primary channel (A1) uses extended bandwidth: 0-5V spans -25% .. +125% of nominal range
+    // Other channels (e.g. A5) remain linear 0-4.5/5.0 -> 0..maxPressurePsi
+    // Identify A1 by analogPin match
+    bool isPrimary = (analogPin == HYDRAULIC_PRESSURE_PIN);
+    if (isPrimary) {
+        // Map 0V -> -0.25 * maxPressure, 5V -> 1.25 * maxPressure, then clamp to 0..maxPressure
+        float spanFactor = 1.5f; // (-0.25 to +1.25) total span = 1.5 * nominal
+        float raw = (voltage / 5.0f) * (spanFactor * maxPressurePsi) - (0.25f * maxPressurePsi);
+        if (raw < 0.0f) raw = 0.0f;
+        if (raw > maxPressurePsi) raw = maxPressurePsi;
+        return raw;
+    } else {
+           // Generic linear 0..SENSOR_MAX_VOLTAGE => 0..maxPressurePsi
+           if (voltage < SENSOR_MIN_VOLTAGE) voltage = SENSOR_MIN_VOLTAGE;
+           if (voltage > SENSOR_MAX_VOLTAGE) voltage = SENSOR_MAX_VOLTAGE;
+           return (voltage / SENSOR_MAX_VOLTAGE) * maxPressurePsi;
+    }
 }
 
 // ============================================================================

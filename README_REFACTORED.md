@@ -59,73 +59,110 @@ This is a complete refactor of the original monolithic LogSplitter Controller co
 │   ├── safety_system.cpp
 │   ├── command_processor.cpp
 │   └── constants.cpp
-└── src/main_original.cpp    # Backup of original code
 ```
 
-## System Components
+## Module Summaries
 
-### NetworkManager
-- **Purpose**: Handles WiFi and MQTT connectivity
-- **Features**: Auto-reconnection, connection monitoring, non-blocking operations
-- **Improvements**: No more blocking delays, retry limits prevent infinite loops
+### Pressure Sensing
 
-### SequenceController
-- **Purpose**: Manages complex 3+5 button sequence with state machine
-- **Features**: Clear states, timeout handling, abort conditions
-- **Improvements**: Easier to understand and debug sequence logic
+- **Purpose**: Dual-channel (A1 main hydraulic, A5 filter/oil) sampling with filtering & calibration
+- **Features**: Circular buffer averaging, Median3 / EMA filters, configurable ADC reference
+- **Extended Scaling (A1)**: 0–5.0 V electrical span represents -25% .. +125% of nominal (5000 PSI) but output is CLAMPED to 0..5000 PSI for safety & display
+- **Benefit**: Head-room for sensor over‑range / calibration shift while keeping operator & safety logic within a stable nominal window
 
-### PressureSensor
-- **Purpose**: A1 analog sampling with filtering and calibration
-- **Features**: Circular buffer averaging, multiple filter modes
-- **Improvements**: Separated from main loop, configurable sampling
+### RelayController
 
-### RelayController  
 - **Purpose**: Serial1 communication with relay board
 - **Features**: State tracking, power management, command validation
 - **Improvements**: Centralized relay logic, safety integration
 
 ### ConfigManager
+
 - **Purpose**: EEPROM storage and configuration management
 - **Features**: Validation, defaults, cross-module configuration
 - **Improvements**: Robust configuration with validation and recovery
 
 ### SafetySystem
+
 - **Purpose**: System safety monitoring and emergency procedures
 - **Features**: Pressure monitoring, emergency stop, system health checks
 - **Improvements**: Centralized safety logic, multiple trigger conditions
 
 ### InputManager
+
 - **Purpose**: Pin monitoring with debouncing
 - **Features**: Configurable pin modes (NO/NC), callback system
 - **Improvements**: Separated from main loop, cleaner debounce logic
 
+### SequenceController
+
+- **Purpose**: Cylinder sequence state machine (extend/retract workflow)
+- **Features**: Stable limit detection timers, timeout handling, abort path
+- **Improvements**: Deterministic transitions; reduced false limit triggers
+
 ### CommandProcessor
-- **Purpose**: Command validation and processing
-- **Features**: Input validation, rate limiting, security checks
-- **Improvements**: Protection against malicious commands, structured processing
 
-## Configuration
+- **Purpose**: Command validation and processing (Serial + MQTT)
+- **Features**: Input validation, rate limiting, security checks, shorthand relay commands (e.g. `R1 ON`)
+- **Improvements**: Protection against malformed commands, structured processing, compact `show` output
 
-The system maintains backward compatibility with existing EEPROM configurations while adding new safety features:
+### NetworkManager
 
-- **Pressure calibration**: ADC reference, gain, offset
-- **Sequence timing**: Debounce times, timeouts
-- **Pin configuration**: NO/NC modes for each input
-- **Filter settings**: None, Median3, EMA with alpha
-- **Safety thresholds**: Pressure limits and hysteresis
+- **Purpose**: WiFi + MQTT connectivity management
+- **Features**: Non-blocking reconnect, publish helper, status tracking
+- **Improvements**: Avoids main loop stalls during outages
+
+### Pressure Scaling Details (A1)
+
+Electrical span: 0–5.0 V (configured constant)
+
+Logical span: -0.25 * P_nom .. +1.25 * P_nom (P_nom = 5000 PSI) => 1.5 * P_nom total
+
+Mapping formula (before clamp):
+
+```text
+rawPsi = (V / 5.0) * (1.5 * P_nom) - 0.25 * P_nom
+```
+
+Clamp applied:
+
+```text
+rawPsi_clamped = min( max(rawPsi, 0), P_nom )
+```
+
+Reasons:
+
+1. Headroom for slight sensor over‑range / calibration shift without saturating ADC early
+2. Negative region (below 0) absorbed by clamp—prevents underflow noise
+3. Safety logic and UI operate only on clamped nominal range (predictable thresholds)
+4. No change to MQTT payload schema; downstream consumers unaffected
+
+If future needs arise (publishing raw unclamped value, configurable span, or auto-calibration), the code has clear constants (`MAIN_PRESSURE_EXT_*`) ready for parameterization.
 
 ## Usage
 
-### Serial Commands
+### Serial / MQTT Commands
+
+```text
+help                             # Show available commands
+show                             # Compact status line (pressures, sequence, relays, safety)
+pins                             # (Serial only) Detailed pin mapping & modes
+set vref 3.3                     # Set ADC reference (used for ADC->Voltage)
+set maxpsi 5000                  # Set nominal max (non-extended channels / legacy path)
+set filter median3               # Filter: none | median3 | ema
+set gain 1.02                    # Apply scalar gain to raw pressure (legacy single-sensor path)
+set offset -12.5                 # Apply offset (" ")
+set pinmode 6 NC                 # Configure limit / input as NO or NC
+R1 ON                            # Shorthand relay control (works over MQTT & Serial)
+relay R2 OFF                     # Long form relay control
 ```
-help                          # Show available commands
-show                          # Display all system status
-pins                          # Show pin configurations (serial only)
-set vref 3.3                 # Set ADC reference voltage
-set maxpsi 3000              # Set maximum pressure range
-set filter median3           # Set pressure filter mode
-relay R1 ON                  # Control relay directly
+
+Example `show` response (single line):
+
+```text
+hydraulic=1234.5 hydraulic_oil=1180.2 seq=IDLE stage=NONE relays=1:ON,2:OFF safe=OK
 ```
+Exact tokens may vary; order kept stable for easy parsing.
 
 ### MQTT Topics
 
@@ -133,20 +170,24 @@ relay R1 ON                  # Control relay directly
 - `r4/control` - Command input
 - `r4/example/sub` - General messages
 
-**Publish (Status)**:
+**Publish (Status / Telemetry)**:
+
 - `r4/control/resp` - Command responses
-- `r4/pressure` - Pressure readings
+- `r4/pressure` - (Backward compat) Main hydraulic pressure (clamped)
+- `r4/pressure/hydraulic_system` - Main hydraulic pressure (clamped 0..5000)
+- `r4/pressure/hydraulic_filter` - Filter/oil pressure
+- `r4/pressure/status` - Key/value status line (pressures)
 - `r4/sequence/status` - Sequence state
-- `r4/sequence/event` - Sequence events
+- `r4/sequence/event` - Sequence transitions / notable events
 - `r4/inputs/{pin}` - Input state changes
 
 ## Safety Features
 
-1. **Pressure Safety**: Automatic shutdown if pressure exceeds 2750 PSI
+1. **Pressure Safety**: Automatic shutdown if clamped main pressure > 2750 PSI (A1 extended scaling still clamps before this check)
 2. **Sequence Timeouts**: Automatic abort if sequence takes too long
 3. **System Health**: Watchdog monitoring of main loop execution
-4. **Emergency Stop**: Multiple trigger conditions for safety shutdown
-5. **Input Validation**: Protection against malformed commands
+4. **Emergency Stop / Reset**: Safety reset on pin 4; single start on pin 5; manual controls on pins 2 & 3
+5. **Input Validation**: Protection against malformed commands & rate spikes
 
 ## Memory Usage
 
@@ -166,20 +207,23 @@ To compile this project:
 
 ## Migration Notes
 
-- **EEPROM**: Existing configurations will be automatically loaded
-- **Commands**: All original serial commands still work
-- **MQTT**: Same topics and message formats
-- **Pins**: Same pin assignments and relay mappings
-- **Behavior**: Functionally identical with improved reliability
+- **EEPROM**: Existing configurations automatically loaded
+- **Commands**: Legacy commands preserved; added shorthand `R<n> ON|OFF`
+- **MQTT**: Existing topics preserved; added explicit hydraulic system/filter topics & pressure status line
+- **Pins**: Updated logic: pin 4 now dedicated Safety Reset, pin 5 single Start button (replaces multi-button requirement), pins 2/3 manual action inputs
+- **Pressure Scaling**: Main channel (A1) now uses extended 0–5V mapping to -25%..+125% of nominal then clamps to 0..5000 for safety & display; no telemetry format changes required
+- **Behavior**: Improved reliability; sequence limit stability timing reduces false transitions
 
 ## Troubleshooting
 
 ### Build Issues
+
 - Ensure all header files are present in `include/` directory
 - Check that `arduino_secrets.h` contains WiFi credentials
 - Verify PlatformIO dependencies are installed
 
 ### Runtime Issues
+
 - Check serial output for initialization messages
 - Verify WiFi credentials and network connectivity
 - Use `show` command to check system status
@@ -188,6 +232,7 @@ To compile this project:
 ## Future Enhancements
 
 Potential areas for continued improvement:
+
 1. **OTA Updates**: Over-the-air firmware updates
 2. **Web Interface**: Built-in web server for configuration
 3. **Data Logging**: Local storage of pressure and sequence data
@@ -198,5 +243,5 @@ Potential areas for continued improvement:
 
 **Author**: Refactored from original monolithic design  
 **Date**: September 2025  
-**Version**: 2.0.0  
+**Version**: 2.1.0 (extended pressure scaling, shorthand relay commands)  
 **Compatibility**: Arduino UNO R4 WiFi with PlatformIO

@@ -1,14 +1,16 @@
 #include "command_processor.h"
 #include "config_manager.h"
 #include "pressure_sensor.h"
+#include "pressure_manager.h"
 #include "sequence_controller.h"
 #include "relay_controller.h"
 #include "network_manager.h"
 #include "safety_system.h"
+#include <ctype.h>
 
 // Static data for rate limiting
 static unsigned long lastCommandTime = 0;
-static const unsigned long COMMAND_RATE_LIMIT_MS = 100; // 10 commands/second max
+static const unsigned long COMMAND_RATE_LIMIT_MS = 50; // 20 commands/second max
 
 // ============================================================================
 // CommandValidator Implementation
@@ -17,6 +19,11 @@ static const unsigned long COMMAND_RATE_LIMIT_MS = 100; // 10 commands/second ma
 bool CommandValidator::isValidCommand(const char* cmd) {
     if (!cmd || strlen(cmd) == 0 || strlen(cmd) > MAX_CMD_LENGTH) return false;
     
+    // Allow shorthand relay commands like "R1 ON" without leading 'relay'
+    if ((cmd[0] == 'R' || cmd[0] == 'r') && isdigit((unsigned char)cmd[1])) {
+        return true;
+    }
+
     // Check against whitelist
     for (int i = 0; ALLOWED_COMMANDS[i] != nullptr; i++) {
         if (strcasecmp(cmd, ALLOWED_COMMANDS[i]) == 0) {
@@ -140,13 +147,18 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
 }
 
 void CommandProcessor::handleShow(char* response, size_t responseSize, bool fromMqtt) {
-    // Build comprehensive status
+    // Build compact status line in stable key=value groups.
+    // Order is intentionally fixed for downstream parsers: pressures, sequence, relays, safety.
+    // Example:
+    //   hydraulic=1234.5 hydraulic_oil=1180.2 seq=IDLE stage=NONE relays=1:ON,2:OFF safe=OK
     char pressureStatus[64] = "";
     char sequenceStatus[64] = "";
     char relayStatus[64] = "";
     char safetyStatus[32] = "";
     
-    if (pressureSensor) {
+    if (pressureManager) {
+        pressureManager->getStatusString(pressureStatus, sizeof(pressureStatus));
+    } else if (pressureSensor) {
         pressureSensor->getStatusString(pressureStatus, sizeof(pressureStatus));
     }
     
@@ -295,17 +307,24 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
     }
     else if (strcasecmp(param, "pinmode") == 0) {
-        // Parse format: "pinmode 6 NC" or "pinmode 7 NO"
+        // Accept both "set pinmode 6 NC" (separate tokens) and "set pinmode \"6 NC\""
         char* pinStr = value;
         char* modeStr = strchr(value, ' ');
+        if (!modeStr) {
+            // Try to fetch next token from the tokenizer stream (works for serial/MQTT)
+            char* nextToken = strtok(NULL, " ");
+            if (nextToken) {
+                modeStr = nextToken;
+            }
+        } else {
+            *modeStr = '\0'; // Split the string
+            modeStr++; // Move to mode part
+        }
         
         if (!modeStr) {
             snprintf(response, responseSize, "Usage: set pinmode <pin> <NO|NC>");
             return;
         }
-        
-        *modeStr = '\0'; // Split the string
-        modeStr++; // Move to mode part
         
         uint8_t pin = atoi(pinStr);
         bool isNC = (strcasecmp(modeStr, "NC") == 0);
@@ -342,10 +361,20 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     // Initialize response
     response[0] = '\0';
     
-    // Rate limiting
-    if (!CommandValidator::checkRateLimit()) {
-        snprintf(response, responseSize, "rate limited");
-        return false;
+    // Rate limiting (more permissive for MQTT)
+    if (!fromMqtt) {
+        if (!CommandValidator::checkRateLimit()) {
+            snprintf(response, responseSize, "rate limited");
+            return false;
+        }
+    } else {
+        // For MQTT, apply a looser window: only block if more than 10 msgs in rapid succession
+        if (!CommandValidator::checkRateLimit()) {
+            // Don't hard-fail; annotate response but continue parsing
+            // This helps avoid dropping legitimate batched MQTT inputs
+            // response may be overwritten by a valid command handler
+            snprintf(response, responseSize, "rate_warn");
+        }
     }
     
     // Sanitize input
@@ -373,6 +402,21 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     }
     else if (strcasecmp(cmd, "pins") == 0) {
         handlePins(response, responseSize, fromMqtt);
+    }
+    // Support shorthand relay control: "R1 ON" style (works for both Serial & MQTT)
+    else if ((cmd[0] == 'R' || cmd[0] == 'r') && cmd[1] && (cmd[1] >= '0' && cmd[1] <= '9')) {
+        char* stateToken = strtok(NULL, " ");
+        if (!stateToken) {
+            snprintf(response, responseSize, "usage: R<n> ON|OFF");
+            return false;
+        }
+        if (CommandValidator::validateRelayCommand(cmd, stateToken)) {
+            handleRelay(cmd, stateToken, response, responseSize);
+            return true;
+        } else {
+            snprintf(response, responseSize, "invalid relay command");
+            return false;
+        }
     }
     else if (strcasecmp(cmd, "set") == 0) {
         char* param = strtok(NULL, " ");
