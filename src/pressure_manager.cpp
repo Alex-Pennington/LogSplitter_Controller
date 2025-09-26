@@ -36,6 +36,7 @@ void PressureSensorChannel::update() {
         // Calculate current pressure
         float avgCounts = computeAverageCount();
             float voltage = (avgCounts / (float)(1 << ADC_RESOLUTION_BITS)) * adcVref;
+            lastVoltage = voltage; // store raw computed voltage before clamping / mapping for diagnostics
 
             // Extended scaling only for main hydraulic sensor (A1)
             if (analogPin == HYDRAULIC_PRESSURE_PIN) {
@@ -182,16 +183,21 @@ void PressureManager::publishPressures() {
     
     char buffer[64];
     
-    // Publish individual pressure readings with clear labels
+    // Publish individual pressure readings with clear labels (plus raw voltages)
     if (sensors[SENSOR_HYDRAULIC].isReady()) {
         snprintf(buffer, sizeof(buffer), "%.1f", getHydraulicPressure());
         networkManager->publish(TOPIC_HYDRAULIC_SYSTEM_PRESSURE, buffer);
         networkManager->publish(TOPIC_PRESSURE, buffer); // Backward compatibility
+        // Voltage (2 decimal precision for calibration insight)
+        snprintf(buffer, sizeof(buffer), "%.2f", sensors[SENSOR_HYDRAULIC].getVoltage());
+        networkManager->publish(TOPIC_HYDRAULIC_SYSTEM_VOLTAGE, buffer);
     }
     
     if (sensors[SENSOR_HYDRAULIC_OIL].isReady()) {
         snprintf(buffer, sizeof(buffer), "%.1f", getHydraulicOilPressure());
         networkManager->publish(TOPIC_HYDRAULIC_FILTER_PRESSURE, buffer);
+        snprintf(buffer, sizeof(buffer), "%.2f", sensors[SENSOR_HYDRAULIC_OIL].getVoltage());
+        networkManager->publish(TOPIC_HYDRAULIC_FILTER_VOLTAGE, buffer);
     }
     
     // Publish combined status
@@ -201,8 +207,10 @@ void PressureManager::publishPressures() {
 
 void PressureManager::getStatusString(char* buffer, size_t bufferSize) {
     snprintf(buffer, bufferSize, 
-        "hydraulic=%.1f hydraulic_oil=%.1f",
+        "hydraulic=%.1f hydraulicV=%.2f hydraulic_oil=%.1f hydraulic_oilV=%.2f",
         getHydraulicPressure(),
-        getHydraulicOilPressure()
+        sensors[SENSOR_HYDRAULIC].getVoltage(),
+        getHydraulicOilPressure(),
+        sensors[SENSOR_HYDRAULIC_OIL].getVoltage()
     );
 }

@@ -21,6 +21,9 @@ const char TOPIC_CONTROL_RESP[] PROGMEM = "r4/control/resp";
 const char TOPIC_PRESSURE[] PROGMEM = "r4/pressure";
 const char TOPIC_HYDRAULIC_SYSTEM_PRESSURE[] PROGMEM = "r4/pressure/hydraulic_system";
 const char TOPIC_HYDRAULIC_FILTER_PRESSURE[] PROGMEM = "r4/pressure/hydraulic_filter";
+// Added voltage topics for diagnostic / calibration insight
+const char TOPIC_HYDRAULIC_SYSTEM_VOLTAGE[] PROGMEM = "r4/pressure/hydraulic_system_voltage";
+const char TOPIC_HYDRAULIC_FILTER_VOLTAGE[] PROGMEM = "r4/pressure/hydraulic_filter_voltage";
 const char TOPIC_PRESSURE_STATUS[] PROGMEM = "r4/pressure/status";
 const char TOPIC_SEQUENCE_STATUS[] PROGMEM = "r4/sequence/status";
 const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "r4/sequence/event";
@@ -62,7 +65,7 @@ const uint8_t HYDRAULIC_OIL_PRESSURE_PIN = A5;  // Hydraulic oil pressure (A5)
 
 // Pressure Sensor Specifications
 const float SENSOR_MIN_VOLTAGE = 0.0f;          // 0V reference
-const float SENSOR_MAX_VOLTAGE = 4.5f;          // Default sensor full-scale (most ratiometric 0-4.5V sensors)
+const float SENSOR_MAX_VOLTAGE = 5.0f;          // Default sensor full-scale (most ratiometric 0-4.5V sensors)
 
 // Main hydraulic channel (A1) extended scaling:
 //   Electrical span 0–5.0V represents -25% .. +125% of nominal hydraulic max (1.5 * nominal span).

@@ -30,6 +30,7 @@ private:
     
     // Current values
     float currentPressure = 0.0f;
+    float lastVoltage = 0.0f; // Most recent computed average voltage (after filtering -> average counts)
     
     // Helper methods
     int applyFilter(int rawValue);
@@ -53,6 +54,7 @@ public:
     
     // Current readings
     float getPressure() const { return currentPressure; }
+    float getVoltage() const { return lastVoltage; }
     bool isReady() const { return samplesFilled > 0; }
     uint8_t getPin() const { return analogPin; }
     float getMaxPressure() const { return maxPressurePsi; }
