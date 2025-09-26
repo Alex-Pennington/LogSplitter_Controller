@@ -31,6 +31,7 @@ private:
     // System components (injected)
     class ConfigManager* configManager = nullptr;
     class PressureSensor* pressureSensor = nullptr;
+    class PressureManager* pressureManager = nullptr;
     class SequenceController* sequenceController = nullptr;
     class RelayController* relayController = nullptr;
     class NetworkManager* networkManager = nullptr;
@@ -49,6 +50,7 @@ public:
     // Dependency injection
     void setConfigManager(class ConfigManager* config) { configManager = config; }
     void setPressureSensor(class PressureSensor* pressure) { pressureSensor = pressure; }
+    void setPressureManager(class PressureManager* pm) { pressureManager = pm; }
     void setSequenceController(class SequenceController* seq) { sequenceController = seq; }
     void setRelayController(class RelayController* relay) { relayController = relay; }
     void setNetworkManager(class NetworkManager* network) { networkManager = network; }

@@ -6,6 +6,9 @@
 extern RelayController* g_relayController;
 extern NetworkManager* g_networkManager;
 extern void debugPrintf(const char* fmt, ...);
+// Limit switch states maintained in main
+extern bool g_limitExtendActive;   // Pin 6 - fully extended
+extern bool g_limitRetractActive;  // Pin 7 - fully retracted
 
 void SequenceController::enterState(SequenceState newState) {
     if (currentState != newState) {
@@ -140,6 +143,9 @@ void SequenceController::update() {
                     g_relayController->setRelay(RELAY_RETRACT, false);
                 }
                 allowButtonRelease = true;
+                // Log configured stability windows for quick reference
+                debugPrintf("[SEQ] Start confirmed; stable windows: limit=%lums start=%lums\n", 
+                    stableTimeMs, startStableTimeMs);
                 
                 // Publish sequence start
                 if (g_networkManager && g_networkManager->isConnected()) {
@@ -149,12 +155,60 @@ void SequenceController::update() {
             }
             break;
             
+        case SEQ_STAGE1_ACTIVE:
         case SEQ_STAGE1_WAIT_LIMIT:
-            // Handled in processInputChange when limit pin changes
+            // Poll extend limit; require it to remain ACTIVE for stableTimeMs
+            if (g_limitExtendActive) {
+                if (lastLimitChangeTime == 0) {
+                    lastLimitChangeTime = now; // start stability timer
+                    debugPrintf("[SEQ] Limit 6 rise; timing for %lums\n", stableTimeMs);
+                } else if (now - lastLimitChangeTime >= stableTimeMs) {
+                    // Transition to stage 2 (retract)
+                    debugPrintf("[SEQ] Limit 6 stable for %lums; switching to R2\n", now - lastLimitChangeTime);
+                    enterState(SEQ_STAGE2_ACTIVE);
+                    if (g_relayController) {
+                        g_relayController->setRelay(RELAY_EXTEND, false);
+                        g_relayController->setRelay(RELAY_RETRACT, true);
+                    }
+                    lastLimitChangeTime = 0; // reset for next stage
+                    if (g_networkManager && g_networkManager->isConnected()) {
+                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "switched_to_R2");
+                    }
+                }
+            } else {
+                if (lastLimitChangeTime != 0) {
+                    debugPrintf("[SEQ] Limit 6 lost before stable (%lums elapsed)\n", now - lastLimitChangeTime);
+                }
+                lastLimitChangeTime = 0; // lost stability, reset timer
+            }
             break;
-            
+
+        case SEQ_STAGE2_ACTIVE:
         case SEQ_STAGE2_WAIT_LIMIT:
-            // Handled in processInputChange when limit pin changes
+            // Poll retract limit; require stable ACTIVE before finishing
+            if (g_limitRetractActive) {
+                if (lastLimitChangeTime == 0) {
+                    lastLimitChangeTime = now;
+                    debugPrintf("[SEQ] Limit 7 rise; timing for %lums\n", stableTimeMs);
+                } else if (now - lastLimitChangeTime >= stableTimeMs) {
+                    debugPrintf("[SEQ] Limit 7 stable for %lums; complete\n", now - lastLimitChangeTime);
+                    if (g_relayController) {
+                        g_relayController->setRelay(RELAY_RETRACT, false);
+                    }
+                    enterState(SEQ_IDLE);
+                    allowButtonRelease = false;
+                    lastLimitChangeTime = 0;
+                    if (g_networkManager && g_networkManager->isConnected()) {
+                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "complete");
+                        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "complete");
+                    }
+                }
+            } else {
+                if (lastLimitChangeTime != 0) {
+                    debugPrintf("[SEQ] Limit 7 lost before stable (%lums elapsed)\n", now - lastLimitChangeTime);
+                }
+                lastLimitChangeTime = 0;
+            }
             break;
             
         default:
@@ -209,19 +263,13 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
                 }
             }
             
-            // Check limit pin 6
+            // Rising edge on limit 6: start stability timer and wait in update()
             if (pin == 6 && state) {
-                if (checkStableLimit(pin, state)) {
-                    // Transition to stage 2
-                    enterState(SEQ_STAGE2_ACTIVE);
-                    if (g_relayController) {
-                        g_relayController->setRelay(RELAY_EXTEND, false);
-                        g_relayController->setRelay(RELAY_RETRACT, true);
-                    }
-                    
-                    if (g_networkManager && g_networkManager->isConnected()) {
-                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "switched_to_R2");
-                    }
+                lastLimitChangeTime = now;
+                debugPrintf("[SEQ] Limit 6 edge detected; starting stability timing\n");
+                // hint state for clarity, update() handles the transition safely
+                if (currentState == SEQ_STAGE1_ACTIVE) {
+                    enterState(SEQ_STAGE1_WAIT_LIMIT);
                 }
             }
             break;
@@ -241,21 +289,12 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
                 }
             }
             
-            // Check limit pin 7
+            // Rising edge on limit 7: start stability timer and wait in update()
             if (pin == 7 && state) {
-                if (checkStableLimit(pin, state)) {
-                    // Sequence complete
-                    if (g_relayController) {
-                        g_relayController->setRelay(RELAY_RETRACT, false);
-                    }
-                    
-                    enterState(SEQ_IDLE);
-                    allowButtonRelease = false;
-                    
-                    if (g_networkManager && g_networkManager->isConnected()) {
-                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "complete");
-                        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "complete");
-                    }
+                lastLimitChangeTime = now;
+                debugPrintf("[SEQ] Limit 7 edge detected; starting stability timing\n");
+                if (currentState == SEQ_STAGE2_ACTIVE) {
+                    enterState(SEQ_STAGE2_WAIT_LIMIT);
                 }
             }
             break;

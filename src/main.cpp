@@ -106,12 +106,13 @@ void debugPrintf(const char* fmt, ...) {
     Serial.print(ts);
     Serial.print("] ");
     
+    char dbgBuf[SHARED_BUFFER_SIZE];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
+    vsnprintf(dbgBuf, sizeof(dbgBuf), fmt, args);
     va_end(args);
     
-    Serial.print(g_message_buffer);
+    Serial.print(dbgBuf);
 }
 
 // ============================================================================
@@ -145,17 +146,36 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
 }
 
 void onMqttMessage(int messageSize) {
-    // Read message into global buffer
+    // Capture topic for diagnostics
+    String topic = networkManager.getMqttClient().messageTopic();
+    
+    // Read exactly the announced payload size into a local buffer (cap to SHARED_BUFFER_SIZE - 1)
+    char payload[SHARED_BUFFER_SIZE];
+    int toRead = min(messageSize, (int)sizeof(payload) - 1);
     int idx = 0;
-    while (networkManager.getMqttClient().available() && idx < SHARED_BUFFER_SIZE - 1) {
-        g_message_buffer[idx++] = (char)networkManager.getMqttClient().read();
+    while (idx < toRead && networkManager.getMqttClient().available()) {
+        payload[idx++] = (char)networkManager.getMqttClient().read();
     }
-    g_message_buffer[idx] = '\0';
+    payload[idx] = '\0';
     
-    debugPrintf("MQTT message received: %s\n", g_message_buffer);
+    // Trim leading/trailing whitespace in-place
+    int start = 0;
+    while (payload[start] == ' ' || payload[start] == '\t' || payload[start] == '\r' || payload[start] == '\n') start++;
+    int end = idx - 1;
+    while (end >= start && (payload[end] == ' ' || payload[end] == '\t' || payload[end] == '\r' || payload[end] == '\n')) end--;
+    int newLen = (end >= start) ? (end - start + 1) : 0;
+    if (start > 0 && newLen > 0) {
+        memmove(payload, payload + start, newLen);
+    }
+    payload[newLen] = '\0';
     
-    // Process command
-    bool success = commandProcessor.processCommand(g_message_buffer, true, g_response_buffer, SHARED_BUFFER_SIZE);
+    debugPrintf("MQTT msg on '%s' (%dB): '%s'\n", topic.c_str(), messageSize, payload);
+    
+    // Process command (fromMqtt = true)
+    // Copy payload into the shared command buffer for processing (safe copy)
+    strncpy(g_command_buffer, payload, sizeof(g_command_buffer) - 1);
+    g_command_buffer[sizeof(g_command_buffer) - 1] = '\0';
+    bool success = commandProcessor.processCommand(g_command_buffer, true, g_response_buffer, SHARED_BUFFER_SIZE);
     
     // Send response if we have one
     if (strlen(g_response_buffer) > 0) {
@@ -163,7 +183,7 @@ void onMqttMessage(int messageSize) {
     }
     
     if (!success) {
-        debugPrintf("Command processing failed\n");
+        debugPrintf("Command processing failed: %s\n", g_response_buffer);
     }
 }
 
@@ -213,7 +233,8 @@ bool initializeSystem() {
     
     // Initialize command processor
     commandProcessor.setConfigManager(&configManager);
-    // commandProcessor.setPressureSensor(&pressureManager); // Update if needed
+    // Legacy single-sensor interface is optional; use PressureManager when available
+    commandProcessor.setPressureManager(&pressureManager);
     commandProcessor.setSequenceController(&sequenceController);
     commandProcessor.setRelayController(&relayController);
     commandProcessor.setNetworkManager(&networkManager);
