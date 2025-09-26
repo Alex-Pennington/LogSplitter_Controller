@@ -143,6 +143,12 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
             relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
         } 
     }
+
+    // On any ACTIVE button press (state true) publish a pressure snapshot immediately
+    // (Includes limit switches, but harmless; they give context to transitions.)
+    if (state && networkManager.isConnected()) {
+        pressureManager.publishPressures();
+    }
 }
 
 void onMqttMessage(int messageSize) {

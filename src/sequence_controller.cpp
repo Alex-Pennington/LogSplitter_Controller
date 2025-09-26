@@ -1,6 +1,7 @@
 #include "sequence_controller.h"
 #include "relay_controller.h"
 #include "network_manager.h"
+#include "pressure_manager.h"
 
 // External references for relay control and network publishing
 extern RelayController* g_relayController;
@@ -9,6 +10,8 @@ extern void debugPrintf(const char* fmt, ...);
 // Limit switch states maintained in main
 extern bool g_limitExtendActive;   // Pin 6 - fully extended
 extern bool g_limitRetractActive;  // Pin 7 - fully retracted
+// Pressure manager (defined in main.cpp)
+extern PressureManager pressureManager;
 
 void SequenceController::enterState(SequenceState newState) {
     if (currentState != newState) {
@@ -18,6 +21,11 @@ void SequenceController::enterState(SequenceState newState) {
         
         // Reset limit change timer on state entry
         lastLimitChangeTime = 0;
+
+        // Publish immediate pressure snapshot on every sequence state change
+        if (g_networkManager && g_networkManager->isConnected()) {
+            pressureManager.publishPressures();
+        }
     }
 }
 
