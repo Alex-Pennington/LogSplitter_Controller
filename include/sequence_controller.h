@@ -70,4 +70,5 @@ public:
     
     // Status for telemetry
     void getStatusString(char* buffer, size_t bufferSize);
+    void publishIndividualData();
 };

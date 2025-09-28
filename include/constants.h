@@ -34,6 +34,18 @@ const char TOPIC_PRESSURE_STATUS[] PROGMEM = "r4/pressure/status";
 const char TOPIC_SEQUENCE_STATUS[] PROGMEM = "r4/sequence/status";
 const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "r4/sequence/event";
 const char TOPIC_SEQUENCE_STATE[] PROGMEM = "r4/sequence/state";
+// Individual sequence data topics for database integration
+const char TOPIC_SEQUENCE_STAGE[] PROGMEM = "r4/data/sequence_stage";
+const char TOPIC_SEQUENCE_ACTIVE[] PROGMEM = "r4/data/sequence_active";
+const char TOPIC_SEQUENCE_ELAPSED[] PROGMEM = "r4/data/sequence_elapsed";
+const char TOPIC_SYSTEM_UPTIME[] PROGMEM = "r4/data/system_uptime";
+const char TOPIC_SAFETY_ACTIVE[] PROGMEM = "r4/data/safety_active";
+const char TOPIC_ESTOP_ACTIVE[] PROGMEM = "r4/data/estop_active";
+const char TOPIC_ESTOP_LATCHED[] PROGMEM = "r4/data/estop_latched";
+const char TOPIC_LIMIT_EXTEND[] PROGMEM = "r4/data/limit_extend";
+const char TOPIC_LIMIT_RETRACT[] PROGMEM = "r4/data/limit_retract";
+const char TOPIC_RELAY_R1[] PROGMEM = "r4/data/relay_r1";
+const char TOPIC_RELAY_R2[] PROGMEM = "r4/data/relay_r2";
 
 // Pin Configuration
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};

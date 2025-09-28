@@ -334,17 +334,60 @@ void updateSystem() {
     checkSystemHealth();
 }
 
+void publishSystemData() {
+    if (!networkManager.isConnected()) {
+        return;
+    }
+    
+    char buffer[16];
+    
+    // Safety system state
+    snprintf(buffer, sizeof(buffer), "%d", safetySystem.isActive() ? 1 : 0);
+    networkManager.publish(TOPIC_SAFETY_ACTIVE, buffer);
+    
+    // Emergency stop states
+    snprintf(buffer, sizeof(buffer), "%d", g_emergencyStopActive ? 1 : 0);
+    networkManager.publish(TOPIC_ESTOP_ACTIVE, buffer);
+    
+    snprintf(buffer, sizeof(buffer), "%d", g_emergencyStopLatched ? 1 : 0);
+    networkManager.publish(TOPIC_ESTOP_LATCHED, buffer);
+    
+    // Limit switch states
+    snprintf(buffer, sizeof(buffer), "%d", g_limitExtendActive ? 1 : 0);
+    networkManager.publish(TOPIC_LIMIT_EXTEND, buffer);
+    
+    snprintf(buffer, sizeof(buffer), "%d", g_limitRetractActive ? 1 : 0);
+    networkManager.publish(TOPIC_LIMIT_RETRACT, buffer);
+    
+    // Relay states
+    snprintf(buffer, sizeof(buffer), "%d", relayController.getRelayState(RELAY_EXTEND) ? 1 : 0);
+    networkManager.publish(TOPIC_RELAY_R1, buffer);
+    
+    snprintf(buffer, sizeof(buffer), "%d", relayController.getRelayState(RELAY_RETRACT) ? 1 : 0);
+    networkManager.publish(TOPIC_RELAY_R2, buffer);
+}
+
 void publishTelemetry() {
     unsigned long now = millis();
     
     if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
         lastPublishTime = now;
         
-        // Publish sequence status
+        // Publish legacy sequence status (for backward compatibility)
         sequenceController.getStatusString(g_message_buffer, SHARED_BUFFER_SIZE);
         networkManager.publish(TOPIC_SEQUENCE_STATUS, g_message_buffer);
         
-        // Publish heartbeat
+        // Publish individual sequence data for database integration
+        sequenceController.publishIndividualData();
+        
+        // Publish individual system data values
+        publishSystemData();
+        
+        // Publish heartbeat with just timestamp value
+        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "%lu", now);
+        networkManager.publish(TOPIC_SYSTEM_UPTIME, g_message_buffer);
+        
+        // Keep legacy heartbeat for backward compatibility
         snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "T: %lu", now);
         networkManager.publish(TOPIC_PUBLISH, g_message_buffer);
     }

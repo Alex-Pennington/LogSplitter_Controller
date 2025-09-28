@@ -264,21 +264,45 @@ relay r3 on
 
 ## MQTT Data Topics
 
-The controller publishes real-time data to the following MQTT topics:
+The controller publishes real-time data to MQTT topics optimized for database integration. Each topic contains a single data value as the payload for streamlined data storage and analysis.
 
 ### Pressure Data (Published every 10 seconds)
-- **r4/pressure**: Combined pressure readings (backward compatibility)
-- **r4/pressure/hydraulic_system**: Hydraulic system pressure (A1 sensor)
-- **r4/pressure/hydraulic_filter**: Hydraulic filter pressure (A5 sensor)
-- **r4/pressure/status**: Pressure system status and alerts
+- **r4/pressure/hydraulic_system** → Hydraulic system pressure (PSI)
+- **r4/pressure/hydraulic_filter** → Hydraulic filter pressure (PSI)
+- **r4/pressure/hydraulic_system_voltage** → A1 sensor voltage (V)
+- **r4/pressure/hydraulic_filter_voltage** → A5 sensor voltage (V)
+- **r4/pressure** → Main pressure (backward compatibility)
 
-### Sequence Control
-- **r4/sequence/status**: Current sequence state (IDLE, EXTENDING, RETRACTING, etc.)
-- **r4/sequence/event**: Sequence events and state changes
-- **r4/sequence/state**: Detailed sequence controller state
+### System Data (Published every 10 seconds)
+- **r4/data/system_uptime** → System uptime (milliseconds)
+- **r4/data/safety_active** → Safety system active (1/0)
+- **r4/data/estop_active** → E-Stop button pressed (1/0)
+- **r4/data/estop_latched** → E-Stop latched state (1/0)
+- **r4/data/limit_extend** → Extend limit switch (1/0)
+- **r4/data/limit_retract** → Retract limit switch (1/0)
+- **r4/data/relay_r1** → Extend relay state (1/0)
+- **r4/data/relay_r2** → Retract relay state (1/0)
 
-### System Status
-- **r4/example/pub**: General system telemetry
+### Sequence Data (Published every 10 seconds)
+- **r4/data/sequence_stage** → Current sequence stage (0-2)
+- **r4/data/sequence_active** → Sequence running (1/0)
+- **r4/data/sequence_elapsed** → Sequence elapsed time (milliseconds)
+
+### Sequence Events (Published on state changes)
+- **r4/sequence/event** → Sequence events (start, complete, abort, etc.)
+- **r4/sequence/state** → Sequence state changes (start, complete, abort)
+
+### Legacy Topics (Backward Compatibility)
+- **r4/sequence/status** → Complex sequence status string
+- **r4/example/pub** → Timestamp heartbeat
+- **r4/control/resp** → Command responses and system messages
+
+### Database Integration Benefits
+- **Simple Values**: Each topic contains only the data value (no parsing required)
+- **Consistent Format**: Numeric values as strings, boolean values as 1/0
+- **Clear Naming**: Topic name directly indicates the data type
+- **Efficient Storage**: Minimal payload overhead for database insertion
+- **Scalable**: Easy to add new data points as individual topics
 
 ## Safety Features
 

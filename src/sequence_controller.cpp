@@ -331,3 +331,21 @@ void SequenceController::getStatusString(char* buffer, size_t bufferSize) {
         timeoutMs
     );
 }
+
+void SequenceController::publishIndividualData() {
+    if (!g_networkManager || !g_networkManager->isConnected()) {
+        return;
+    }
+    
+    char buffer[16];
+    
+    // Publish individual sequence values for database integration
+    snprintf(buffer, sizeof(buffer), "%u", getStage());
+    g_networkManager->publish(TOPIC_SEQUENCE_STAGE, buffer);
+    
+    snprintf(buffer, sizeof(buffer), "%d", (currentState != SEQ_IDLE) ? 1 : 0);
+    g_networkManager->publish(TOPIC_SEQUENCE_ACTIVE, buffer);
+    
+    snprintf(buffer, sizeof(buffer), "%lu", getElapsedTime());
+    g_networkManager->publish(TOPIC_SEQUENCE_ELAPSED, buffer);
+}
