@@ -17,13 +17,12 @@ void RelayController::begin() {
     sendCommand(RELAY_POWER_PIN, false);
     boardPowered = true;
     
-    Serial.println("RelayController initialized");
+    debugPrintf("RelayController initialized\n");
 }
 
 void RelayController::sendCommand(uint8_t relayNumber, bool on) {
     if (relayNumber < 1 || relayNumber > MAX_RELAYS) {
-        Serial.print("Invalid relay number: ");
-        Serial.println(relayNumber);
+        debugPrintf("Invalid relay number: %d\n", relayNumber);
         return;
     }
     
@@ -210,14 +209,13 @@ bool RelayController::processCommand(const char* relayToken, const char* stateTo
     
     // Parse relay token (expect "R1" to "R9" or "r1" to "r9")
     if ((relayToken[0] != 'R' && relayToken[0] != 'r') || strlen(relayToken) < 2) {
-        Serial.println("Invalid relay token format");
+        debugPrintf("Invalid relay token format\n");
         return false;
     }
     
     int relayNum = atoi(relayToken + 1);
     if (relayNum < 1 || relayNum > MAX_RELAYS) {
-        Serial.print("Invalid relay number: ");
-        Serial.println(relayNum);
+        debugPrintf("Invalid relay number: %d\n", relayNum);
         return false;
     }
     
@@ -226,8 +224,7 @@ bool RelayController::processCommand(const char* relayToken, const char* stateTo
     bool off = (strcasecmp(stateToken, "OFF") == 0);
     
     if (!on && !off) {
-        Serial.print("Invalid relay state: ");
-        Serial.println(stateToken);
+        debugPrintf("Invalid relay state: %s\n", stateToken);
         return false;
     }
     
@@ -237,8 +234,7 @@ bool RelayController::processCommand(const char* relayToken, const char* stateTo
     // Provide feedback
     char response[32];
     snprintf(response, sizeof(response), "relay %s %s", relayToken, on ? "ON" : "OFF");
-    Serial.print("Relay command executed: ");
-    Serial.println(response);
+    debugPrintf("Relay command executed: %s\n", response);
     
     return true;
 }
