@@ -31,7 +31,7 @@ COMMAND [parameter] [value]
 **Example**:
 ```
 > help
-Commands: help, show, pins, set <param> <val>, relay R<n> ON|OFF
+Commands: help, show, debug, pins, set <param> <val>, relay R<n> ON|OFF
 ```
 
 ### 2. SHOW
@@ -48,7 +48,31 @@ Relays: R1=OFF(RETRACT) R2=OFF(EXTEND)
 Safety: Manual Override=OFF, Pressure OK
 ```
 
-### 3. PINS
+### 3. DEBUG
+**Description**: Enable or disable debug output to serial console
+**Syntax**: `debug [ON|OFF]`
+**Access**: Serial + MQTT
+
+**Examples**:
+```
+> debug
+debug OFF
+
+> debug ON
+debug ON
+
+> debug off
+debug OFF
+```
+
+**Note**: Debug output is **disabled by default** to reduce serial console noise. When enabled, the system outputs detailed diagnostic information including:
+- Input pin state changes
+- Limit switch activations  
+- MQTT message details
+- Pressure sensor initialization
+- Command processing status
+
+### 4. PINS
 **Description**: Display current PIN mode configuration for all Arduino pins
 **Syntax**: `pins`
 **Access**: Serial ONLY (Security restriction)
@@ -63,7 +87,7 @@ Pin 2: INPUT
 Pin 13: OUTPUT
 ```
 
-### 4. SET
+### 5. SET
 **Description**: Configure system parameters with EEPROM persistence
 **Syntax**: `set <parameter> <value>`
 **Access**: Serial + MQTT
@@ -136,6 +160,16 @@ Pin 13: OUTPUT
   
   > set pinmode 2 INPUT_PULLUP
   set pinmode pin=2 mode=INPUT_PULLUP
+  ```
+
+##### Debug Control
+- **debug** - Enable/disable debug output (1/0, ON/OFF, default: OFF)
+  ```
+  > set debug ON
+  set debug=ON
+  
+  > set debug 0
+  set debug=OFF
   ```
 
 ### 5. RELAY
@@ -228,13 +262,23 @@ All commands undergo strict validation:
 
 ```
 > help
-Commands: help, show, pins, set <param> <val>, relay R<n> ON|OFF
+Commands: help, show, debug, pins, set <param> <val>, relay R<n> ON|OFF
+
+> debug
+debug OFF
+
+> debug on
+debug ON
+Debug output enabled
 
 > show
 Pressure: Main=0.0 PSI, Hydraulic=0.0 PSI
 Sequence: IDLE, Safety: OK
 Relays: R1=OFF(RETRACT) R2=OFF(EXTEND)
 Safety: Manual Override=OFF, Pressure OK
+
+> set debug OFF
+debug OFF
 
 > set maxpsi 4000
 set maxpsi=4000

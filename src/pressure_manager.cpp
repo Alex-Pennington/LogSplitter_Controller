@@ -201,8 +201,8 @@ void PressureManager::publishPressures() {
     }
     
     // Publish combined status
-    getStatusString(buffer, sizeof(buffer));
-    networkManager->publish(TOPIC_PRESSURE_STATUS, buffer);
+    //getStatusString(buffer, sizeof(buffer));
+    //networkManager->publish(TOPIC_PRESSURE_STATUS, buffer);
 }
 
 void PressureManager::getStatusString(char* buffer, size_t bufferSize) {

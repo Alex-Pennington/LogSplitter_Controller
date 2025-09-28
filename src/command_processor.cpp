@@ -8,6 +8,9 @@
 #include "safety_system.h"
 #include <ctype.h>
 
+// External debug flag
+extern bool g_debugEnabled;
+
 // Static data for rate limiting
 static unsigned long lastCommandTime = 0;
 static const unsigned long COMMAND_RATE_LIMIT_MS = 50; // 20 commands/second max
@@ -138,11 +141,11 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, pins";
-    if (fromMqtt) {
-        snprintf(response, responseSize, "%s, set <param> <val>, relay R<n> ON|OFF", helpText);
+    const char* helpText = "Commands: help, show, debug";
+    if (!fromMqtt) {
+        snprintf(response, responseSize, "%s, pins, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
-        snprintf(response, responseSize, "%s (+ pins command available in serial)", helpText);
+        snprintf(response, responseSize, "%s, set <param> <val>, relay R<n> ON|OFF", helpText);
     }
 }
 
@@ -343,6 +346,17 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             snprintf(response, responseSize, "Config manager not available");
         }
     }
+    else if (strcasecmp(param, "debug") == 0) {
+        if (strcasecmp(value, "on") == 0 || strcasecmp(value, "1") == 0) {
+            g_debugEnabled = true;
+            snprintf(response, responseSize, "debug ON");
+        } else if (strcasecmp(value, "off") == 0 || strcasecmp(value, "0") == 0) {
+            g_debugEnabled = false;
+            snprintf(response, responseSize, "debug OFF");
+        } else {
+            snprintf(response, responseSize, "debug value must be ON|OFF|1|0");
+        }
+    }
     // Add more parameter handlers as needed
     else {
         snprintf(response, responseSize, "unknown parameter %s", param);
@@ -354,6 +368,26 @@ void CommandProcessor::handleRelay(char* relayToken, char* stateToken, char* res
         snprintf(response, responseSize, "relay %s %s", relayToken, stateToken);
     } else {
         snprintf(response, responseSize, "relay command failed");
+    }
+}
+
+void CommandProcessor::handleDebug(char* param, char* response, size_t responseSize) {
+    if (!param) {
+        // Show current debug status
+        snprintf(response, responseSize, "debug %s", g_debugEnabled ? "ON" : "OFF");
+        return;
+    }
+    
+    if (strcasecmp(param, "on") == 0 || strcasecmp(param, "1") == 0) {
+        g_debugEnabled = true;
+        snprintf(response, responseSize, "debug ON");
+        Serial.println("Debug output enabled");
+    } else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "0") == 0) {
+        g_debugEnabled = false;
+        snprintf(response, responseSize, "debug OFF");
+        Serial.println("Debug output disabled");
+    } else {
+        snprintf(response, responseSize, "usage: debug [ON|OFF]");
     }
 }
 
@@ -437,6 +471,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         } else {
             snprintf(response, responseSize, "invalid relay command");
         }
+    }
+    else if (strcasecmp(cmd, "debug") == 0) {
+        char* param = strtok(NULL, " ");
+        handleDebug(param, response, responseSize);
     }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);

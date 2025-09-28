@@ -100,7 +100,12 @@ void checkSystemHealth() {
 // Debug Utilities
 // ============================================================================
 
+// Global debug flag - disabled by default
+bool g_debugEnabled = false;
+
 void debugPrintf(const char* fmt, ...) {
+    if (!g_debugEnabled) return; // Skip if debug disabled
+    
     unsigned long ts = millis();
     Serial.print("[TS ");
     Serial.print(ts);
@@ -293,16 +298,12 @@ void publishTelemetry() {
     if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
         lastPublishTime = now;
         
-        // Publish pressure
-        // Pressure publishing now handled by PressureManager.publishPressures()
-        // Individual pressures are automatically published via MQTT
-        
         // Publish sequence status
         sequenceController.getStatusString(g_message_buffer, SHARED_BUFFER_SIZE);
         networkManager.publish(TOPIC_SEQUENCE_STATUS, g_message_buffer);
         
         // Publish heartbeat
-        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "Hello from LogSplitter at %lu", now);
+        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "T: %lu", now);
         networkManager.publish(TOPIC_PUBLISH, g_message_buffer);
     }
 }

@@ -43,6 +43,7 @@ private:
     void handlePins(char* response, size_t responseSize, bool fromMqtt);
     void handleSet(char* param, char* value, char* response, size_t responseSize);
     void handleRelay(char* relayToken, char* stateToken, char* response, size_t responseSize);
+    void handleDebug(char* param, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;
