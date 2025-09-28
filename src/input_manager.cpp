@@ -26,15 +26,13 @@ void InputManager::begin(ConfigManager* config) {
         
         lastDebounceTime[i] = millis();
         
-        Serial.print("Pin ");
-        Serial.print(pin);
-        Serial.print(" configured as ");
-        Serial.print((configManager && configManager->isPinNC(i)) ? "NC" : "NO");
-        Serial.print(", initial state: ");
-        Serial.println(pinStates[i] ? "ACTIVE" : "INACTIVE");
+        debugPrintf("Pin %d configured as %s, initial state: %s\n", 
+                   pin, 
+                   (configManager && configManager->isPinNC(i)) ? "NC" : "NO",
+                   pinStates[i] ? "ACTIVE" : "INACTIVE");
     }
     
-    Serial.println("InputManager initialized");
+    debugPrintf("InputManager initialized\n");
 }
 
 void InputManager::refreshPinStates() {

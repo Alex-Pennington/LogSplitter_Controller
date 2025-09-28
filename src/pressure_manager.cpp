@@ -161,13 +161,9 @@ void PressureManager::begin() {
     
     lastPublishTime = 0;
     
-    Serial.println("PressureManager initialized with 2 sensors:");
-    Serial.print("  - Hydraulic System Pressure (A1): 0-");
-    Serial.print(HYDRAULIC_MAX_PRESSURE_PSI);
-    Serial.println(" PSI");
-    Serial.print("  - Hydraulic Filter Pressure (A5): 0-");  
-    Serial.print(HYDRAULIC_MAX_PRESSURE_PSI);
-    Serial.println(" PSI");
+    debugPrintf("PressureManager initialized with 2 sensors:\n");
+    debugPrintf("  - Hydraulic System Pressure (A1): 0-%d PSI\n", HYDRAULIC_MAX_PRESSURE_PSI);
+    debugPrintf("  - Hydraulic Filter Pressure (A5): 0-%d PSI\n", HYDRAULIC_MAX_PRESSURE_PSI);
 }
 
 void PressureManager::update() {

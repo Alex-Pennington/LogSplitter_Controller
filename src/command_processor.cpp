@@ -9,6 +9,8 @@
 #include "system_error_manager.h"
 #include <ctype.h>
 
+extern void debugPrintf(const char* fmt, ...);
+
 // External debug flag
 extern bool g_debugEnabled;
 
@@ -205,33 +207,27 @@ void CommandProcessor::handlePins(char* response, size_t responseSize, bool from
     }
     
     // This will be printed directly to Serial, not stored in response
-    Serial.println("=== Pin Configuration ===");
+    debugPrintf("=== Pin Configuration ===\n");
     for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
         bool isNC = configManager ? configManager->isPinNC(i) : false;
         uint8_t pin = WATCH_PINS[i];
         
-        Serial.print("Pin ");
-        Serial.print(pin);
-        Serial.print(": ");
-        
-        // Add function labels for known pins
+        const char* function = "";
         if (pin == LIMIT_EXTEND_PIN) {
-            Serial.print("EXTEND_LIMIT ");
+            function = "EXTEND_LIMIT ";
         } else if (pin == LIMIT_RETRACT_PIN) {
-            Serial.print("RETRACT_LIMIT ");
+            function = "RETRACT_LIMIT ";
         } else if (pin == 2 || pin == 3) {
-            Serial.print("MANUAL_CTRL ");
+            function = "MANUAL_CTRL ";
         } else if (pin == 4 || pin == 5) {
-            Serial.print("SEQUENCE_CTRL ");
+            function = "SEQUENCE_CTRL ";
         }
         
-        Serial.print("mode=");
-        Serial.print(isNC ? "NC" : "NO");
-        Serial.println();
+        debugPrintf("Pin %d: %smode=%s\n", pin, function, isNC ? "NC" : "NO");
     }
     
-    Serial.println("\nUsage: set pinmode <pin> <NO|NC>");
-    Serial.println("Example: set pinmode 6 NC  (set extend limit to normally closed)");
+    debugPrintf("\nUsage: set pinmode <pin> <NO|NC>\n");
+    debugPrintf("Example: set pinmode 6 NC  (set extend limit to normally closed)\n");
     
     response[0] = '\0'; // No MQTT response
 }
