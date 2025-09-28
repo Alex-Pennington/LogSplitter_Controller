@@ -229,6 +229,87 @@ To compile this project:
 - Use `show` command to check system status
 - Monitor MQTT topics for system telemetry
 
+## SystemTestSuite - Hardware Validation Framework
+
+### Overview
+
+A comprehensive testing framework that allows programmers to systematically test each system component for correct operation and safety before deployment. The SystemTestSuite provides interactive, safety-first validation of all hardware components.
+
+### Key Features
+
+- **Safety-First Architecture**: Critical test failures abort the entire suite
+- **Interactive User Guidance**: 30-second timeout prompts with Y/N confirmations
+- **Comprehensive Coverage**: Tests all safety inputs, outputs, and integrated systems
+- **Professional Reporting**: Detailed test reports with MQTT publishing
+- **Remote Monitoring**: Test status available via MQTT for remote oversight
+
+### Test Categories
+
+**Safety Input Tests (Critical):**
+- Emergency Stop Button validation with latch testing
+- Limit Switch testing (both retract and extend switches)
+- Pressure Sensor accuracy and stability validation  
+- Pressure Safety Threshold verification
+
+**Output Device Tests (Critical):**
+- Relay Controller safety mode verification
+- Engine Stop Circuit functional testing
+
+**Integrated System Tests (Non-Critical):**
+- Network Communication testing
+- Extend/Retract/Pressure Relief sequences
+
+### Test Commands
+
+```text
+test all        # Run complete system test suite
+test safety     # Run safety input tests only  
+test outputs    # Run output device tests only
+test systems    # Run integrated system tests only
+test report     # Generate comprehensive test report
+test status     # Show current test progress
+test progress   # Display progress bar
+```
+
+### Example Test Flow
+
+1. **Preparation**: Ensure area is clear and you're ready to operate controls
+2. **Safety Tests**: Interactive validation of emergency stop, limit switches, pressure sensor
+3. **Output Tests**: Verify relay controller and engine stop circuit operation
+4. **System Tests**: Validate network communication and integrated sequences
+5. **Reporting**: Generate comprehensive test report with pass/fail status
+
+### Test Results
+
+The framework provides multiple result states:
+- **PASS**: Test completed successfully
+- **FAIL**: Test failed (critical tests abort suite)
+- **SKIP**: Test skipped (user choice or unsafe conditions)
+- **PENDING**: Test not yet run
+- **TIMEOUT**: No user response within 30 seconds
+
+### Safety Features
+
+- **Emergency Abort**: Operators can stop testing immediately
+- **Safety Mode Enforcement**: All relays remain OFF during testing
+- **Critical Test Flagging**: Failures in safety tests prevent further testing
+- **Timeout Protection**: Prevents hanging on user input
+
+### MQTT Integration
+
+Test results are published to MQTT topics:
+- `r4/test/status` - Overall test suite status
+- `r4/test/result/{test_name}` - Individual test results
+- `r4/test/summary` - Complete test summary
+
+### Benefits
+
+1. **Hardware Validation**: Systematic verification before deployment
+2. **Safety Assurance**: Critical safety systems thoroughly tested
+3. **Documentation**: Professional test reports for compliance
+4. **Remote Monitoring**: MQTT integration for remote test oversight
+5. **Maintainable**: Modular architecture for easy test additions
+
 ## Future Enhancements
 
 Potential areas for continued improvement:
@@ -238,10 +319,12 @@ Potential areas for continued improvement:
 3. **Data Logging**: Local storage of pressure and sequence data
 4. **Advanced Safety**: Multi-level safety with configurable thresholds
 5. **Diagnostics**: Built-in system diagnostics and error reporting
+6. **Test Automation**: Automated test scheduling and execution
+7. **Extended Test Coverage**: Additional system component validation
 
 ---
 
 **Author**: Refactored from original monolithic design  
 **Date**: September 2025  
-**Version**: 2.1.0 (extended pressure scaling, shorthand relay commands)  
+**Version**: 2.2.0 (SystemTestSuite framework, extended pressure scaling, shorthand relay commands)  
 **Compatibility**: Arduino UNO R4 WiFi with PlatformIO

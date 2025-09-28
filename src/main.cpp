@@ -29,6 +29,7 @@
 #include "safety_system.h"
 #include "command_processor.h"
 #include "system_error_manager.h"
+#include "system_test_suite.h"
 #include "arduino_secrets.h"
 
 // ============================================================================
@@ -326,6 +327,11 @@ bool initializeSystem() {
     commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
     commandProcessor.setSystemErrorManager(&systemErrorManager);
+    
+    // Initialize system test suite
+    systemTestSuite.begin(&safetySystem, &relayController, &inputManager, 
+                         &pressureManager, &sequenceController, &networkManager);
+    commandProcessor.setSystemTestSuite(&systemTestSuite);
     
     Serial.println("Core systems initialized");
     

@@ -37,6 +37,7 @@ private:
     class NetworkManager* networkManager = nullptr;
     class SafetySystem* safetySystem = nullptr;
     class SystemErrorManager* systemErrorManager = nullptr;
+    class SystemTestSuite* systemTestSuite = nullptr;
     
     // Command handlers
     void handleHelp(char* response, size_t responseSize, bool fromMqtt);
@@ -48,6 +49,7 @@ private:
     void handleNetwork(char* response, size_t responseSize);
     void handleReset(char* param, char* response, size_t responseSize);
     void handleError(char* param, char* value, char* response, size_t responseSize);
+    void handleTest(char* param, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;
@@ -61,6 +63,7 @@ public:
     void setNetworkManager(class NetworkManager* network) { networkManager = network; }
     void setSafetySystem(class SafetySystem* safety) { safetySystem = safety; }
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
+    void setSystemTestSuite(class SystemTestSuite* testSuite) { systemTestSuite = testSuite; }
     
     // Main processing function
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);

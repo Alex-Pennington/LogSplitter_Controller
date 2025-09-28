@@ -17,7 +17,6 @@ private:
     
     // Engine control methods
     void initEngineStopPin();
-    void setEngineStop(bool stop);
     
 public:
     SafetySystem() = default;
@@ -40,6 +39,7 @@ public:
     void activate(const char* reason = "manual");
     void deactivate();
     void clearEmergencyStop();
+    void setEngineStop(bool stop);  // For testing
     
     // Status
     bool isActive() const { return safetyActive; }

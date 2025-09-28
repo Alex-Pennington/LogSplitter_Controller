@@ -7,6 +7,7 @@
 #include "network_manager.h"
 #include "safety_system.h"
 #include "system_error_manager.h"
+#include "system_test_suite.h"
 #include <ctype.h>
 
 extern void debugPrintf(const char* fmt, ...);
@@ -153,7 +154,7 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network, reset, error";
+    const char* helpText = "Commands: help, show, debug, network, reset, error, test";
     if (!fromMqtt) {
         snprintf(response, responseSize, "%s, pins, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
@@ -702,10 +703,64 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* value = strtok(NULL, " ");
         handleError(param, value, response, responseSize);
     }
+    else if (strcasecmp(cmd, "test") == 0) {
+        char* param = strtok(NULL, " ");
+        handleTest(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
     }
     
     return true;
+}
+
+void CommandProcessor::handleTest(char* param, char* response, size_t responseSize) {
+    if (!systemTestSuite) {
+        snprintf(response, responseSize, "test system not initialized");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, 
+            "test commands: all, safety, outputs, systems, report, status");
+        return;
+    }
+    
+    if (strcasecmp(param, "all") == 0) {
+        snprintf(response, responseSize, "starting complete system test suite...");
+        systemTestSuite->runAllTests();
+    }
+    else if (strcasecmp(param, "safety") == 0) {
+        snprintf(response, responseSize, "starting safety input tests...");
+        systemTestSuite->runTestCategory(SystemTestSuite::SAFETY_INPUTS);
+    }
+    else if (strcasecmp(param, "outputs") == 0) {
+        snprintf(response, responseSize, "starting output device tests...");
+        systemTestSuite->runTestCategory(SystemTestSuite::OUTPUT_DEVICES);
+    }
+    else if (strcasecmp(param, "systems") == 0) {
+        snprintf(response, responseSize, "starting integrated system tests...");
+        systemTestSuite->runTestCategory(SystemTestSuite::INTEGRATED_SYSTEMS);
+    }
+    else if (strcasecmp(param, "report") == 0) {
+        snprintf(response, responseSize, "generating test report...");
+        systemTestSuite->printTestReport();
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        uint8_t completed = systemTestSuite->getCompletedTests();
+        SystemTestSuite::TestResult overall = systemTestSuite->getOverallResult();
+        snprintf(response, responseSize, 
+            "test status: %d/11 complete, overall: %s", 
+            completed, 
+            systemTestSuite->resultToString(overall));
+    }
+    else if (strcasecmp(param, "progress") == 0) {
+        snprintf(response, responseSize, "displaying test progress...");
+        systemTestSuite->displayProgress();
+    }
+    else {
+        snprintf(response, responseSize, 
+            "unknown test command: %s (try: all, safety, outputs, systems, report)", param);
+    }
 }
