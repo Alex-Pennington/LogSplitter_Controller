@@ -103,8 +103,8 @@ void SystemErrorManager::updateLED() {
             break;
             
         case LED_SLOW_BLINK:
-            // 1Hz blink (500ms on, 500ms off)
-            if (currentTime - lastBlinkTime >= 500) {
+            // 0.25Hz blink (2000ms on, 2000ms off)
+            if (currentTime - lastBlinkTime >= 2000) {
                 ledState = !ledState;
                 digitalWrite(SYSTEM_ERROR_LED_PIN, ledState ? HIGH : LOW);
                 lastBlinkTime = currentTime;
@@ -112,8 +112,8 @@ void SystemErrorManager::updateLED() {
             break;
             
         case LED_FAST_BLINK:
-            // 5Hz blink (100ms on, 100ms off)
-            if (currentTime - lastBlinkTime >= 100) {
+            // 1Hz blink (500ms on, 500ms off)
+            if (currentTime - lastBlinkTime >= 500) {
                 ledState = !ledState;
                 digitalWrite(SYSTEM_ERROR_LED_PIN, ledState ? HIGH : LOW);
                 lastBlinkTime = currentTime;

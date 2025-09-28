@@ -299,6 +299,7 @@ bool initializeSystem() {
     // Initialize relay controller
     relayController.begin();
     configManager.applyToRelayController(relayController);
+    relayController.setErrorManager(&systemErrorManager); // Enable relay communication fault detection
     
     // Initialize sequence controller
     configManager.applyToSequenceController(sequenceController);

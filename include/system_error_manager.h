@@ -22,8 +22,8 @@ enum SystemErrorType {
 enum ErrorLedPattern {
     LED_OFF = 0,                // No error - LED off
     LED_SOLID = 1,              // Single error - solid on
-    LED_SLOW_BLINK = 2,         // Multiple errors - slow blink (1Hz)
-    LED_FAST_BLINK = 3          // Critical errors - fast blink (5Hz)
+    LED_SLOW_BLINK = 2,         // Multiple errors - slow blink (0.25Hz)
+    LED_FAST_BLINK = 3          // Critical errors - fast blink (1Hz)
 };
 
 class SystemErrorManager {

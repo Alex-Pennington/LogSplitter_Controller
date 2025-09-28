@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include "constants.h"
 
+// Forward declaration
+class SystemErrorManager;
+
 class RelayController {
 private:
     // Relay states (index 1-9 used, 0 unused)
@@ -15,8 +18,20 @@ private:
     // Safety state
     bool safetyActive = false;
     
+    // Response checking
+    SystemErrorManager* errorManager = nullptr;
+    unsigned long lastCommandTime = 0;
+    bool waitingForResponse = false;
+    uint8_t retryCount = 0;
+    uint8_t lastRelayNumber = 0;
+    bool lastRelayState = false;
+    static const uint8_t MAX_RETRIES = 2;
+    static const unsigned long RESPONSE_TIMEOUT_MS = 500;
+    
     // Helper methods
     void sendCommand(uint8_t relayNumber, bool on);
+    bool sendCommandWithRetry(uint8_t relayNumber, bool on);
+    bool waitForOkResponse();
     void ensurePowerOn();
     
 public:
@@ -42,6 +57,7 @@ public:
     // Configuration
     void setEcho(bool enabled) { echoEnabled = enabled; }
     bool getEcho() const { return echoEnabled; }
+    void setErrorManager(SystemErrorManager* errorMgr) { errorManager = errorMgr; }
     
     // Power management
     void powerOn();
