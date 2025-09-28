@@ -123,6 +123,9 @@ public:
     // Direct access for specific settings
     bool isConfigValid() const { return configValid; }
     
+    // MQTT Configuration Publishing
+    void publishAllConfigParameters();
+    
     // Status
     void getStatusString(char* buffer, size_t bufferSize);
 };

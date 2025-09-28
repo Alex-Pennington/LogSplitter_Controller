@@ -65,6 +65,9 @@ bool g_splitterOperatorActive = false; // Pin 8 - Splitter operator input signal
 bool g_emergencyStopActive = false; // Pin 12 - Emergency stop button
 bool g_emergencyStopLatched = false; // E-Stop latch state (requires manual reset)
 
+// Configuration publishing state
+bool g_configPublishedOnce = false; // Track if config has been published to MQTT
+
 // ============================================================================
 // System State
 // ============================================================================
@@ -333,6 +336,9 @@ bool initializeSystem() {
         configManager.setNetworkManager(&networkManager); // Enable error publishing
         systemErrorManager.setNetworkManager(&networkManager); // Enable error LED and MQTT publishing
         Serial.println("Network initialization started");
+        
+        // Note: Configuration will be published to MQTT once network is stable
+        // This happens automatically in the main loop when connection is established
     } else {
         Serial.println("Network initialization failed");
         return false;
@@ -407,6 +413,13 @@ void publishSystemData() {
 
 void publishTelemetry() {
     unsigned long now = millis();
+    
+    // Publish configuration parameters once when network first becomes available
+    if (networkManager.isConnected() && !g_configPublishedOnce) {
+        configManager.publishAllConfigParameters();
+        g_configPublishedOnce = true;
+        Serial.println("Configuration parameters published to MQTT with retain flags");
+    }
     
     if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
         lastPublishTime = now;

@@ -298,6 +298,36 @@ bool NetworkManager::publish(const char* topic, const char* payload) {
     return false;
 }
 
+bool NetworkManager::publishWithRetain(const char* topic, const char* payload) {
+    if (mqttState != MQTTState::CONNECTED) {
+        failedPublishCount++;
+        return false;
+    }
+    
+    // Timeout protection - ensure publish doesn't block
+    unsigned long startTime = millis();
+    
+    if (mqttClient.beginMessage(topic, true)) { // true = retain flag
+        mqttClient.print(payload);
+        bool success = mqttClient.endMessage();
+        
+        unsigned long duration = millis() - startTime;
+        if (duration > 100) { // Warn if publish takes >100ms
+            Serial.print("WARNING: MQTT publish (retained) took ");
+            Serial.print(duration);
+            Serial.println("ms");
+        }
+        
+        if (!success) {
+            failedPublishCount++;
+        }
+        return success;
+    }
+    
+    failedPublishCount++;
+    return false;
+}
+
 bool NetworkManager::subscribe(const char* topic) {
     if (mqttState != MQTTState::CONNECTED) {
         return false;

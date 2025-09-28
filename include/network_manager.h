@@ -67,6 +67,7 @@ public:
     
     // MQTT operations (with timeout protection)
     bool publish(const char* topic, const char* payload);
+    bool publishWithRetain(const char* topic, const char* payload);
     bool subscribe(const char* topic);
     void poll() { if (mqttState == MQTTState::CONNECTED) mqttClient.poll(); }
     void setMessageCallback(void (*callback)(int));

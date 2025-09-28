@@ -3,6 +3,8 @@
 #include "network_manager.h"
 #include "system_error_manager.h"
 
+extern void debugPrintf(const char* fmt, ...);
+
 // CRC32 lookup table (IEEE 802.3 polynomial: 0xEDB88320)
 static const uint32_t crc32_table[256] = {
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
@@ -213,6 +215,12 @@ bool ConfigManager::save() {
     EEPROM.put(CALIB_EEPROM_ADDR, config);
     
     Serial.println("ConfigManager: Configuration saved to EEPROM with CRC32 verification");
+    
+    // Automatically publish configuration to MQTT if network is available
+    if (networkManager) {
+        publishAllConfigParameters();
+    }
+    
     return true;
 }
 
@@ -349,4 +357,118 @@ void ConfigManager::getStatusString(char* buffer, size_t bufferSize) {
         (unsigned long)config.seqStartStableMs,
         (unsigned long)config.seqTimeoutMs
     );
+}
+
+void ConfigManager::publishAllConfigParameters() {
+    if (!networkManager || !configValid) {
+        debugPrintf("Cannot publish config: networkManager=%p configValid=%s\n", 
+                   networkManager, configValid ? "true" : "false");
+        return;
+    }
+    
+    debugPrintf("Publishing all configuration parameters to MQTT with retain flags...\n");
+    
+    char topic[64];
+    char payload[32];
+    bool allSuccess = true;
+    
+    // A1 (System Pressure) Sensor Parameters
+    snprintf(topic, sizeof(topic), "r4/configparam/a1_max_pressure");
+    snprintf(payload, sizeof(payload), "%.1f", config.a1_maxPressurePsi);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/a1_adc_vref");
+    snprintf(payload, sizeof(payload), "%.3f", config.a1_adcVref);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/a1_sensor_gain");
+    snprintf(payload, sizeof(payload), "%.6f", config.a1_sensorGain);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/a1_sensor_offset");
+    snprintf(payload, sizeof(payload), "%.6f", config.a1_sensorOffset);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // A5 (Filter Pressure) Sensor Parameters
+    snprintf(topic, sizeof(topic), "r4/configparam/a5_max_pressure");
+    snprintf(payload, sizeof(payload), "%.1f", config.a5_maxPressurePsi);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/a5_adc_vref");
+    snprintf(payload, sizeof(payload), "%.3f", config.a5_adcVref);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/a5_sensor_gain");
+    snprintf(payload, sizeof(payload), "%.6f", config.a5_sensorGain);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/a5_sensor_offset");
+    snprintf(payload, sizeof(payload), "%.6f", config.a5_sensorOffset);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // EMA Filter Parameter
+    snprintf(topic, sizeof(topic), "r4/configparam/ema_alpha");
+    snprintf(payload, sizeof(payload), "%.6f", config.emaAlpha);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Sequence Controller Parameters
+    snprintf(topic, sizeof(topic), "r4/configparam/seq_stable_ms");
+    snprintf(payload, sizeof(payload), "%lu", config.seqStableMs);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/seq_start_stable_ms");
+    snprintf(payload, sizeof(payload), "%lu", config.seqStartStableMs);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/seq_timeout_ms");
+    snprintf(payload, sizeof(payload), "%lu", config.seqTimeoutMs);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Relay Controller Parameters
+    snprintf(topic, sizeof(topic), "r4/configparam/relay_echo");
+    snprintf(payload, sizeof(payload), "%s", config.relayEcho ? "true" : "false");
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Debug Parameter
+    snprintf(topic, sizeof(topic), "r4/configparam/debug_enabled");
+    snprintf(payload, sizeof(payload), "%s", config.debugEnabled ? "true" : "false");
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Pin Mode Configuration (publish as bitmap for efficiency)
+    snprintf(topic, sizeof(topic), "r4/configparam/pin_modes_bitmap");
+    snprintf(payload, sizeof(payload), "%u", config.pinModesBitmap);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Individual pin modes for readability
+    for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
+        snprintf(topic, sizeof(topic), "r4/configparam/pin%d_mode", WATCH_PINS[i]);
+        snprintf(payload, sizeof(payload), "%s", pinIsNC[i] ? "NC" : "NO");
+        if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    }
+    
+    // Legacy parameters (for backward compatibility)
+    snprintf(topic, sizeof(topic), "r4/configparam/legacy_adc_vref");
+    snprintf(payload, sizeof(payload), "%.3f", config.adcVref);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/legacy_max_pressure");
+    snprintf(payload, sizeof(payload), "%.1f", config.maxPressurePsi);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Filter mode
+    snprintf(topic, sizeof(topic), "r4/configparam/filter_mode");
+    snprintf(payload, sizeof(payload), "%u", config.filterMode);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    // Configuration status
+    snprintf(topic, sizeof(topic), "r4/configparam/config_valid");
+    snprintf(payload, sizeof(payload), "%s", configValid ? "true" : "false");
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    snprintf(topic, sizeof(topic), "r4/configparam/config_magic");
+    snprintf(payload, sizeof(payload), "0x%08lX", config.magic);
+    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
+    
+    debugPrintf("Configuration publishing %s - %d parameters published\n", 
+               allSuccess ? "successful" : "had failures", 22);
 }
