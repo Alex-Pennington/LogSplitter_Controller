@@ -37,7 +37,7 @@ These tests validate the core safety systems. Any failure aborts the test suite.
 - Confirms system detection of activation/deactivation
 
 #### Pressure Sensor Test
-- Validates pressure readings are within expected range (0-5000 PSI)
+- Validates pressure readings are within expected range (0-3000 PSI operational)
 - Tests stability over 5-second period (< 100 PSI variation)
 - Confirms sensor provides valid, stable readings
 

@@ -14,10 +14,10 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | A5 | Analog In | Hydraulic Filter Pressure | Filter pressure sensor (0-30 PSI) | 0-4.5V |
 | 0 | Digital I/O | Serial RX | USB Serial communication | N/A |
 | 1 | Digital I/O | Serial TX | USB Serial communication | N/A |
-| 2 | Digital In | Reserved | Future digital input | N/A |
-| 3 | Digital I/O | Reserved | Future digital I/O | N/A |
-| 4 | Digital I/O | Reserved | Future digital I/O | N/A |
-| 5 | Digital I/O | Reserved | Future digital I/O | N/A |
+| 2 | Digital In | Manual Extend Input | Manual extend control button | Active LOW |
+| 3 | Digital In | Manual Retract Input | Manual retract control button | Active LOW |
+| 4 | Digital In | Safety Reset Input | Emergency stop/safety reset button | Active LOW |
+| 5 | Digital In | Sequence Start Input | Auto sequence start button | Active LOW |
 | 6 | Digital In | Extend Limit Switch | Hydraulic cylinder extend limit | Active LOW |
 | 7 | Digital In | Retract Limit Switch | Hydraulic cylinder retract limit | Active LOW |
 | 8 | Digital In | Splitter Operator Signal | Splitter operator input for basket exchange | Active LOW |
@@ -43,15 +43,46 @@ This document provides comprehensive details of all pin assignments for the Ardu
 
 #### A5 - Filter Hydraulic Pressure Sensor (0-5V Voltage Output)
 - **Function**: Hydraulic filter pressure monitoring  
-- **Range**: 0-5000 PSI (configurable)
+- **Range**: 0-30 PSI (filter pressure monitoring)
 - **Voltage**: 0-5V input (direct voltage output)
 - **Circuit**: Sensor power → 5V, Signal → A5, Ground → GND
-- **Voltage**: 0-4.5V input (linear mapping)
 - **Sampling**: 100ms intervals with digital filtering
 - **Purpose**: Filter condition monitoring and diagnostics
 - **MQTT Topic**: `r4/pressure/hydraulic_filter`
 
 ### Digital Inputs
+
+#### Pin 2 - Manual Extend Input
+- **Function**: Manual control for hydraulic cylinder extension
+- **Configuration**: INPUT_PULLUP (normally open button to ground)
+- **Active State**: LOW (button pressed)
+- **Purpose**: Allows operator to manually extend cylinder independent of automatic sequence
+- **Safety Integration**: Automatically stops when extend limit (Pin 6) is reached
+- **Response**: Activates extend relay (R1) while button is held
+
+#### Pin 3 - Manual Retract Input
+- **Function**: Manual control for hydraulic cylinder retraction
+- **Configuration**: INPUT_PULLUP (normally open button to ground)
+- **Active State**: LOW (button pressed)
+- **Purpose**: Allows operator to manually retract cylinder independent of automatic sequence
+- **Safety Integration**: Automatically stops when retract limit (Pin 7) is reached
+- **Response**: Activates retract relay (R2) while button is held
+
+#### Pin 4 - Safety Reset Input
+- **Function**: Emergency stop and safety system reset
+- **Configuration**: INPUT_PULLUP (normally open E-stop button)
+- **Active State**: LOW (E-stop button pressed)
+- **Priority**: Highest priority safety input - overrides all operations
+- **Response**: Immediate system shutdown, all relays OFF, requires manual reset
+- **Safety Standards**: Should meet IEC 60947-5-5 Category 0 stop requirements
+
+#### Pin 5 - Sequence Start Input
+- **Function**: Initiates automatic hydraulic sequence (extend then retract)
+- **Configuration**: INPUT_PULLUP (normally open button to ground)
+- **Active State**: LOW (button pressed momentarily)
+- **Purpose**: Single-button start for complete automatic cycle
+- **Safety Checks**: Verifies system is safe before starting sequence
+- **Response**: Begins automatic extend → retract → idle cycle
 
 #### Pin 6 - Extend Limit Switch
 - **Function**: Detects when hydraulic cylinder reaches full extension
@@ -192,7 +223,7 @@ User Feedback: "SAFETY: Extend operation stopped - limit switch reached"
 
 ### Analog Input Requirements
 - **Voltage Range**: 0-5V (1-5V for 4-20mA current loop sensors)
-- **Resolution**: 14-bit (16384 levels, ~0.3mV per step)
+- **Resolution**: 10-bit (1024 levels, ~4.9mV per step)
 - **Input Impedance**: ~100MΩ
 - **Sampling Rate**: Configurable, default 10 samples/second per channel
 - **Current Loop**: 4-20mA with 250Ω shunt resistor (1V-5V = 0-5000 PSI)

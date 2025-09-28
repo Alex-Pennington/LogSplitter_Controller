@@ -209,7 +209,7 @@ IDLE → EXTENDING → EXTENDED → RETRACTING → RETRACTED → IDLE
 - Voltage and pressure telemetry
 
 **Pressure Channels**:
-- **A1 (Hydraulic System)**: 0-5000 PSI, 4-20mA current loop
+- **A1 (Hydraulic System)**: 0-3000 PSI operational (0-5000 PSI sensor range), 4-20mA current loop
 - **A5 (Hydraulic Filter)**: 0-30 PSI, 0-4.5V voltage
 
 ### 9. Relay Controller (`relay_controller.cpp` - 240 lines)

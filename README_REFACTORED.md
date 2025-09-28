@@ -67,7 +67,7 @@ This is a complete refactor of the original monolithic LogSplitter Controller co
 
 - **Purpose**: Dual-channel (A1 main hydraulic, A5 filter/oil) sampling with filtering & calibration
 - **Features**: Circular buffer averaging, Median3 / EMA filters, configurable ADC reference
-- **Extended Scaling (A1)**: 0–5.0 V electrical span represents -25% .. +125% of nominal (5000 PSI) but output is CLAMPED to 0..5000 PSI for safety & display
+- **Extended Scaling (A1)**: 0–5.0 V electrical span represents -25% .. +125% of nominal (3000 PSI) but output is CLAMPED to 0..3000 PSI for safety & display
 - **Benefit**: Head-room for sensor over‑range / calibration shift while keeping operator & safety logic within a stable nominal window
 
 ### RelayController
@@ -116,7 +116,7 @@ This is a complete refactor of the original monolithic LogSplitter Controller co
 
 Electrical span: 0–5.0 V (configured constant)
 
-Logical span: -0.25 * P_nom .. +1.25 * P_nom (P_nom = 5000 PSI) => 1.5 * P_nom total
+Logical span: -0.25 * P_nom .. +1.25 * P_nom (P_nom = 3000 PSI) => 1.5 * P_nom total
 
 Mapping formula (before clamp):
 
@@ -174,7 +174,7 @@ Exact tokens may vary; order kept stable for easy parsing.
 
 - `r4/control/resp` - Command responses
 - `r4/pressure` - (Backward compat) Main hydraulic pressure (clamped)
-- `r4/pressure/hydraulic_system` - Main hydraulic pressure (clamped 0..5000)
+- `r4/pressure/hydraulic_system` - Main hydraulic pressure (clamped 0..3000)
 - `r4/pressure/hydraulic_filter` - Filter/oil pressure
 - `r4/pressure/status` - Key/value status line (pressures)
 - `r4/sequence/status` - Sequence state
@@ -183,7 +183,7 @@ Exact tokens may vary; order kept stable for easy parsing.
 
 ## Safety Features
 
-1. **Pressure Safety**: Automatic shutdown if clamped main pressure > 2750 PSI (A1 extended scaling still clamps before this check)
+1. **Pressure Safety**: Automatic shutdown if clamped main pressure > 2500 PSI (A1 extended scaling still clamps before this check)
 2. **Sequence Timeouts**: Automatic abort if sequence takes too long
 3. **System Health**: Watchdog monitoring of main loop execution
 4. **Emergency Stop / Reset**: Safety reset on pin 4; single start on pin 5; manual controls on pins 2 & 3
@@ -191,7 +191,7 @@ Exact tokens may vary; order kept stable for easy parsing.
 
 ## Memory Usage
 
-- **Shared Buffers**: 128-byte message buffer, 64-byte topic buffer
+- **Shared Buffers**: 256-byte message buffer, 64-byte topic buffer
 - **Stack Safety**: No large local arrays in functions
 - **PROGMEM**: Constants stored in flash memory
 - **Estimated Savings**: ~60% reduction in RAM usage vs original
@@ -211,7 +211,7 @@ To compile this project:
 - **Commands**: Legacy commands preserved; added shorthand `R<n> ON|OFF`
 - **MQTT**: Existing topics preserved; added explicit hydraulic system/filter topics & pressure status line
 - **Pins**: Updated logic: pin 4 now dedicated Safety Reset, pin 5 single Start button (replaces multi-button requirement), pins 2/3 manual action inputs
-- **Pressure Scaling**: Main channel (A1) now uses extended 0–5V mapping to -25%..+125% of nominal then clamps to 0..5000 for safety & display; no telemetry format changes required
+- **Pressure Scaling**: Main channel (A1) now uses extended 0–5V mapping to -25%..+125% of nominal then clamps to 0..3000 for safety & display; no telemetry format changes required
 - **Behavior**: Improved reliability; sequence limit stability timing reduces false transitions
 
 ## Troubleshooting
