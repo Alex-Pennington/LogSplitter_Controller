@@ -8,7 +8,7 @@ extern void debugPrintf(const char* fmt, ...);
 void SafetySystem::begin() {
     // Initialize engine stop pin as output
     initEngineStopPin();
-    Serial.println("SafetySystem: Engine stop pin initialized");
+    debugPrintf("SafetySystem: Engine stop pin initialized\n");
 }
 
 void SafetySystem::initEngineStopPin() {
@@ -59,9 +59,7 @@ void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
         } else {
             // Clear safety if pressure comes down, even at limits
             if (safetyActive && pressure < (SAFETY_THRESHOLD_PSI + 150.0f)) {
-                Serial.print("Safety cleared: pressure ");
-                Serial.print(pressure);
-                Serial.println(" PSI acceptable at limit switch");
+                debugPrintf("Safety cleared: pressure %.1f PSI acceptable at limit switch\n", pressure);
                 
                 if (networkManager && networkManager->isConnected()) {
                     networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: cleared at limit");
@@ -85,9 +83,7 @@ void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
     } else if (pressure < (SAFETY_THRESHOLD_PSI - SAFETY_HYSTERESIS_PSI)) {
         if (safetyActive) {
             // Pressure dropped below threshold with hysteresis
-            Serial.print("Safety cleared: pressure ");
-            Serial.print(pressure);
-            Serial.println(" PSI below threshold");
+            debugPrintf("Safety cleared: pressure %.1f PSI below threshold\n", pressure);
             
             if (networkManager && networkManager->isConnected()) {
                 networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: cleared");
@@ -157,7 +153,7 @@ void SafetySystem::deactivate() {
     
     safetyActive = false;
     
-    Serial.println("Safety system deactivated manually");
+    debugPrintf("Safety system deactivated manually\n");
     
     if (relayController) {
         relayController->disableSafety();

@@ -1,6 +1,8 @@
 #include "system_error_manager.h"
 #include "network_manager.h"
 
+extern void debugPrintf(const char* fmt, ...);
+
 void SystemErrorManager::begin() {
     // Initialize the error LED pin
     pinMode(SYSTEM_ERROR_LED_PIN, OUTPUT);
@@ -13,7 +15,7 @@ void SystemErrorManager::begin() {
     lastBlinkTime = millis();
     errorStartTime = 0;
     
-    Serial.println("SystemErrorManager: Initialized with MIL on pin 9");
+    debugPrintf("SystemErrorManager: Initialized with MIL on pin 9\n");
 }
 
 void SystemErrorManager::setError(SystemErrorType errorType, const char* description) {
@@ -31,10 +33,7 @@ void SystemErrorManager::setError(SystemErrorType errorType, const char* descrip
     const char* errorDesc = description ? description : getErrorDescription(errorType);
     
     // Log to serial
-    Serial.print("SystemErrorManager: ERROR 0x");
-    Serial.print(errorType, HEX);
-    Serial.print(" - ");
-    Serial.println(errorDesc);
+    debugPrintf("SystemErrorManager: ERROR 0x%02X - %s\n", errorType, errorDesc);
     
     // Publish to MQTT
     publishError(errorType, errorDesc);
@@ -48,8 +47,7 @@ void SystemErrorManager::clearError(SystemErrorType errorType) {
         activeErrors &= ~errorType;
         acknowledgedErrors &= ~errorType;  // Clear acknowledgment too
         
-        Serial.print("SystemErrorManager: Cleared error 0x");
-        Serial.println(errorType, HEX);
+        debugPrintf("SystemErrorManager: Cleared error 0x%02X\n", errorType);
         
         // If no more errors, reset error start time
         if (activeErrors == 0) {
@@ -65,8 +63,7 @@ void SystemErrorManager::acknowledgeError(SystemErrorType errorType) {
     if (activeErrors & errorType) {
         acknowledgedErrors |= errorType;
         
-        Serial.print("SystemErrorManager: Acknowledged error 0x");
-        Serial.println(errorType, HEX);
+        debugPrintf("SystemErrorManager: Acknowledged error 0x%02X\n", errorType);
         
         // Update LED (may change pattern)
         updateLED();
@@ -75,7 +72,7 @@ void SystemErrorManager::acknowledgeError(SystemErrorType errorType) {
 
 void SystemErrorManager::clearAllErrors() {
     if (activeErrors != 0) {
-        Serial.println("SystemErrorManager: Clearing all errors");
+        debugPrintf("SystemErrorManager: Clearing all errors\n");
         activeErrors = 0;
         acknowledgedErrors = 0;
         errorStartTime = 0;
