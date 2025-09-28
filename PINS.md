@@ -26,7 +26,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | 11 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 12 | Digital In | **Emergency Stop (E-Stop)** | Emergency stop input | Active LOW |
 | 13 | Digital Out | Status LED | Built-in LED status indicator | Active HIGH |
-| Serial1 | UART | Relay Control | Hardware relay controller communication | 9600 baud |
+| Serial1 | UART | Relay Control | Hardware relay controller communication | 115200 baud |
 
 ## Detailed Pin Descriptions
 
@@ -56,7 +56,8 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Active State**: LOW (switch closed/activated)
 - **Debouncing**: Hardware debouncing recommended
 - **Safety**: Critical for sequence control and over-travel protection
-- **Response**: Triggers sequence state change and safety checks
+- **Manual Safety**: Automatically stops extend relay (R1) when limit reached
+- **Response**: Triggers sequence state change, safety checks, and manual operation protection
 
 #### Pin 7 - Retract Limit Switch
 - **Function**: Detects when hydraulic cylinder reaches full retraction
@@ -64,7 +65,8 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Active State**: LOW (switch closed/activated)
 - **Debouncing**: Hardware debouncing recommended
 - **Safety**: Critical for sequence control and over-travel protection
-- **Response**: Triggers sequence state change and safety checks
+- **Manual Safety**: Automatically stops retract relay (R2) when limit reached
+- **Response**: Triggers sequence state change, safety checks, and manual operation protection
 
 #### Pin 12 - Emergency Stop (E-Stop)
 - **Function**: Emergency shutdown of all hydraulic operations
@@ -125,9 +127,34 @@ When E-Stop is activated (Pin 12 goes LOW):
 5. **Status Indication**: LED fast blink pattern
 6. **Logging**: E-Stop event logged with timestamp
 
+### Manual Operation Safety
+The system provides automatic protection during manual hydraulic operations:
+
+#### Extend Limit Safety (Pin 6)
+- **Trigger**: When extend limit switch (Pin 6) activates during manual operation
+- **Action**: Automatically turns OFF extend relay (R1) to prevent over-travel
+- **Logging**: "SAFETY: Extend operation stopped - limit switch reached"
+- **Override**: Uses manual override flag to ensure operation during safety conditions
+
+#### Retract Limit Safety (Pin 7)
+- **Trigger**: When retract limit switch (Pin 7) activates during manual operation
+- **Action**: Automatically turns OFF retract relay (R2) to prevent over-travel
+- **Logging**: "SAFETY: Retract operation stopped - limit switch reached"
+- **Override**: Uses manual override flag to ensure operation during safety conditions
+
+#### Safety Operation Flow
+```
+Manual Command: relay R1 ON     # User starts extend
+System Response: relay R1 ON    # Relay activates
+[Hydraulic cylinder extends...]
+Limit Reached: Pin 6 ACTIVE     # Limit switch triggers
+Safety Action: R1 OFF           # Automatic relay shutdown
+User Feedback: "SAFETY: Extend operation stopped - limit switch reached"
+```
+
 ### Input Prioritization
 1. **Emergency Stop** - Overrides all other inputs
-2. **Limit Switches** - Override sequence commands
+2. **Limit Switches** - Override sequence commands and stop manual operations
 3. **Pressure Sensors** - Trigger safety shutdowns
 4. **Network Commands** - Lowest priority, fail-safe
 
@@ -141,7 +168,7 @@ When E-Stop is activated (Pin 12 goes LOW):
 
 ### Analog Input Requirements
 - **Voltage Range**: 0-5V (4.5V recommended maximum for sensors)
-- **Resolution**: 10-bit (1024 levels, ~4.9mV per step)
+- **Resolution**: 14-bit (16384 levels, ~0.3mV per step)
 - **Input Impedance**: ~100MΩ
 - **Sampling Rate**: Configurable, default 10 samples/second per channel
 

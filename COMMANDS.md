@@ -240,9 +240,15 @@ Pin 13: OUTPUT
 **States**: ON, OFF (case-insensitive)
 
 #### Relay Assignments:
-- **R1**: Hydraulic Retract Control
-- **R2**: Hydraulic Extend Control
+- **R1**: Hydraulic Extend Control
+- **R2**: Hydraulic Retract Control
 - **R3-R9**: Additional relay outputs
+
+#### Manual Operation Safety:
+- **R1 (Extend)**: Automatically turns OFF when extend limit switch (Pin 6) is reached
+- **R2 (Retract)**: Automatically turns OFF when retract limit switch (Pin 7) is reached
+- **Safety Message**: "SAFETY: [Extend/Retract] operation stopped - limit switch reached"
+- **Protection**: Prevents hydraulic cylinder over-travel damage during manual operation
 
 **Examples**:
 ```

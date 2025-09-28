@@ -159,9 +159,23 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     if (pin == LIMIT_EXTEND_PIN) {
         g_limitExtendActive = state;
         debugPrintf("Limit EXTEND: %s\n", state ? "ACTIVE" : "INACTIVE");
+        
+        // Safety: Stop extend relay if limit switch activated during manual operation
+        if (state && relayController.getRelayState(RELAY_EXTEND)) {
+            debugPrintf("LIMIT SAFETY: Stopping extend relay - limit reached\n");
+            relayController.setRelay(RELAY_EXTEND, false, true); // Manual override to turn off
+            Serial.println("SAFETY: Extend operation stopped - limit switch reached");
+        }
     } else if (pin == LIMIT_RETRACT_PIN) {
         g_limitRetractActive = state;
         debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
+        
+        // Safety: Stop retract relay if limit switch activated during manual operation
+        if (state && relayController.getRelayState(RELAY_RETRACT)) {
+            debugPrintf("LIMIT SAFETY: Stopping retract relay - limit reached\n");
+            relayController.setRelay(RELAY_RETRACT, false, true); // Manual override to turn off
+            Serial.println("SAFETY: Retract operation stopped - limit switch reached");
+        }
     }
     
     // Let sequence controller handle input first
