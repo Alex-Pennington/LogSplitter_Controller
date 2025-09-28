@@ -2,6 +2,7 @@
 #include "relay_controller.h"
 #include "network_manager.h"
 #include "pressure_manager.h"
+#include "constants.h"
 
 // External references for relay control and network publishing
 extern RelayController* g_relayController;
@@ -165,14 +166,30 @@ void SequenceController::update() {
             
         case SEQ_STAGE1_ACTIVE:
         case SEQ_STAGE1_WAIT_LIMIT:
-            // Poll extend limit; require it to remain ACTIVE for stableTimeMs
-            if (g_limitExtendActive) {
+        {
+            // Poll extend limit (physical switch OR pressure-based limit)
+            bool extendLimitReached = g_limitExtendActive;
+            
+            // Check pressure-based extend limit
+            if (!extendLimitReached && pressureManager.isReady()) {
+                float currentPressure = pressureManager.getHydraulicPressure();
+                if (currentPressure >= EXTEND_PRESSURE_LIMIT_PSI) {
+                    extendLimitReached = true;
+                    debugPrintf("[SEQ] Pressure limit reached: %.1f PSI >= %.1f PSI\n", 
+                               currentPressure, EXTEND_PRESSURE_LIMIT_PSI);
+                }
+            }
+            
+            if (extendLimitReached) {
                 if (lastLimitChangeTime == 0) {
                     lastLimitChangeTime = now; // start stability timer
-                    debugPrintf("[SEQ] Limit 6 rise; timing for %lums\n", stableTimeMs);
+                    debugPrintf("[SEQ] Extend limit reached (switch=%s, pressure=%s); timing for %lums\n", 
+                               g_limitExtendActive ? "YES" : "NO",
+                               (pressureManager.isReady() && pressureManager.getHydraulicPressure() >= EXTEND_PRESSURE_LIMIT_PSI) ? "YES" : "NO",
+                               stableTimeMs);
                 } else if (now - lastLimitChangeTime >= stableTimeMs) {
                     // Transition to stage 2 (retract)
-                    debugPrintf("[SEQ] Limit 6 stable for %lums; switching to R2\n", now - lastLimitChangeTime);
+                    debugPrintf("[SEQ] Extend limit stable for %lums; switching to R2\n", now - lastLimitChangeTime);
                     enterState(SEQ_STAGE2_ACTIVE);
                     if (g_relayController) {
                         g_relayController->setRelay(RELAY_EXTEND, false);
@@ -180,26 +197,43 @@ void SequenceController::update() {
                     }
                     lastLimitChangeTime = 0; // reset for next stage
                     if (g_networkManager && g_networkManager->isConnected()) {
-                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "switched_to_R2");
+                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "switched_to_R2_pressure_or_limit");
                     }
                 }
             } else {
                 if (lastLimitChangeTime != 0) {
-                    debugPrintf("[SEQ] Limit 6 lost before stable (%lums elapsed)\n", now - lastLimitChangeTime);
+                    debugPrintf("[SEQ] Extend limit lost before stable (%lums elapsed)\n", now - lastLimitChangeTime);
                 }
                 lastLimitChangeTime = 0; // lost stability, reset timer
             }
             break;
+        }
 
         case SEQ_STAGE2_ACTIVE:
         case SEQ_STAGE2_WAIT_LIMIT:
-            // Poll retract limit; require stable ACTIVE before finishing
-            if (g_limitRetractActive) {
+        {
+            // Poll retract limit (physical switch OR pressure-based limit)
+            bool retractLimitReached = g_limitRetractActive;
+            
+            // Check pressure-based retract limit
+            if (!retractLimitReached && pressureManager.isReady()) {
+                float currentPressure = pressureManager.getHydraulicPressure();
+                if (currentPressure >= RETRACT_PRESSURE_LIMIT_PSI) {
+                    retractLimitReached = true;
+                    debugPrintf("[SEQ] Retract pressure limit reached: %.1f PSI >= %.1f PSI\n", 
+                               currentPressure, RETRACT_PRESSURE_LIMIT_PSI);
+                }
+            }
+            
+            if (retractLimitReached) {
                 if (lastLimitChangeTime == 0) {
                     lastLimitChangeTime = now;
-                    debugPrintf("[SEQ] Limit 7 rise; timing for %lums\n", stableTimeMs);
+                    debugPrintf("[SEQ] Retract limit reached (switch=%s, pressure=%s); timing for %lums\n", 
+                               g_limitRetractActive ? "YES" : "NO",
+                               (pressureManager.isReady() && pressureManager.getHydraulicPressure() >= RETRACT_PRESSURE_LIMIT_PSI) ? "YES" : "NO",
+                               stableTimeMs);
                 } else if (now - lastLimitChangeTime >= stableTimeMs) {
-                    debugPrintf("[SEQ] Limit 7 stable for %lums; complete\n", now - lastLimitChangeTime);
+                    debugPrintf("[SEQ] Retract limit stable for %lums; complete\n", now - lastLimitChangeTime);
                     if (g_relayController) {
                         g_relayController->setRelay(RELAY_RETRACT, false);
                     }
@@ -207,17 +241,18 @@ void SequenceController::update() {
                     allowButtonRelease = false;
                     lastLimitChangeTime = 0;
                     if (g_networkManager && g_networkManager->isConnected()) {
-                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "complete");
+                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "complete_pressure_or_limit");
                         g_networkManager->publish(TOPIC_SEQUENCE_STATE, "complete");
                     }
                 }
             } else {
                 if (lastLimitChangeTime != 0) {
-                    debugPrintf("[SEQ] Limit 7 lost before stable (%lums elapsed)\n", now - lastLimitChangeTime);
+                    debugPrintf("[SEQ] Retract limit lost before stable (%lums elapsed)\n", now - lastLimitChangeTime);
                 }
                 lastLimitChangeTime = 0;
             }
             break;
+        }
             
         default:
             // No special processing for other states

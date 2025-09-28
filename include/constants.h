@@ -78,14 +78,14 @@ const float SENSOR_MIN_VOLTAGE = 0.0f;    // 0V = 0 PSI
 const float SENSOR_MAX_VOLTAGE = 4.5f;    // 4.5V = max PSI
 const float HYDRAULIC_MAX_PRESSURE_PSI = 3000.0f; // Hydraulic system pressure range
 
-// Individual sensor defaults (A1 - Main Hydraulic)
-const float DEFAULT_A1_MAX_PRESSURE_PSI = 3000.0f;
+// Individual sensor defaults (A1 - Main Hydraulic)  
+const float DEFAULT_A1_MAX_PRESSURE_PSI = 5000.0f;  // Change this to your sensor's max range
 const float DEFAULT_A1_ADC_VREF = 5.0f;  // Corrected to 5V reference
 const float DEFAULT_A1_SENSOR_GAIN = 1.0f;
 const float DEFAULT_A1_SENSOR_OFFSET = 0.0f;
 
 // Individual sensor defaults (A5 - Hydraulic Oil)
-const float DEFAULT_A5_MAX_PRESSURE_PSI = 3000.0f;
+const float DEFAULT_A5_MAX_PRESSURE_PSI = 30.0f;
 const float DEFAULT_A5_ADC_VREF = 5.0f;  // Corrected to 5V reference
 const float DEFAULT_A5_SENSOR_GAIN = 1.0f;
 const float DEFAULT_A5_SENSOR_OFFSET = 0.0f;
@@ -100,8 +100,12 @@ const float MAIN_PRESSURE_EXT_POS_FRAC = 0.3f;
 const float MAIN_PRESSURE_EXT_FSV = 5.0f;
 
 // Safety Constants
-const float SAFETY_THRESHOLD_PSI = 2750.0f;
+const float SAFETY_THRESHOLD_PSI = 2500.0f;
 const float SAFETY_HYSTERESIS_PSI = 10.0f;
+
+// Pressure-based sequence control
+const float EXTEND_PRESSURE_LIMIT_PSI = 2300.0f;  // Pressure that triggers extend limit reached
+const float RETRACT_PRESSURE_LIMIT_PSI = 2300.0f; // Pressure that triggers retract limit reached
 
 // Sequence Control Constants
 const unsigned long DEFAULT_SEQUENCE_STABLE_MS = 50;

@@ -49,36 +49,14 @@ void SafetySystem::checkPressure(float pressure) {
 }
 
 void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
-    // If cylinder is at end-of-travel, high pressure is normal and expected
-    if (atLimitSwitch) {
-        // Allow higher pressure threshold when at limit switches
-        if (pressure >= (SAFETY_THRESHOLD_PSI + 200.0f)) { // +200 PSI tolerance at limits
-            if (!safetyActive) {
-                activate("extreme_pressure_at_limit");
-            }
-        } else {
-            // Clear safety if pressure comes down, even at limits
-            if (safetyActive && pressure < (SAFETY_THRESHOLD_PSI + 150.0f)) {
-                debugPrintf("Safety cleared: pressure %.1f PSI acceptable at limit switch\n", pressure);
-                
-                if (networkManager && networkManager->isConnected()) {
-                    networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: cleared at limit");
-                }
-                
-                safetyActive = false;
-                
-                if (relayController) {
-                    relayController->disableSafety();
-                }
-            }
-        }
-        return;
-    }
+    // Simplified pressure checking - no special allowances at limit switches
+    // Sequence controller now handles pressure-based limits, so we don't need
+    // to allow higher pressures at physical limits
     
-    // Normal mid-stroke operation - use standard threshold
     if (pressure >= SAFETY_THRESHOLD_PSI) {
         if (!safetyActive) {
-            activate("pressure_threshold");
+            const char* reason = atLimitSwitch ? "pressure_at_limit" : "pressure_threshold";
+            activate(reason);
         }
     } else if (pressure < (SAFETY_THRESHOLD_PSI - SAFETY_HYSTERESIS_PSI)) {
         if (safetyActive) {
