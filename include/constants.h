@@ -75,10 +75,27 @@ const unsigned long SAMPLE_INTERVAL_MS = 100;
 const unsigned long SAMPLE_WINDOW_MS = 1000;
 const size_t SAMPLE_WINDOW_COUNT = SAMPLE_WINDOW_MS / SAMPLE_INTERVAL_MS;
 const uint8_t ADC_RESOLUTION_BITS = 14;
-const float DEFAULT_ADC_VREF = 3.3f;
-const float DEFAULT_MAX_PRESSURE_PSI = 3000.0f;
+const float DEFAULT_ADC_VREF = 5.0f;  // Arduino UNO R4 WiFi ADC reference
+const float DEFAULT_MAX_PRESSURE_PSI = 5000.0f;  // Sensor full scale range
 const float DEFAULT_SENSOR_GAIN = 1.0f;
 const float DEFAULT_SENSOR_OFFSET = 0.0f;
+
+// Individual Sensor Defaults - A1 (System Pressure, 4-20mA)
+const float DEFAULT_A1_MAX_PRESSURE_PSI = 5000.0f;  // 4-20mA current loop range
+const float DEFAULT_A1_ADC_VREF = 5.0f;             // ADC reference voltage
+const float DEFAULT_A1_SENSOR_GAIN = 1.0f;          // Calibration gain
+const float DEFAULT_A1_SENSOR_OFFSET = 0.0f;        // Calibration offset
+
+// Individual Sensor Defaults - A5 (Filter Pressure, 0-4.5V)
+const float DEFAULT_A5_MAX_PRESSURE_PSI = 30.0f;    // 0-30 PSI absolute range
+const float DEFAULT_A5_ADC_VREF = 5.0f;             // ADC reference voltage  
+const float DEFAULT_A5_SENSOR_GAIN = 1.0f;          // Calibration gain (4.5V/5V = 0.9 for full scale)
+const float DEFAULT_A5_SENSOR_OFFSET = 0.0f;        // Calibration offset
+
+// 4-20mA Current Loop Configuration (with 250Ω resistor)
+const float CURRENT_LOOP_MIN_VOLTAGE = 1.0f;  // 4mA × 250Ω = 1V (0 PSI)
+const float CURRENT_LOOP_MAX_VOLTAGE = 5.0f;  // 20mA × 250Ω = 5V (5000 PSI)
+const float CURRENT_LOOP_RESISTOR_OHMS = 250.0f;  // Shunt resistor value
 
 // Dual Pressure Sensor Pins
 const uint8_t HYDRAULIC_PRESSURE_PIN = A1;      // Main hydraulic pressure (A1)

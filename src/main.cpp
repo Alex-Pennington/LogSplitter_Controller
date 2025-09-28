@@ -282,10 +282,10 @@ bool initializeSystem() {
         Serial.println("WARNING: Using default configuration");
     }
     
-    // Initialize pressure sensor
+    // Initialize pressure sensor with individual sensor configuration
     pressureManager.begin();
     pressureManager.setNetworkManager(&networkManager);
-    // Note: Individual sensor configuration can be added via pressureManager.getSensor() if needed
+    configManager.applyToPressureManager(pressureManager);
     
     // Initialize relay controller
     relayController.begin();
@@ -318,6 +318,7 @@ bool initializeSystem() {
     currentSystemState = SYS_CONNECTING;
     if (networkManager.begin()) {
         networkManager.setMessageCallback(onMqttMessage);
+        configManager.setNetworkManager(&networkManager); // Enable error publishing
         Serial.println("Network initialization started");
     } else {
         Serial.println("Network initialization failed");

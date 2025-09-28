@@ -7,8 +7,12 @@
 #include "sequence_controller.h"
 #include "relay_controller.h"
 
+// Forward declaration
+class PressureManager;
+
 struct CalibrationData {
     uint32_t magic;
+    // Legacy single sensor parameters (kept for compatibility)
     float adcVref;
     float maxPressurePsi;
     float sensorGain;
@@ -20,6 +24,21 @@ struct CalibrationData {
     uint32_t seqStartStableMs;
     uint32_t seqTimeoutMs;
     bool relayEcho;
+    
+    // Individual sensor parameters - A1 (System Pressure)
+    float a1_maxPressurePsi;
+    float a1_adcVref;
+    float a1_sensorGain;
+    float a1_sensorOffset;
+    
+    // Individual sensor parameters - A5 (Filter Pressure)
+    float a5_maxPressurePsi;
+    float a5_adcVref;
+    float a5_sensorGain;
+    float a5_sensorOffset;
+    
+    // CRC32 checksum (must be last field)
+    uint32_t crc32;
 };
 
 class ConfigManager {
@@ -30,15 +49,25 @@ private:
     // Pin mode configuration (true = NC, false = NO)
     bool pinIsNC[WATCH_PIN_COUNT] = {false};
     
+    // Network manager pointer for error publishing
+    class NetworkManager* networkManager = nullptr;
+    
     // Validation helpers
     bool isValidConfig(const CalibrationData& data);
     void setDefaults();
+    
+    // CRC32 calculation helpers
+    uint32_t calculateCRC32(const CalibrationData& data);
+    bool validateCRC(const CalibrationData& data);
+    void updateCRC(CalibrationData& data);
+    void publishError(const char* errorMessage);
     
 public:
     ConfigManager() = default;
     
     // Initialization
     void begin();
+    void setNetworkManager(class NetworkManager* netMgr) { networkManager = netMgr; }
     
     // Load/Save
     bool load();
@@ -52,11 +81,31 @@ public:
     
     // Apply configuration to objects
     void applyToPressureSensor(PressureSensor& sensor);
+    void applyToPressureManager(class PressureManager& manager);
     void applyToSequenceController(SequenceController& controller);
     void applyToRelayController(RelayController& relay);
     void loadFromPressureSensor(const PressureSensor& sensor);
     void loadFromSequenceController(const SequenceController& controller);
     void loadFromRelayController(const RelayController& relay);
+    
+    // Individual sensor configuration access
+    float getA1MaxPressure() const { return config.a1_maxPressurePsi; }
+    float getA1AdcVref() const { return config.a1_adcVref; }
+    float getA1SensorGain() const { return config.a1_sensorGain; }
+    float getA1SensorOffset() const { return config.a1_sensorOffset; }
+    float getA5MaxPressure() const { return config.a5_maxPressurePsi; }
+    float getA5AdcVref() const { return config.a5_adcVref; }
+    float getA5SensorGain() const { return config.a5_sensorGain; }
+    float getA5SensorOffset() const { return config.a5_sensorOffset; }
+    
+    void setA1MaxPressure(float val) { config.a1_maxPressurePsi = val; }
+    void setA1AdcVref(float val) { config.a1_adcVref = val; }
+    void setA1SensorGain(float val) { config.a1_sensorGain = val; }
+    void setA1SensorOffset(float val) { config.a1_sensorOffset = val; }
+    void setA5MaxPressure(float val) { config.a5_maxPressurePsi = val; }
+    void setA5AdcVref(float val) { config.a5_adcVref = val; }
+    void setA5SensorGain(float val) { config.a5_sensorGain = val; }
+    void setA5SensorOffset(float val) { config.a5_sensorOffset = val; }
     
     // Direct access for specific settings
     bool isConfigValid() const { return configValid; }

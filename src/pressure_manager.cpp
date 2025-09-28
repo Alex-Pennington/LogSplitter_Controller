@@ -123,22 +123,30 @@ float PressureSensorChannel::computeAverageCount() {
 }
 
 float PressureSensorChannel::voltageToPressure(float voltage) {
-    // Primary channel (A1) uses extended bandwidth: 0-5V spans -25% .. +125% of nominal range
-    // Other channels (e.g. A5) remain linear 0-4.5/5.0 -> 0..maxPressurePsi
-    // Identify A1 by analogPin match
-    bool isPrimary = (analogPin == HYDRAULIC_PRESSURE_PIN);
-    if (isPrimary) {
-        // Map 0V -> -0.25 * maxPressure, 5V -> 1.25 * maxPressure, then clamp to 0..maxPressure
-        float spanFactor = 1.5f; // (-0.25 to +1.25) total span = 1.5 * nominal
-        float raw = (voltage / 5.0f) * (spanFactor * maxPressurePsi) - (0.25f * maxPressurePsi);
-        if (raw < 0.0f) raw = 0.0f;
-        if (raw > maxPressurePsi) raw = maxPressurePsi;
-        return raw;
+    // Differentiate between sensor types based on analog pin
+    bool isSystemPressure = (analogPin == HYDRAULIC_PRESSURE_PIN);  // A1 = system pressure
+    
+    if (isSystemPressure) {
+        // A1: System pressure sensor - 4-20mA current loop
+        // 4mA × 250Ω = 1V = 0 PSI, 20mA × 250Ω = 5V = 5000 PSI
+        float psi = 0.0f;
+        if (voltage >= CURRENT_LOOP_MIN_VOLTAGE) {
+            float voltageRange = CURRENT_LOOP_MAX_VOLTAGE - CURRENT_LOOP_MIN_VOLTAGE; // 4V
+            float normalizedVoltage = voltage - CURRENT_LOOP_MIN_VOLTAGE; // Remove 1V offset
+            if (normalizedVoltage < 0.0f) normalizedVoltage = 0.0f;
+            if (normalizedVoltage > voltageRange) normalizedVoltage = voltageRange;
+            psi = (normalizedVoltage / voltageRange) * maxPressurePsi;
+        }
+        // Apply calibration (gain + offset)
+        return psi * sensorGain + sensorOffset;
     } else {
-           // Generic linear 0..SENSOR_MAX_VOLTAGE => 0..maxPressurePsi
-           if (voltage < SENSOR_MIN_VOLTAGE) voltage = SENSOR_MIN_VOLTAGE;
-           if (voltage > SENSOR_MAX_VOLTAGE) voltage = SENSOR_MAX_VOLTAGE;
-           return (voltage / SENSOR_MAX_VOLTAGE) * maxPressurePsi;
+        // A5: Filter pressure sensor - 0-5V voltage output (configurable)
+        // Generic linear 0..SENSOR_MAX_VOLTAGE => 0..maxPressurePsi with calibration
+        if (voltage < SENSOR_MIN_VOLTAGE) voltage = SENSOR_MIN_VOLTAGE;
+        if (voltage > SENSOR_MAX_VOLTAGE) voltage = SENSOR_MAX_VOLTAGE;
+        float psi = (voltage / SENSOR_MAX_VOLTAGE) * maxPressurePsi;
+        // Apply calibration (gain + offset)
+        return psi * sensorGain + sensorOffset;
     }
 }
 

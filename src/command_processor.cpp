@@ -68,12 +68,16 @@ bool CommandValidator::validateSetCommand(const char* param, const char* value) 
     if (!isValidSetParam(param) || !value) return false;
     
     // Additional parameter-specific validation
-    if (strcasecmp(param, "vref") == 0) {
+    if (strcasecmp(param, "vref") == 0 ||
+        strcasecmp(param, "a1_vref") == 0 ||
+        strcasecmp(param, "a5_vref") == 0) {
         float val = atof(value);
         return (val > 0.0f && val <= 5.0f);
     }
     
-    if (strcasecmp(param, "maxpsi") == 0) {
+    if (strcasecmp(param, "maxpsi") == 0 || 
+        strcasecmp(param, "a1_maxpsi") == 0 || 
+        strcasecmp(param, "a5_maxpsi") == 0) {
         float val = atof(value);
         return (val > 0.0f && val <= 10000.0f);
     }
@@ -265,6 +269,80 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             configManager->save();
         }
         snprintf(response, responseSize, "offset set %.6f", val);
+    }
+    // Individual sensor A1 (system pressure) configuration
+    else if (strcasecmp(param, "a1_maxpsi") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC).setMaxPressure(val);
+            snprintf(response, responseSize, "A1 maxpsi set %.2f", val);
+        } else {
+            snprintf(response, responseSize, "A1 maxpsi failed: PressureManager not available");
+        }
+    }
+    else if (strcasecmp(param, "a1_vref") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC).setAdcVref(val);
+            snprintf(response, responseSize, "A1 vref set %.6f", val);
+        } else {
+            snprintf(response, responseSize, "A1 vref failed: PressureManager not available");
+        }
+    }
+    else if (strcasecmp(param, "a1_gain") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC).setSensorGain(val);
+            snprintf(response, responseSize, "A1 gain set %.6f", val);
+        } else {
+            snprintf(response, responseSize, "A1 gain failed: PressureManager not available");
+        }
+    }
+    else if (strcasecmp(param, "a1_offset") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC).setSensorOffset(val);
+            snprintf(response, responseSize, "A1 offset set %.6f", val);
+        } else {
+            snprintf(response, responseSize, "A1 offset failed: PressureManager not available");
+        }
+    }
+    // Individual sensor A5 (filter pressure) configuration
+    else if (strcasecmp(param, "a5_maxpsi") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setMaxPressure(val);
+            snprintf(response, responseSize, "A5 maxpsi set %.2f", val);
+        } else {
+            snprintf(response, responseSize, "A5 maxpsi failed: PressureManager not available");
+        }
+    }
+    else if (strcasecmp(param, "a5_vref") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setAdcVref(val);
+            snprintf(response, responseSize, "A5 vref set %.6f", val);
+        } else {
+            snprintf(response, responseSize, "A5 vref failed: PressureManager not available");
+        }
+    }
+    else if (strcasecmp(param, "a5_gain") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setSensorGain(val);
+            snprintf(response, responseSize, "A5 gain set %.6f", val);
+        } else {
+            snprintf(response, responseSize, "A5 gain failed: PressureManager not available");
+        }
+    }
+    else if (strcasecmp(param, "a5_offset") == 0) {
+        float val = atof(value);
+        if (pressureManager) {
+            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setSensorOffset(val);
+            snprintf(response, responseSize, "A5 offset set %.6f", val);
+        } else {
+            snprintf(response, responseSize, "A5 offset failed: PressureManager not available");
+        }
     }
     else if (strcasecmp(param, "filter") == 0) {
         FilterMode mode = FILTER_NONE;

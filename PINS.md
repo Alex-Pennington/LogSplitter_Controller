@@ -32,17 +32,20 @@ This document provides comprehensive details of all pin assignments for the Ardu
 
 ### Analog Inputs
 
-#### A1 - Main Hydraulic Pressure Sensor
+#### A1 - System Hydraulic Pressure Sensor (4-20mA Current Loop)
 - **Function**: Primary hydraulic system pressure monitoring
-- **Range**: 0-5000 PSI (configurable)
-- **Voltage**: 0-4.5V input (with extended range mapping)
+- **Range**: 0-5000 PSI (4mA-20mA)
+- **Voltage**: 1-5V input (4mA×250Ω to 20mA×250Ω)
+- **Circuit**: 24V supply → Sensor → 250Ω resistor → GND
 - **Sampling**: 100ms intervals with digital filtering
 - **Safety**: Critical for over-pressure protection
 - **MQTT Topic**: `r4/pressure/hydraulic_system`
 
-#### A5 - Hydraulic Filter Pressure Sensor  
-- **Function**: Hydraulic filter pressure monitoring
+#### A5 - Filter Hydraulic Pressure Sensor (0-5V Voltage Output)
+- **Function**: Hydraulic filter pressure monitoring  
 - **Range**: 0-5000 PSI (configurable)
+- **Voltage**: 0-5V input (direct voltage output)
+- **Circuit**: Sensor power → 5V, Signal → A5, Ground → GND
 - **Voltage**: 0-4.5V input (linear mapping)
 - **Sampling**: 100ms intervals with digital filtering
 - **Purpose**: Filter condition monitoring and diagnostics
@@ -176,10 +179,11 @@ User Feedback: "SAFETY: Extend operation stopped - limit switch reached"
 - **Current Consumption**: ~100µA per input with pullup
 
 ### Analog Input Requirements
-- **Voltage Range**: 0-5V (4.5V recommended maximum for sensors)
+- **Voltage Range**: 0-5V (1-5V for 4-20mA current loop sensors)
 - **Resolution**: 14-bit (16384 levels, ~0.3mV per step)
 - **Input Impedance**: ~100MΩ
 - **Sampling Rate**: Configurable, default 10 samples/second per channel
+- **Current Loop**: 4-20mA with 250Ω shunt resistor (1V-5V = 0-5000 PSI)
 
 ### Digital Output Specifications
 - **Output Voltage**: 0V (LOW) to 5V (HIGH)
@@ -188,12 +192,31 @@ User Feedback: "SAFETY: Extend operation stopped - limit switch reached"
 
 ## Wiring Recommendations
 
-### Pressure Sensors
+### System Pressure Sensor (A1 - 4-20mA Current Loop)
+```
+24V Power Supply (+)    → Pressure Sensor Pin 1 (Power)
+Pressure Sensor Pin 2  → 250Ω Resistor → Arduino GND
+Arduino A1              → 250Ω Resistor (measure voltage drop)
+24V Power Supply (-)    → Arduino GND
+Shield/Case             → GND (if metallic)
+
+Current Loop Operation:
+- 4mA (0 PSI) × 250Ω = 1.0V at Arduino A1
+- 20mA (5000 PSI) × 250Ω = 5.0V at Arduino A1
+- Voltage range: 1V-5V represents 0-5000 PSI
+```
+
+### Filter Pressure Sensor (A5 - 0-5V Voltage Output)
 ```
 Sensor Pin 1 (Power)    → 5V
 Sensor Pin 2 (Ground)   → GND  
-Sensor Pin 3 (Signal)   → A1 or A5
+Sensor Pin 3 (Signal)   → Arduino A5
 Shield/Case             → GND (if metallic)
+
+Voltage Output:
+- 0V = 0 PSI
+- 5V = 5000 PSI (configurable maximum)
+- Direct voltage output, no current loop
 ```
 
 ### Limit Switches

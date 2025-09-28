@@ -191,6 +191,36 @@ Pin 13: OUTPUT
   set emaalpha=0.1
   ```
 
+##### Individual Sensor Configuration
+Configure sensors independently with sensor-specific parameters:
+
+**A1 System Pressure Sensor (4-20mA Current Loop)**:
+- **a1_maxpsi** - Maximum pressure range (PSI, default: 5000)
+- **a1_vref** - ADC reference voltage (volts, default: 5.0)
+- **a1_gain** - Sensor gain multiplier (default: 1.0)
+- **a1_offset** - Sensor offset (PSI, default: 0.0)
+
+**A5 Filter Pressure Sensor (0-4.5V Voltage Output)**:
+- **a5_maxpsi** - Maximum pressure range (PSI, default: 30 for 0-30 PSI absolute sensor)
+- **a5_vref** - ADC reference voltage (volts, default: 5.0)
+- **a5_gain** - Sensor gain multiplier (default: 1.0, note: sensor outputs 0-4.5V for full scale)
+- **a5_offset** - Sensor offset (PSI, default: 0.0)
+
+Examples:
+```
+> set a1_maxpsi 5000
+A1 maxpsi set 5000
+
+> set a5_maxpsi 3000
+A5 maxpsi set 3000
+
+> set a5_gain 1.2
+A5 gain set 1.200000
+
+> set a5_offset -10.5
+A5 offset set -10.500000
+```
+
 ##### Sequence Controller Configuration
 - **seqstable** - Sequence stability time in milliseconds (default: 1000)
   ```
@@ -327,8 +357,8 @@ All commands undergo strict validation:
 ## Hardware Configuration
 
 ### Pressure Sensors
-- **A1 (Pin A1)**: Hydraulic system pressure sensor (0-4.5V → 0-5000 PSI)
-- **A5 (Pin A5)**: Hydraulic filter pressure sensor (0-4.5V → 0-5000 PSI)
+- **A1 (Pin A1)**: System hydraulic pressure sensor (4-20mA current loop, 1-5V → 0-5000 PSI)
+- **A5 (Pin A5)**: Filter hydraulic pressure sensor (0-5V voltage output → 0-5000 PSI)
 
 ### Digital Inputs
 - **Pin 6**: Extend limit switch (INPUT_PULLUP)

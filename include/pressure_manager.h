@@ -15,6 +15,8 @@ private:
     uint8_t analogPin;
     float maxPressurePsi;
     float adcVref = DEFAULT_ADC_VREF;
+    float sensorGain = DEFAULT_SENSOR_GAIN;
+    float sensorOffset = DEFAULT_SENSOR_OFFSET;
     
     // Sampling buffer
     uint16_t samples[SAMPLE_WINDOW_COUNT];
@@ -49,8 +51,16 @@ public:
     
     // Configuration
     void setMaxPressure(float maxPsi) { maxPressurePsi = maxPsi; }
+    void setAdcVref(float vref) { adcVref = vref; }
+    void setSensorGain(float gain) { sensorGain = gain; }
+    void setSensorOffset(float offset) { sensorOffset = offset; }
     void setFilterMode(FilterMode mode) { filterMode = mode; if (mode == FILTER_EMA) emaValue = 0.0f; }
     void setEmaAlpha(float alpha) { if (alpha > 0.0f && alpha <= 1.0f) emaAlpha = alpha; }
+    
+    // Getters for configuration
+    float getAdcVref() const { return adcVref; }
+    float getSensorGain() const { return sensorGain; }
+    float getSensorOffset() const { return sensorOffset; }
     
     // Current readings
     float getPressure() const { return currentPressure; }
