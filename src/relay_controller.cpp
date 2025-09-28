@@ -84,7 +84,8 @@ bool RelayController::waitForOkResponse() {
                     response.trim();
                     debugPrintf("Relay response: '%s'\n", response.c_str());
                     
-                    if (response.equalsIgnoreCase("OK")) {
+                    // Check if response contains "OK" (capital letters only)
+                    if (response.indexOf("OK") >= 0) {
                         waitingForResponse = false;
                         return true;
                     }
@@ -110,9 +111,9 @@ void RelayController::ensurePowerOn() {
 }
 
 void RelayController::update() {
-    // Check for response timeout
+    // Check for response timeout (100ms)
     if (waitingForResponse && (millis() - lastCommandTime > RESPONSE_TIMEOUT_MS)) {
-        debugPrintf("Relay response timeout\n");
+        debugPrintf("Relay response timeout (100ms)\n");
         waitingForResponse = false;
     }
     

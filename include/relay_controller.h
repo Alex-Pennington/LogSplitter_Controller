@@ -26,7 +26,7 @@ private:
     uint8_t lastRelayNumber = 0;
     bool lastRelayState = false;
     static const uint8_t MAX_RETRIES = 2;
-    static const unsigned long RESPONSE_TIMEOUT_MS = 500;
+    static const unsigned long RESPONSE_TIMEOUT_MS = 100;
     
     // Helper methods
     void sendCommand(uint8_t relayNumber, bool on);
