@@ -140,8 +140,8 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
             currentSystemState = SYS_EMERGENCY_STOP;
             
             // Immediate safety response
-            relayController.emergencyStop();  // Turn off all relays immediately
-            sequenceController.emergencyStop(); // Abort current sequence
+            relayController.enableSafety();  // Turn off all relays immediately and enable safety mode
+            sequenceController.abort(); // Abort current sequence
             safetySystem.emergencyStop("e_stop_button");
             
             Serial.println("EMERGENCY STOP: All operations halted");
