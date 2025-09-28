@@ -11,6 +11,11 @@
 // External debug flag
 extern bool g_debugEnabled;
 
+// External E-Stop state variables
+extern bool g_emergencyStopActive;
+extern bool g_emergencyStopLatched;
+extern SystemState currentSystemState;
+
 // Static data for rate limiting
 static unsigned long lastCommandTime = 0;
 static const unsigned long COMMAND_RATE_LIMIT_MS = 50; // 20 commands/second max
@@ -141,7 +146,7 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug";
+    const char* helpText = "Commands: help, show, debug, network, reset";
     if (!fromMqtt) {
         snprintf(response, responseSize, "%s, pins, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
@@ -391,6 +396,46 @@ void CommandProcessor::handleDebug(char* param, char* response, size_t responseS
     }
 }
 
+void CommandProcessor::handleNetwork(char* response, size_t responseSize) {
+    if (networkManager) {
+        networkManager->getHealthString(response, responseSize);
+    } else {
+        snprintf(response, responseSize, "network manager not available");
+    }
+}
+
+void CommandProcessor::handleReset(char* param, char* response, size_t responseSize) {
+    if (!param) {
+        snprintf(response, responseSize, "usage: reset estop");
+        return;
+    }
+    
+    if (strcasecmp(param, "estop") == 0) {
+        // Only allow E-Stop reset if E-Stop button is not currently pressed
+        if (g_emergencyStopActive) {
+            snprintf(response, responseSize, "E-Stop reset failed: E-Stop button still pressed");
+            return;
+        }
+        
+        if (g_emergencyStopLatched) {
+            g_emergencyStopLatched = false;
+            currentSystemState = SYS_RUNNING;
+            
+            // Notify safety system of reset
+            if (safetySystem) {
+                safetySystem->clearEmergencyStop();
+            }
+            
+            snprintf(response, responseSize, "E-Stop reset successful - system operational");
+            Serial.println("E-Stop reset: System restored to operational state");
+        } else {
+            snprintf(response, responseSize, "E-Stop not latched - no reset needed");
+        }
+    } else {
+        snprintf(response, responseSize, "unknown reset parameter: %s", param);
+    }
+}
+
 bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize) {
     // Initialize response
     response[0] = '\0';
@@ -475,6 +520,13 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     else if (strcasecmp(cmd, "debug") == 0) {
         char* param = strtok(NULL, " ");
         handleDebug(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "network") == 0) {
+        handleNetwork(response, responseSize);
+    }
+    else if (strcasecmp(cmd, "reset") == 0) {
+        char* param = strtok(NULL, " ");
+        handleReset(param, response, responseSize);
     }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);

@@ -31,7 +31,7 @@ COMMAND [parameter] [value]
 **Example**:
 ```
 > help
-Commands: help, show, debug, pins, set <param> <val>, relay R<n> ON|OFF
+Commands: help, show, debug, network, pins, set <param> <val>, relay R<n> ON|OFF
 ```
 
 ### 2. SHOW
@@ -72,7 +72,67 @@ debug OFF
 - Pressure sensor initialization
 - Command processing status
 
-### 4. PINS
+### 4. NETWORK
+**Description**: Display network health statistics and connection status
+**Syntax**: `network`
+**Access**: Serial + MQTT
+
+**Example Output**:
+```
+> network
+wifi=OK mqtt=OK stable=YES disconnects=2 fails=0 uptime=1247s
+```
+
+**Status Fields**:
+- **wifi**: OK/DOWN - WiFi connection state
+- **mqtt**: OK/DOWN - MQTT broker connection state  
+- **stable**: YES/NO - Connection stable for >30 seconds
+- **disconnects**: Total number of connection losses
+- **fails**: Failed MQTT publish attempts
+- **uptime**: Current connection uptime in seconds
+
+**Network Failsafe Operation**:
+- ✅ **Hydraulic control NEVER blocked by network issues**
+- ✅ **Non-blocking reconnection** - system continues operating during network problems
+- ✅ **Automatic recovery** with exponential backoff
+- ✅ **Connection stability monitoring** prevents flapping
+- ✅ **Health metrics** for diagnostics and troubleshooting
+
+### 5. RESET
+**Description**: Reset system components from fault states
+**Syntax**: `reset <component>`
+**Access**: Serial + MQTT
+
+#### Available RESET Components:
+
+##### Emergency Stop (E-Stop) Reset
+**Parameter**: `estop`
+**Function**: Clear emergency stop latch and restore system operation
+
+**Requirements**:
+- Emergency stop button must NOT be currently pressed
+- System must be in emergency stop state (SYS_EMERGENCY_STOP)
+
+**Examples**:
+```
+> reset estop
+E-Stop reset successful - system operational
+
+> reset estop
+E-Stop reset failed: E-Stop button still pressed
+
+> reset estop  
+E-Stop not latched - no reset needed
+```
+
+**Safety Notes**:
+- ⚠️ **CRITICAL**: E-Stop reset requires manual verification that all hazards are clear
+- ⚠️ **VERIFY**: Ensure E-Stop button is physically released before attempting reset
+- ⚠️ **CONFIRM**: All personnel are clear of hydraulic equipment before reset
+- ✅ Reset only clears the software latch - hardware E-Stop must be manually released
+- ✅ Safety system integration prevents unsafe operation
+
+### 6. PINS
 **Description**: Display current PIN mode configuration for all Arduino pins
 **Syntax**: `pins`
 **Access**: Serial ONLY (Security restriction)
@@ -87,7 +147,7 @@ Pin 2: INPUT
 Pin 13: OUTPUT
 ```
 
-### 5. SET
+### 7. SET
 **Description**: Configure system parameters with EEPROM persistence
 **Syntax**: `set <parameter> <value>`
 **Access**: Serial + MQTT
@@ -172,7 +232,7 @@ Pin 13: OUTPUT
   set debug=OFF
   ```
 
-### 5. RELAY
+### 8. RELAY
 **Description**: Control hydraulic system relays
 **Syntax**: `relay R<number> <state>`
 **Access**: Serial + MQTT
@@ -262,7 +322,10 @@ All commands undergo strict validation:
 
 ```
 > help
-Commands: help, show, debug, pins, set <param> <val>, relay R<n> ON|OFF
+Commands: help, show, debug, network, pins, set <param> <val>, relay R<n> ON|OFF
+
+> network
+wifi=OK mqtt=OK stable=YES disconnects=0 fails=0 uptime=1247s
 
 > debug
 debug OFF

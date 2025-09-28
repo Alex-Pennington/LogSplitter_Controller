@@ -31,6 +31,7 @@ public:
     // Manual control
     void activate(const char* reason = "manual");
     void deactivate();
+    void clearEmergencyStop();
     
     // Status
     bool isActive() const { return safetyActive; }

@@ -9,9 +9,15 @@ const unsigned long MAIN_LOOP_TIMEOUT_MS = 5000;
 // Network Constants
 const char* const BROKER_HOST = "159.203.138.46";
 const int BROKER_PORT = 1883;
-const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
-const unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000;
-const uint8_t MAX_CONNECT_RETRIES = 3;
+// Non-blocking network timeouts (much shorter for safety)
+const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;  // Max time to spend trying WiFi
+const unsigned long WIFI_CONNECT_CHECK_INTERVAL_MS = 500;  // Check WiFi status every 500ms
+const unsigned long MQTT_CONNECT_TIMEOUT_MS = 5000;   // Max time to spend trying MQTT
+const unsigned long MQTT_RECONNECT_INTERVAL_MS = 10000; // Wait 10s between attempts
+const unsigned long NETWORK_STABILITY_TIME_MS = 30000; // 30s uptime = stable
+const unsigned long NETWORK_HEALTH_CHECK_INTERVAL_MS = 1000; // Check health every 1s
+const uint8_t MAX_WIFI_RETRIES = 3;
+const uint8_t MAX_MQTT_RETRIES = 5;
 
 // MQTT Topics
 const char TOPIC_PUBLISH[] PROGMEM = "r4/example/pub";
@@ -30,13 +36,14 @@ const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "r4/sequence/event";
 const char TOPIC_SEQUENCE_STATE[] PROGMEM = "r4/sequence/state";
 
 // Pin Configuration
-const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7};
+const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
 const unsigned long DEBOUNCE_DELAY_MS = 20;
 
 // Limit Switch Configuration
 const uint8_t LIMIT_EXTEND_PIN = 6;   // Cylinder fully extended limit switch
 const uint8_t LIMIT_RETRACT_PIN = 7;  // Cylinder fully retracted limit switch
+const uint8_t EMERGENCY_STOP_PIN = 12; // Emergency stop button input
 
 // Relay Configuration Labels
 const uint8_t RELAY_EXTEND = 1;       // Relay 1 - Cylinder extend (hydraulic valve)
@@ -115,7 +122,8 @@ enum SystemState {
     SYS_CONNECTING,
     SYS_RUNNING,
     SYS_ERROR,
-    SYS_SAFE_MODE
+    SYS_SAFE_MODE,
+    SYS_EMERGENCY_STOP
 };
 
 // Command validation

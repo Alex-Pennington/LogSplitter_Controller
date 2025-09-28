@@ -59,6 +59,8 @@ RelayController* g_relayController = &relayController;
 // Global limit switch states for safety system
 bool g_limitExtendActive = false;   // Pin 6 - Cylinder fully extended
 bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
+bool g_emergencyStopActive = false; // Pin 12 - Emergency stop button
+bool g_emergencyStopLatched = false; // E-Stop latch state (requires manual reset)
 
 // ============================================================================
 // System State
@@ -126,6 +128,32 @@ void debugPrintf(const char* fmt, ...) {
 
 void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     debugPrintf("Input change: pin %d -> %s\n", pin, state ? "ACTIVE" : "INACTIVE");
+    
+    // EMERGENCY STOP - Highest Priority (Pin 12)
+    if (pin == EMERGENCY_STOP_PIN) {
+        g_emergencyStopActive = state;
+        debugPrintf("EMERGENCY STOP: %s\n", state ? "PRESSED" : "RELEASED");
+        
+        if (state) { // E-Stop pressed (active LOW, so state=true means button pressed)
+            debugPrintf("*** EMERGENCY STOP ACTIVATED ***\n");
+            g_emergencyStopLatched = true;
+            currentSystemState = SYS_EMERGENCY_STOP;
+            
+            // Immediate safety response
+            relayController.emergencyStop();  // Turn off all relays immediately
+            sequenceController.emergencyStop(); // Abort current sequence
+            safetySystem.emergencyStop("e_stop_button");
+            
+            Serial.println("EMERGENCY STOP: All operations halted");
+            return; // Don't process any other inputs during E-Stop
+        }
+    }
+    
+    // Skip all other input processing if E-Stop is latched
+    if (g_emergencyStopLatched) {
+        debugPrintf("Input ignored - E-Stop latched\n");
+        return;
+    }
     
     // Update limit switch states for safety system
     if (pin == LIMIT_EXTEND_PIN) {

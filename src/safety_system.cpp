@@ -140,6 +140,18 @@ void SafetySystem::deactivate() {
     }
 }
 
+void SafetySystem::clearEmergencyStop() {
+    if (safetyActive) {
+        Serial.println("Safety system cleared via E-Stop reset");
+        
+        if (networkManager && networkManager->isConnected()) {
+            networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: E-Stop cleared");
+        }
+        
+        deactivate();
+    }
+}
+
 void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
     snprintf(buffer, bufferSize, 
         "safety=%s pressure=%.1f threshold=%.1f",
