@@ -36,6 +36,7 @@ private:
     class RelayController* relayController = nullptr;
     class NetworkManager* networkManager = nullptr;
     class SafetySystem* safetySystem = nullptr;
+    class SystemErrorManager* systemErrorManager = nullptr;
     
     // Command handlers
     void handleHelp(char* response, size_t responseSize, bool fromMqtt);
@@ -46,6 +47,7 @@ private:
     void handleDebug(char* param, char* response, size_t responseSize);
     void handleNetwork(char* response, size_t responseSize);
     void handleReset(char* param, char* response, size_t responseSize);
+    void handleError(char* param, char* value, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;
@@ -58,6 +60,7 @@ public:
     void setRelayController(class RelayController* relay) { relayController = relay; }
     void setNetworkManager(class NetworkManager* network) { networkManager = network; }
     void setSafetySystem(class SafetySystem* safety) { safetySystem = safety; }
+    void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     
     // Main processing function
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);

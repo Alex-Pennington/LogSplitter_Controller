@@ -21,7 +21,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | 6 | Digital In | Extend Limit Switch | Hydraulic cylinder extend limit | Active LOW |
 | 7 | Digital In | Retract Limit Switch | Hydraulic cylinder retract limit | Active LOW |
 | 8 | Digital In | Splitter Operator Signal | Splitter operator input for basket exchange | Active LOW |
-| 9 | Digital I/O | Reserved | Future digital I/O | N/A |
+| 9 | Digital Out | System Error LED | Malfunction indicator lamp for non-critical faults | Active HIGH |
 | 10 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 11 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 12 | Digital In | **Emergency Stop (E-Stop)** | Emergency stop input | Active LOW |
@@ -89,6 +89,18 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Standards**: Should meet IEC 60947-5-5 Category 0 stop requirements
 
 ### Digital Outputs
+
+#### Pin 9 - System Error LED (Malfunction Indicator Lamp)
+- **Function**: Indicates non-critical system faults requiring maintenance attention
+- **Configuration**: OUTPUT (external LED recommended)
+- **States**:
+  - **OFF**: No errors detected
+  - **Solid ON**: Single error (e.g., configuration issue)
+  - **Slow Blink (1Hz)**: Multiple errors present
+  - **Fast Blink (5Hz)**: Critical errors (EEPROM CRC, memory issues)
+- **Error Types**: EEPROM faults, sensor malfunctions, network issues, configuration errors
+- **MQTT**: Error details published to `r4/system/error` topic
+- **Acknowledgment**: Errors can be acknowledged but LED indicates until fault is cleared
 
 #### Pin 13 - Status LED
 - **Function**: System status indication

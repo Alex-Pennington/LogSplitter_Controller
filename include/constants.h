@@ -101,6 +101,9 @@ const float CURRENT_LOOP_RESISTOR_OHMS = 250.0f;  // Shunt resistor value
 const uint8_t HYDRAULIC_PRESSURE_PIN = A1;      // Main hydraulic pressure (A1)
 const uint8_t HYDRAULIC_OIL_PRESSURE_PIN = A5;  // Hydraulic oil pressure (A5)
 
+// System Error Indicator
+const uint8_t SYSTEM_ERROR_LED_PIN = 9;         // Malfunction indicator lamp (MIL)
+
 // Pressure Sensor Specifications
 const float SENSOR_MIN_VOLTAGE = 0.0f;          // 0V reference
 const float SENSOR_MAX_VOLTAGE = 5.0f;          // Default sensor full-scale (most ratiometric 0-4.5V sensors)

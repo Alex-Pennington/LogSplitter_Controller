@@ -262,7 +262,67 @@ A5 offset set -10.500000
   set debug=OFF
   ```
 
-### 8. RELAY
+### 8. ERROR
+**Description**: System error management for diagnostics and maintenance
+**Syntax**: `error <command> [parameter]`
+**Access**: Serial + MQTT
+
+#### Error Commands:
+
+##### List Active Errors
+**Command**: `error list`
+**Function**: Display all currently active system errors with acknowledgment status
+
+**Example Output**:
+```
+> error list
+Active errors: 0x01:(ACK)EEPROM_CRC, 0x10:CONFIG_INVALID
+```
+
+##### Acknowledge Error
+**Command**: `error ack <error_code>`
+**Function**: Acknowledge a specific error (changes LED pattern but doesn't clear error)
+
+**Error Codes**:
+- `0x01` - EEPROM CRC validation failed
+- `0x02` - EEPROM save operation failed  
+- `0x04` - Pressure sensor malfunction
+- `0x08` - Network connection persistently failed
+- `0x10` - Configuration parameters invalid
+- `0x20` - Memory allocation issues
+- `0x40` - General hardware fault
+
+**Examples**:
+```
+> error ack 0x01
+Error 0x01 acknowledged
+
+> error ack 0x10
+Error 0x10 acknowledged
+```
+
+##### Clear All Errors
+**Command**: `error clear`
+**Function**: Clear all system errors (only if underlying faults are resolved)
+
+**Example**:
+```
+> error clear
+All errors cleared
+```
+
+**System Error LED (Pin 9)**:
+- **OFF**: No errors
+- **Solid ON**: Single error or all errors acknowledged
+- **Slow Blink (1Hz)**: Multiple errors, some unacknowledged
+- **Fast Blink (5Hz)**: Critical errors (EEPROM CRC, memory, hardware)
+
+**MQTT Error Reporting**:
+- Error details published to `r4/system/error` topic
+- Includes error code, description, and timestamp
+- Automatic error reporting on detection
+
+### 9. RELAY
 **Description**: Control hydraulic system relays
 **Syntax**: `relay R<number> <state>`
 **Access**: Serial + MQTT

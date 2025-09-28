@@ -6,6 +6,7 @@
 #include "relay_controller.h"
 #include "network_manager.h"
 #include "safety_system.h"
+#include "system_error_manager.h"
 #include <ctype.h>
 
 // External debug flag
@@ -150,7 +151,7 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network, reset";
+    const char* helpText = "Commands: help, show, debug, network, reset, error";
     if (!fromMqtt) {
         snprintf(response, responseSize, "%s, pins, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
@@ -186,8 +187,15 @@ void CommandProcessor::handleShow(char* response, size_t responseSize, bool from
         safetySystem->getStatusString(safetyStatus, sizeof(safetyStatus));
     }
     
-    snprintf(response, responseSize, "%s %s %s %s", 
-        pressureStatus, sequenceStatus, relayStatus, safetyStatus);
+    char errorStatus[32] = "errors=0";
+    if (systemErrorManager) {
+        int errorCount = systemErrorManager->getActiveErrorCount();
+        const char* ledPattern = systemErrorManager->getCurrentLedPatternString();
+        snprintf(errorStatus, sizeof(errorStatus), "errors=%d led=%s", errorCount, ledPattern);
+    }
+    
+    snprintf(response, responseSize, "%s %s %s %s %s", 
+        pressureStatus, sequenceStatus, relayStatus, safetyStatus, errorStatus);
 }
 
 void CommandProcessor::handlePins(char* response, size_t responseSize, bool fromMqtt) {
@@ -514,6 +522,60 @@ void CommandProcessor::handleReset(char* param, char* response, size_t responseS
     }
 }
 
+void CommandProcessor::handleError(char* param, char* value, char* response, size_t responseSize) {
+    if (!systemErrorManager) {
+        snprintf(response, responseSize, "error manager not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "usage: error list|ack <code>|clear");
+        return;
+    }
+    
+    if (strcasecmp(param, "list") == 0) {
+        if (systemErrorManager->hasErrors()) {
+            systemErrorManager->listActiveErrors(response, responseSize);
+        } else {
+            snprintf(response, responseSize, "no active errors");
+        }
+    }
+    else if (strcasecmp(param, "ack") == 0) {
+        if (!value) {
+            snprintf(response, responseSize, "usage: error ack <error_code>");
+            return;
+        }
+        
+        // Parse error code (hex format like 0x01)
+        uint8_t errorCode = 0;
+        if (strncasecmp(value, "0x", 2) == 0) {
+            errorCode = (uint8_t)strtol(value, NULL, 16);
+        } else {
+            errorCode = (uint8_t)strtol(value, NULL, 10);
+        }
+        
+        if (errorCode == 0 || (errorCode & 0x7F) == 0) {
+            snprintf(response, responseSize, "invalid error code: %s", value);
+            return;
+        }
+        
+        SystemErrorType errorType = (SystemErrorType)errorCode;
+        if (systemErrorManager->hasError(errorType)) {
+            systemErrorManager->acknowledgeError(errorType);
+            snprintf(response, responseSize, "error 0x%02X acknowledged", errorCode);
+        } else {
+            snprintf(response, responseSize, "error 0x%02X not active", errorCode);
+        }
+    }
+    else if (strcasecmp(param, "clear") == 0) {
+        systemErrorManager->clearAllErrors();
+        snprintf(response, responseSize, "all errors cleared");
+    }
+    else {
+        snprintf(response, responseSize, "unknown error command: %s", param);
+    }
+}
+
 bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize) {
     // Initialize response
     response[0] = '\0';
@@ -605,6 +667,11 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     else if (strcasecmp(cmd, "reset") == 0) {
         char* param = strtok(NULL, " ");
         handleReset(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "error") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleError(param, value, response, responseSize);
     }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);

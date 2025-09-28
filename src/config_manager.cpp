@@ -1,6 +1,7 @@
 #include "config_manager.h"
 #include "pressure_manager.h"
 #include "network_manager.h"
+#include "system_error_manager.h"
 
 // CRC32 lookup table (IEEE 802.3 polynomial: 0xEDB88320)
 static const uint32_t crc32_table[256] = {
@@ -275,6 +276,17 @@ void ConfigManager::publishError(const char* errorMessage) {
     // Print to serial console
     Serial.print("ConfigManager ERROR: ");
     Serial.println(errorMessage);
+    
+    // Set system error LED if error manager is available
+    if (systemErrorManager) {
+        if (strstr(errorMessage, "CRC32") != nullptr) {
+            systemErrorManager->setError(ERROR_EEPROM_CRC, errorMessage);
+        } else if (strstr(errorMessage, "save") != nullptr) {
+            systemErrorManager->setError(ERROR_EEPROM_SAVE, errorMessage);
+        } else {
+            systemErrorManager->setError(ERROR_CONFIG_INVALID, errorMessage);
+        }
+    }
     
     // Publish to MQTT if network manager is available
     if (networkManager && networkManager->isConnected()) {

@@ -52,6 +52,9 @@ private:
     // Network manager pointer for error publishing
     class NetworkManager* networkManager = nullptr;
     
+    // System error manager pointer for error LED indication
+    class SystemErrorManager* systemErrorManager = nullptr;
+    
     // Validation helpers
     bool isValidConfig(const CalibrationData& data);
     void setDefaults();
@@ -68,6 +71,7 @@ public:
     // Initialization
     void begin();
     void setNetworkManager(class NetworkManager* netMgr) { networkManager = netMgr; }
+    void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     
     // Load/Save
     bool load();

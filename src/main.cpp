@@ -28,6 +28,7 @@
 #include "input_manager.h"
 #include "safety_system.h"
 #include "command_processor.h"
+#include "system_error_manager.h"
 #include "arduino_secrets.h"
 
 // ============================================================================
@@ -51,6 +52,7 @@ ConfigManager configManager;
 InputManager inputManager;
 SafetySystem safetySystem;
 CommandProcessor commandProcessor;
+SystemErrorManager systemErrorManager;
 
 // Global pointers for cross-module access
 NetworkManager* g_networkManager = &networkManager;
@@ -282,6 +284,10 @@ bool initializeSystem() {
         Serial.println("WARNING: Using default configuration");
     }
     
+    // Initialize system error manager
+    systemErrorManager.begin();
+    configManager.setSystemErrorManager(&systemErrorManager);
+    
     // Initialize pressure sensor with individual sensor configuration
     pressureManager.begin();
     pressureManager.setNetworkManager(&networkManager);
@@ -311,6 +317,7 @@ bool initializeSystem() {
     commandProcessor.setRelayController(&relayController);
     commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
+    commandProcessor.setSystemErrorManager(&systemErrorManager);
     
     Serial.println("Core systems initialized");
     
@@ -319,6 +326,7 @@ bool initializeSystem() {
     if (networkManager.begin()) {
         networkManager.setMessageCallback(onMqttMessage);
         configManager.setNetworkManager(&networkManager); // Enable error publishing
+        systemErrorManager.setNetworkManager(&networkManager); // Enable error LED and MQTT publishing
         Serial.println("Network initialization started");
     } else {
         Serial.println("Network initialization failed");
@@ -345,6 +353,7 @@ void updateSystem() {
     sequenceController.update();
     relayController.update();
     inputManager.update();
+    systemErrorManager.update();
     
     // Update safety system with current pressure
     if (pressureManager.isReady()) {
