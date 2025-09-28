@@ -167,15 +167,21 @@ void CommandProcessor::handleShow(char* response, size_t responseSize, bool from
     // Order is intentionally fixed for downstream parsers: pressures, sequence, relays, safety.
     // Example:
     //   hydraulic=1234.5 hydraulic_oil=1180.2 seq=IDLE stage=NONE relays=1:ON,2:OFF safe=OK
-    char pressureStatus[64] = "";
-    char sequenceStatus[64] = "";
-    char relayStatus[64] = "";
-    char safetyStatus[32] = "";
+    char pressureStatus[96] = "";   // Increased for longer pressure readings
+    char sequenceStatus[80] = "";   // Increased for sequence info
+    char relayStatus[80] = "";      // Increased for relay status  
+    char safetyStatus[48] = "";     // Increased for safety status
     
     if (pressureManager) {
         pressureManager->getStatusString(pressureStatus, sizeof(pressureStatus));
+        // Debug: Check if pressure status is empty
+        if (strlen(pressureStatus) == 0) {
+            snprintf(pressureStatus, sizeof(pressureStatus), "pressure=NONE");
+        }
     } else if (pressureSensor) {
         pressureSensor->getStatusString(pressureStatus, sizeof(pressureStatus));
+    } else {
+        snprintf(pressureStatus, sizeof(pressureStatus), "pressure=NO_MANAGER");
     }
     
     if (sequenceController) {

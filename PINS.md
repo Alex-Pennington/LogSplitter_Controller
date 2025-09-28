@@ -11,7 +11,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | A2 | Analog In | Reserved | Future analog input | N/A |
 | A3 | Analog In | Reserved | Future analog input | N/A |
 | A4 | Analog In | Reserved | Future analog input | N/A |
-| A5 | Analog In | Hydraulic Filter Pressure | Filter pressure sensor (0-5000 PSI) | 0-4.5V |
+| A5 | Analog In | Hydraulic Filter Pressure | Filter pressure sensor (0-30 PSI) | 0-4.5V |
 | 0 | Digital I/O | Serial RX | USB Serial communication | N/A |
 | 1 | Digital I/O | Serial TX | USB Serial communication | N/A |
 | 2 | Digital In | Reserved | Future digital input | N/A |

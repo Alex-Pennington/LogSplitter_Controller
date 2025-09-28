@@ -28,7 +28,6 @@
 #include "input_manager.h"
 #include "safety_system.h"
 #include "command_processor.h"
-#include "system_error_manager.h"
 #include "system_test_suite.h"
 #include "arduino_secrets.h"
 
@@ -53,7 +52,9 @@ ConfigManager configManager;
 InputManager inputManager;
 SafetySystem safetySystem;
 CommandProcessor commandProcessor;
-SystemErrorManager systemErrorManager;
+
+// Use the global SystemTestSuite defined in system_test_suite.cpp
+extern SystemTestSuite systemTestSuite;
 
 // Global pointers for cross-module access
 NetworkManager* g_networkManager = &networkManager;
@@ -62,12 +63,11 @@ RelayController* g_relayController = &relayController;
 // Global limit switch states for safety system
 bool g_limitExtendActive = false;   // Pin 6 - Cylinder fully extended
 bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
-bool g_splitterOperatorActive = false; // Pin 8 - Splitter operator input signal
-bool g_emergencyStopActive = false; // Pin 12 - Emergency stop button
-bool g_emergencyStopLatched = false; // E-Stop latch state (requires manual reset)
 
-// Configuration publishing state
-bool g_configPublishedOnce = false; // Track if config has been published to MQTT
+// Global debug and safety state variables
+bool g_debugEnabled = false;        // Debug output control
+bool g_emergencyStopActive = false; // Emergency stop current state
+bool g_emergencyStopLatched = false; // Emergency stop latched state
 
 // ============================================================================
 // System State
@@ -81,12 +81,6 @@ const unsigned long publishInterval = 5000; // 5 seconds
 
 // Serial command line buffer
 static uint8_t serialLinePos = 0;
-
-// ============================================================================
-// Function Forward Declarations
-// ============================================================================
-
-void publishSystemData();
 
 // ============================================================================
 // Watchdog and Safety
@@ -115,24 +109,18 @@ void checkSystemHealth() {
 // Debug Utilities
 // ============================================================================
 
-// Global debug flag - disabled by default
-bool g_debugEnabled = false;
-
 void debugPrintf(const char* fmt, ...) {
-    if (!g_debugEnabled) return; // Skip if debug disabled
-    
     unsigned long ts = millis();
     Serial.print("[TS ");
     Serial.print(ts);
     Serial.print("] ");
     
-    char dbgBuf[SHARED_BUFFER_SIZE];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(dbgBuf, sizeof(dbgBuf), fmt, args);
+    vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
     va_end(args);
     
-    Serial.print(dbgBuf);
+    Serial.print(g_message_buffer);
 }
 
 // ============================================================================
@@ -142,65 +130,13 @@ void debugPrintf(const char* fmt, ...) {
 void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     debugPrintf("Input change: pin %d -> %s\n", pin, state ? "ACTIVE" : "INACTIVE");
     
-    // EMERGENCY STOP - Highest Priority (Pin 12)
-    if (pin == EMERGENCY_STOP_PIN) {
-        g_emergencyStopActive = state;
-        debugPrintf("EMERGENCY STOP: %s\n", state ? "PRESSED" : "RELEASED");
-        
-        if (state) { // E-Stop pressed (active LOW, so state=true means button pressed)
-            debugPrintf("*** EMERGENCY STOP ACTIVATED ***\n");
-            g_emergencyStopLatched = true;
-            currentSystemState = SYS_EMERGENCY_STOP;
-            
-            // Immediate safety response
-            relayController.enableSafety();  // Turn off all relays immediately and enable safety mode
-            sequenceController.abort(); // Abort current sequence
-            safetySystem.emergencyStop("e_stop_button");
-            
-            Serial.println("EMERGENCY STOP: All operations halted");
-            return; // Don't process any other inputs during E-Stop
-        }
-    }
-    
-    // Skip all other input processing if E-Stop is latched
-    if (g_emergencyStopLatched) {
-        debugPrintf("Input ignored - E-Stop latched\n");
-        return;
-    }
-    
     // Update limit switch states for safety system
     if (pin == LIMIT_EXTEND_PIN) {
         g_limitExtendActive = state;
         debugPrintf("Limit EXTEND: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // Safety: Stop extend relay if limit switch activated during manual operation
-        if (state && relayController.getRelayState(RELAY_EXTEND)) {
-            debugPrintf("LIMIT SAFETY: Stopping extend relay - limit reached\n");
-            relayController.setRelay(RELAY_EXTEND, false, true); // Manual override to turn off
-            Serial.println("SAFETY: Extend operation stopped - limit switch reached");
-        }
     } else if (pin == LIMIT_RETRACT_PIN) {
         g_limitRetractActive = state;
         debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // Safety: Stop retract relay if limit switch activated during manual operation
-        if (state && relayController.getRelayState(RELAY_RETRACT)) {
-            debugPrintf("LIMIT SAFETY: Stopping retract relay - limit reached\n");
-            relayController.setRelay(RELAY_RETRACT, false, true); // Manual override to turn off
-            Serial.println("SAFETY: Retract operation stopped - limit switch reached");
-        }
-    } else if (pin == SPLITTER_OPERATOR_PIN) {
-        g_splitterOperatorActive = state;
-        debugPrintf("Splitter Operator Signal: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // Publish immediate MQTT notification for operator signal changes
-        if (networkManager.isConnected()) {
-            char buffer[8];
-            snprintf(buffer, sizeof(buffer), "%d", state ? 1 : 0);
-            networkManager.publish(TOPIC_SPLITTER_OPERATOR, buffer);
-            Serial.print("SPLITTER OPERATOR: Signal ");
-            Serial.println(state ? "activated - notify loader operator" : "deactivated");
-        }
     }
     
     // Let sequence controller handle input first
@@ -215,45 +151,20 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
             relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
         } 
     }
-
-    // On any ACTIVE button press (state true) publish a pressure snapshot immediately
-    // (Includes limit switches, but harmless; they give context to transitions.)
-    if (state && networkManager.isConnected()) {
-        pressureManager.publishPressures();
-    }
 }
 
 void onMqttMessage(int messageSize) {
-    // Capture topic for diagnostics
-    String topic = networkManager.getMqttClient().messageTopic();
-    
-    // Read exactly the announced payload size into a local buffer (cap to SHARED_BUFFER_SIZE - 1)
-    char payload[SHARED_BUFFER_SIZE];
-    int toRead = min(messageSize, (int)sizeof(payload) - 1);
+    // Read message into global buffer
     int idx = 0;
-    while (idx < toRead && networkManager.getMqttClient().available()) {
-        payload[idx++] = (char)networkManager.getMqttClient().read();
+    while (networkManager.getMqttClient().available() && idx < SHARED_BUFFER_SIZE - 1) {
+        g_message_buffer[idx++] = (char)networkManager.getMqttClient().read();
     }
-    payload[idx] = '\0';
+    g_message_buffer[idx] = '\0';
     
-    // Trim leading/trailing whitespace in-place
-    int start = 0;
-    while (payload[start] == ' ' || payload[start] == '\t' || payload[start] == '\r' || payload[start] == '\n') start++;
-    int end = idx - 1;
-    while (end >= start && (payload[end] == ' ' || payload[end] == '\t' || payload[end] == '\r' || payload[end] == '\n')) end--;
-    int newLen = (end >= start) ? (end - start + 1) : 0;
-    if (start > 0 && newLen > 0) {
-        memmove(payload, payload + start, newLen);
-    }
-    payload[newLen] = '\0';
+    debugPrintf("MQTT message received: %s\n", g_message_buffer);
     
-    debugPrintf("MQTT msg on '%s' (%dB): '%s'\n", topic.c_str(), messageSize, payload);
-    
-    // Process command (fromMqtt = true)
-    // Copy payload into the shared command buffer for processing (safe copy)
-    strncpy(g_command_buffer, payload, sizeof(g_command_buffer) - 1);
-    g_command_buffer[sizeof(g_command_buffer) - 1] = '\0';
-    bool success = commandProcessor.processCommand(g_command_buffer, true, g_response_buffer, SHARED_BUFFER_SIZE);
+    // Process command
+    bool success = commandProcessor.processCommand(g_message_buffer, true, g_response_buffer, SHARED_BUFFER_SIZE);
     
     // Send response if we have one
     if (strlen(g_response_buffer) > 0) {
@@ -261,7 +172,7 @@ void onMqttMessage(int messageSize) {
     }
     
     if (!success) {
-        debugPrintf("Command processing failed: %s\n", g_response_buffer);
+        debugPrintf("Command processing failed\n");
     }
 }
 
@@ -288,22 +199,14 @@ bool initializeSystem() {
         Serial.println("WARNING: Using default configuration");
     }
     
-    // Load debug setting from configuration
-    g_debugEnabled = configManager.getDebugEnabled();
-    
-    // Initialize system error manager
-    systemErrorManager.begin();
-    configManager.setSystemErrorManager(&systemErrorManager);
-    
-    // Initialize pressure sensor with individual sensor configuration
+    // Initialize pressure sensor
     pressureManager.begin();
     pressureManager.setNetworkManager(&networkManager);
-    configManager.applyToPressureManager(pressureManager);
+    // Note: Individual sensor configuration can be added via pressureManager.getSensor() if needed
     
     // Initialize relay controller
     relayController.begin();
     configManager.applyToRelayController(relayController);
-    relayController.setErrorManager(&systemErrorManager); // Enable relay communication fault detection
     
     // Initialize sequence controller
     configManager.applyToSequenceController(sequenceController);
@@ -313,24 +216,21 @@ bool initializeSystem() {
     inputManager.setChangeCallback(onInputChange);
     
     // Initialize safety system
-    safetySystem.begin(); // Initialize engine stop pin
     safetySystem.setRelayController(&relayController);
     safetySystem.setNetworkManager(&networkManager);
     safetySystem.setSequenceController(&sequenceController);
     
+    // Initialize system test suite
+    systemTestSuite.begin(&safetySystem, &relayController, &inputManager, 
+                          &pressureManager, &sequenceController, &networkManager);
+    
     // Initialize command processor
     commandProcessor.setConfigManager(&configManager);
-    // Legacy single-sensor interface is optional; use PressureManager when available
-    commandProcessor.setPressureManager(&pressureManager);
+    commandProcessor.setPressureManager(&pressureManager);  // FIXED: Connect pressure manager
     commandProcessor.setSequenceController(&sequenceController);
     commandProcessor.setRelayController(&relayController);
     commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
-    commandProcessor.setSystemErrorManager(&systemErrorManager);
-    
-    // Initialize system test suite
-    systemTestSuite.begin(&safetySystem, &relayController, &inputManager, 
-                         &pressureManager, &sequenceController, &networkManager);
     commandProcessor.setSystemTestSuite(&systemTestSuite);
     
     Serial.println("Core systems initialized");
@@ -339,12 +239,7 @@ bool initializeSystem() {
     currentSystemState = SYS_CONNECTING;
     if (networkManager.begin()) {
         networkManager.setMessageCallback(onMqttMessage);
-        configManager.setNetworkManager(&networkManager); // Enable error publishing
-        systemErrorManager.setNetworkManager(&networkManager); // Enable error LED and MQTT publishing
         Serial.println("Network initialization started");
-        
-        // Note: Configuration will be published to MQTT once network is stable
-        // This happens automatically in the main loop when connection is established
     } else {
         Serial.println("Network initialization failed");
         return false;
@@ -364,13 +259,14 @@ bool initializeSystem() {
 void updateSystem() {
     resetWatchdog();
     
-    // Update all subsystems
+    // Update all subsystems with watchdog resets between heavy operations
     networkManager.update();
+    resetWatchdog(); // Reset after network operations (potential blocking)
+    
     pressureManager.update();
     sequenceController.update();
     relayController.update();
     inputManager.update();
-    systemErrorManager.update();
     
     // Update safety system with current pressure
     if (pressureManager.isReady()) {
@@ -380,72 +276,22 @@ void updateSystem() {
     checkSystemHealth();
 }
 
-void publishSystemData() {
-    if (!networkManager.isConnected()) {
-        return;
-    }
-    
-    char buffer[16];
-    
-    // Safety system state
-    snprintf(buffer, sizeof(buffer), "%d", safetySystem.isActive() ? 1 : 0);
-    networkManager.publish(TOPIC_SAFETY_ACTIVE, buffer);
-    
-    // Emergency stop states
-    snprintf(buffer, sizeof(buffer), "%d", g_emergencyStopActive ? 1 : 0);
-    networkManager.publish(TOPIC_ESTOP_ACTIVE, buffer);
-    
-    snprintf(buffer, sizeof(buffer), "%d", g_emergencyStopLatched ? 1 : 0);
-    networkManager.publish(TOPIC_ESTOP_LATCHED, buffer);
-    
-    // Limit switch states
-    snprintf(buffer, sizeof(buffer), "%d", g_limitExtendActive ? 1 : 0);
-    networkManager.publish(TOPIC_LIMIT_EXTEND, buffer);
-    
-    snprintf(buffer, sizeof(buffer), "%d", g_limitRetractActive ? 1 : 0);
-    networkManager.publish(TOPIC_LIMIT_RETRACT, buffer);
-    
-    // Relay states
-    snprintf(buffer, sizeof(buffer), "%d", relayController.getRelayState(RELAY_EXTEND) ? 1 : 0);
-    networkManager.publish(TOPIC_RELAY_R1, buffer);
-    
-    snprintf(buffer, sizeof(buffer), "%d", relayController.getRelayState(RELAY_RETRACT) ? 1 : 0);
-    networkManager.publish(TOPIC_RELAY_R2, buffer);
-    
-    // Splitter operator signal
-    snprintf(buffer, sizeof(buffer), "%d", g_splitterOperatorActive ? 1 : 0);
-    networkManager.publish(TOPIC_SPLITTER_OPERATOR, buffer);
-}
-
 void publishTelemetry() {
     unsigned long now = millis();
-    
-    // Publish configuration parameters once when network first becomes available
-    if (networkManager.isConnected() && !g_configPublishedOnce) {
-        configManager.publishAllConfigParameters();
-        g_configPublishedOnce = true;
-        Serial.println("Configuration parameters published to MQTT with retain flags");
-    }
     
     if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
         lastPublishTime = now;
         
-        // Publish legacy sequence status (for backward compatibility)
+        // Publish pressure
+        // Pressure publishing now handled by PressureManager.publishPressures()
+        // Individual pressures are automatically published via MQTT
+        
+        // Publish sequence status
         sequenceController.getStatusString(g_message_buffer, SHARED_BUFFER_SIZE);
         networkManager.publish(TOPIC_SEQUENCE_STATUS, g_message_buffer);
         
-        // Publish individual sequence data for database integration
-        sequenceController.publishIndividualData();
-        
-        // Publish individual system data values
-        publishSystemData();
-        
-        // Publish heartbeat with just timestamp value
-        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "%lu", now);
-        networkManager.publish(TOPIC_SYSTEM_UPTIME, g_message_buffer);
-        
-        // Keep legacy heartbeat for backward compatibility
-        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "T: %lu", now);
+        // Publish heartbeat
+        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "Hello from LogSplitter at %lu", now);
         networkManager.publish(TOPIC_PUBLISH, g_message_buffer);
     }
 }

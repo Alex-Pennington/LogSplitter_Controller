@@ -122,8 +122,14 @@ bool NetworkManager::startMQTTConnection() {
     }
     #endif
     
-    // Attempt connection (this should be quick)
+    // Attempt connection with timeout protection
+    unsigned long connectStart = millis();
     if (mqttClient.connect(BROKER_HOST, BROKER_PORT)) {
+        unsigned long connectDuration = millis() - connectStart;
+        if (connectDuration > 2000) {
+            debugPrintf("WARNING: MQTT connect took %lums\n", connectDuration);
+        }
+        
         debugPrintf("MQTT connected!\n");
         mqttState = MQTTState::CONNECTED;
         mqttRetries = 0;
@@ -229,7 +235,12 @@ void NetworkManager::update() {
     
     // Poll MQTT (with protection)
     if (mqttState == MQTTState::CONNECTED) {
+        unsigned long pollStart = millis();
         mqttClient.poll();
+        unsigned long pollDuration = millis() - pollStart;
+        if (pollDuration > 100) {
+            debugPrintf("WARNING: MQTT poll took %lums\n", pollDuration);
+        }
     }
 }
 
