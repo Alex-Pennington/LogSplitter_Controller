@@ -63,7 +63,7 @@ const uint8_t EMERGENCY_STOP_PIN = 12; // Emergency stop button input
 // Relay Configuration Labels
 const uint8_t RELAY_EXTEND = 1;       // Relay 1 - Cylinder extend (hydraulic valve)
 const uint8_t RELAY_RETRACT = 2;      // Relay 2 - Cylinder retract (hydraulic valve)
-const uint8_t RELAY_ENGINE_STOP = 8;  // Relay 8 - Engine stop relay (safety)
+// Note: RELAY_ENGINE_STOP removed - now uses direct GPIO pin for safety
 // Note: RELAY_POWER_PIN = 9 (relay board power control)
 
 // Relay Configuration
@@ -102,8 +102,11 @@ const float CURRENT_LOOP_RESISTOR_OHMS = 250.0f;  // Shunt resistor value
 const uint8_t HYDRAULIC_PRESSURE_PIN = A1;      // Main hydraulic pressure (A1)
 const uint8_t HYDRAULIC_OIL_PRESSURE_PIN = A5;  // Hydraulic oil pressure (A5)
 
-// System Error Indicator
+// System Error Indicator  
 const uint8_t SYSTEM_ERROR_LED_PIN = 9;         // Malfunction indicator lamp (MIL)
+
+// Safety-Critical Engine Control (Direct GPIO)
+const uint8_t ENGINE_STOP_PIN = 10;             // Direct engine stop output (safety-critical)
 
 // Pressure Sensor Specifications
 const float SENSOR_MIN_VOLTAGE = 0.0f;          // 0V reference

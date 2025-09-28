@@ -5,6 +5,33 @@
 
 extern void debugPrintf(const char* fmt, ...);
 
+void SafetySystem::begin() {
+    // Initialize engine stop pin as output
+    initEngineStopPin();
+    Serial.println("SafetySystem: Engine stop pin initialized");
+}
+
+void SafetySystem::initEngineStopPin() {
+    pinMode(ENGINE_STOP_PIN, OUTPUT);
+    // Engine runs when pin is LOW, stops when pin is HIGH
+    digitalWrite(ENGINE_STOP_PIN, LOW);  // Allow engine to run initially
+    engineStopped = false;
+    debugPrintf("Engine stop pin %d initialized (LOW = run, HIGH = stop)\n", ENGINE_STOP_PIN);
+}
+
+void SafetySystem::setEngineStop(bool stop) {
+    if (engineStopped != stop) {
+        engineStopped = stop;
+        digitalWrite(ENGINE_STOP_PIN, stop ? HIGH : LOW);
+        debugPrintf("Engine %s via pin %d\n", stop ? "STOPPED" : "STARTED", ENGINE_STOP_PIN);
+        
+        // Publish engine state change
+        if (networkManager && networkManager->isConnected()) {
+            networkManager->publish("r4/engine/stopped", stop ? "1" : "0");
+        }
+    }
+}
+
 void SafetySystem::update(float currentPressure) {
     lastPressure = currentPressure;
     
@@ -109,15 +136,16 @@ void SafetySystem::emergencyStop(const char* reason) {
         relayController->setRelay(RELAY_EXTEND, false, false);   // false = automatic operation
         relayController->setRelay(RELAY_RETRACT, false, false);  // false = automatic operation
         
-        // Turn off other operational relays (3-7, skip engine stop for now)
-        for (uint8_t i = 3; i <= 7; i++) {
+        // Turn off other operational relays (3-8 available for future use)
+        for (uint8_t i = 3; i <= 8; i++) {
             relayController->setRelay(i, false, false); // false = automatic operation
         }
         
-        // Engine stop relay (R8) will be integrated with engine control later
-        // For now, just log that it's available for engine safety integration
-        debugPrintf("Engine stop relay (R%d) available for future engine control integration\n", RELAY_ENGINE_STOP);
     }
+    
+    // SAFETY CRITICAL: Stop engine immediately via direct GPIO
+    setEngineStop(true);
+    debugPrintf("SAFETY: Engine stopped via direct GPIO pin %d\n", ENGINE_STOP_PIN);
     
     Serial.print("EMERGENCY STOP: ");
     Serial.println(reason ? reason : "unknown");
@@ -134,6 +162,10 @@ void SafetySystem::deactivate() {
     if (relayController) {
         relayController->disableSafety();
     }
+    
+    // Restart engine when safety is cleared
+    setEngineStop(false);
+    Serial.println("Engine restarted - safety system deactivated");
     
     if (networkManager && networkManager->isConnected()) {
         networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: deactivated");
@@ -154,8 +186,9 @@ void SafetySystem::clearEmergencyStop() {
 
 void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
     snprintf(buffer, bufferSize, 
-        "safety=%s pressure=%.1f threshold=%.1f",
+        "safety=%s engine=%s pressure=%.1f threshold=%.1f",
         safetyActive ? "ACTIVE" : "OK",
+        engineStopped ? "STOPPED" : "RUNNING",
         lastPressure,
         SAFETY_THRESHOLD_PSI
     );

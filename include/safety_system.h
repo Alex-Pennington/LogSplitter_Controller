@@ -6,6 +6,7 @@
 class SafetySystem {
 private:
     bool safetyActive = false;
+    bool engineStopped = false;
     float lastPressure = 0.0f;
     unsigned long lastSafetyCheck = 0;
     
@@ -14,8 +15,15 @@ private:
     class NetworkManager* networkManager = nullptr;
     class SequenceController* sequenceController = nullptr;
     
+    // Engine control methods
+    void initEngineStopPin();
+    void setEngineStop(bool stop);
+    
 public:
     SafetySystem() = default;
+    
+    // Initialization
+    void begin();
     
     // Dependency injection
     void setRelayController(class RelayController* relay) { relayController = relay; }
@@ -35,5 +43,6 @@ public:
     
     // Status
     bool isActive() const { return safetyActive; }
+    bool isEngineStopped() const { return engineStopped; }
     void getStatusString(char* buffer, size_t bufferSize);
 };

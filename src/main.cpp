@@ -309,6 +309,7 @@ bool initializeSystem() {
     inputManager.setChangeCallback(onInputChange);
     
     // Initialize safety system
+    safetySystem.begin(); // Initialize engine stop pin
     safetySystem.setRelayController(&relayController);
     safetySystem.setNetworkManager(&networkManager);
     safetySystem.setSequenceController(&sequenceController);
