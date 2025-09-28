@@ -3,3 +3,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Arduino secrets file containing WiFi and MQTT credentials
+include/arduino_secrets.h

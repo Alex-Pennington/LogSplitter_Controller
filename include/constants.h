@@ -1,14 +1,15 @@
 #pragma once
 
 #include <Arduino.h>
+#include "arduino_secrets.h"
 
 // System Constants
 const unsigned long WATCHDOG_TIMEOUT_MS = 8000;
 const unsigned long MAIN_LOOP_TIMEOUT_MS = 5000;
 
 // Network Constants
-const char* const BROKER_HOST = "159.203.138.46";
-const int BROKER_PORT = 1883;
+const char* const BROKER_HOST = MQTT_BROKER_HOST;
+const int BROKER_PORT = MQTT_BROKER_PORT;
 // Non-blocking network timeouts (much shorter for safety)
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;  // Max time to spend trying WiFi
 const unsigned long WIFI_CONNECT_CHECK_INTERVAL_MS = 500;  // Check WiFi status every 500ms
