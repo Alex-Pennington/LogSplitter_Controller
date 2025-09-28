@@ -59,6 +59,7 @@ RelayController* g_relayController = &relayController;
 // Global limit switch states for safety system
 bool g_limitExtendActive = false;   // Pin 6 - Cylinder fully extended
 bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
+bool g_splitterOperatorActive = false; // Pin 8 - Splitter operator input signal
 bool g_emergencyStopActive = false; // Pin 12 - Emergency stop button
 bool g_emergencyStopLatched = false; // E-Stop latch state (requires manual reset)
 
@@ -74,6 +75,12 @@ const unsigned long publishInterval = 5000; // 5 seconds
 
 // Serial command line buffer
 static uint8_t serialLinePos = 0;
+
+// ============================================================================
+// Function Forward Declarations
+// ============================================================================
+
+void publishSystemData();
 
 // ============================================================================
 // Watchdog and Safety
@@ -175,6 +182,18 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
             debugPrintf("LIMIT SAFETY: Stopping retract relay - limit reached\n");
             relayController.setRelay(RELAY_RETRACT, false, true); // Manual override to turn off
             Serial.println("SAFETY: Retract operation stopped - limit switch reached");
+        }
+    } else if (pin == SPLITTER_OPERATOR_PIN) {
+        g_splitterOperatorActive = state;
+        debugPrintf("Splitter Operator Signal: %s\n", state ? "ACTIVE" : "INACTIVE");
+        
+        // Publish immediate MQTT notification for operator signal changes
+        if (networkManager.isConnected()) {
+            char buffer[8];
+            snprintf(buffer, sizeof(buffer), "%d", state ? 1 : 0);
+            networkManager.publish(TOPIC_SPLITTER_OPERATOR, buffer);
+            Serial.print("SPLITTER OPERATOR: Signal ");
+            Serial.println(state ? "activated - notify loader operator" : "deactivated");
         }
     }
     
@@ -365,6 +384,10 @@ void publishSystemData() {
     
     snprintf(buffer, sizeof(buffer), "%d", relayController.getRelayState(RELAY_RETRACT) ? 1 : 0);
     networkManager.publish(TOPIC_RELAY_R2, buffer);
+    
+    // Splitter operator signal
+    snprintf(buffer, sizeof(buffer), "%d", g_splitterOperatorActive ? 1 : 0);
+    networkManager.publish(TOPIC_SPLITTER_OPERATOR, buffer);
 }
 
 void publishTelemetry() {

@@ -20,7 +20,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | 5 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 6 | Digital In | Extend Limit Switch | Hydraulic cylinder extend limit | Active LOW |
 | 7 | Digital In | Retract Limit Switch | Hydraulic cylinder retract limit | Active LOW |
-| 8 | Digital I/O | Reserved | Future digital I/O | N/A |
+| 8 | Digital In | Splitter Operator Signal | Splitter operator input for basket exchange | Active LOW |
 | 9 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 10 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 11 | Digital I/O | Reserved | Future digital I/O | N/A |
@@ -67,6 +67,14 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Safety**: Critical for sequence control and over-travel protection
 - **Manual Safety**: Automatically stops retract relay (R2) when limit reached
 - **Response**: Triggers sequence state change, safety checks, and manual operation protection
+
+#### Pin 8 - Splitter Operator Signal
+- **Function**: Input signal from splitter operator to notify loader operator for basket exchange
+- **Configuration**: INPUT_PULLUP (normally open button or switch to ground)
+- **Active State**: LOW (button pressed/switch activated)
+- **Purpose**: Communication between splitter and loader operators
+- **MQTT**: Publishes immediate status changes to `r4/data/splitter_operator`
+- **Response**: Triggers MQTT notification and serial console message
 
 #### Pin 12 - Emergency Stop (E-Stop)
 - **Function**: Emergency shutdown of all hydraulic operations
@@ -156,7 +164,8 @@ User Feedback: "SAFETY: Extend operation stopped - limit switch reached"
 1. **Emergency Stop** - Overrides all other inputs
 2. **Limit Switches** - Override sequence commands and stop manual operations
 3. **Pressure Sensors** - Trigger safety shutdowns
-4. **Network Commands** - Lowest priority, fail-safe
+4. **Splitter Operator Signal** - Communication between operators
+5. **Network Commands** - Lowest priority, fail-safe
 
 ## Electrical Specifications
 
@@ -199,6 +208,13 @@ Shield (if used)       → GND
 E-Stop NC Contact 1    → Pin 12
 E-Stop NC Contact 2    → GND
 E-Stop Case           → GND (safety ground)
+```
+
+### Splitter Operator Signal
+```
+Signal Switch NO       → Pin 8 (internal pullup enabled)
+Signal Switch Common   → GND
+Shield (if used)       → GND
 ```
 
 ### Status LED (External)

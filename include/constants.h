@@ -46,15 +46,17 @@ const char TOPIC_LIMIT_EXTEND[] PROGMEM = "r4/data/limit_extend";
 const char TOPIC_LIMIT_RETRACT[] PROGMEM = "r4/data/limit_retract";
 const char TOPIC_RELAY_R1[] PROGMEM = "r4/data/relay_r1";
 const char TOPIC_RELAY_R2[] PROGMEM = "r4/data/relay_r2";
+const char TOPIC_SPLITTER_OPERATOR[] PROGMEM = "r4/data/splitter_operator";
 
 // Pin Configuration
-const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
-const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
+const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 8, 12};
+const uint8_t WATCH_PIN_COUNT = 8;
 const unsigned long DEBOUNCE_DELAY_MS = 20;
 
 // Limit Switch Configuration
 const uint8_t LIMIT_EXTEND_PIN = 6;   // Cylinder fully extended limit switch
 const uint8_t LIMIT_RETRACT_PIN = 7;  // Cylinder fully retracted limit switch
+const uint8_t SPLITTER_OPERATOR_PIN = 8; // Splitter operator input signal
 const uint8_t EMERGENCY_STOP_PIN = 12; // Emergency stop button input
 
 // Relay Configuration Labels

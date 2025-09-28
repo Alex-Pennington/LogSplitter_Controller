@@ -282,6 +282,7 @@ The controller publishes real-time data to MQTT topics optimized for database in
 - **r4/data/limit_retract** → Retract limit switch (1/0)
 - **r4/data/relay_r1** → Extend relay state (1/0)
 - **r4/data/relay_r2** → Retract relay state (1/0)
+- **r4/data/splitter_operator** → Splitter operator signal (1/0)
 
 ### Sequence Data (Published every 10 seconds)
 - **r4/data/sequence_stage** → Current sequence stage (0-2)
@@ -332,6 +333,8 @@ All commands undergo strict validation:
 ### Digital Inputs
 - **Pin 6**: Extend limit switch (INPUT_PULLUP)
 - **Pin 7**: Retract limit switch (INPUT_PULLUP)
+- **Pin 8**: Splitter operator signal (INPUT_PULLUP)
+- **Pin 12**: Emergency stop (E-Stop) button (INPUT_PULLUP)
 
 ### Relay Outputs
 - **Serial1**: Hardware relay control interface
