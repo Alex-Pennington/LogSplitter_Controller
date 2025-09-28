@@ -281,54 +281,68 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
     // Individual sensor A1 (system pressure) configuration
     else if (strcasecmp(param, "a1_maxpsi") == 0) {
         float val = atof(value);
-        if (pressureManager) {
+        if (pressureManager && configManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC).setMaxPressure(val);
+            configManager->setA1MaxPressure(val);
+            configManager->save();
             snprintf(response, responseSize, "A1 maxpsi set %.2f", val);
         } else {
-            snprintf(response, responseSize, "A1 maxpsi failed: PressureManager not available");
+            snprintf(response, responseSize, "A1 maxpsi failed: PressureManager or ConfigManager not available");
         }
     }
     else if (strcasecmp(param, "a1_vref") == 0) {
         float val = atof(value);
-        if (pressureManager) {
+        if (pressureManager && configManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC).setAdcVref(val);
+            configManager->setA1AdcVref(val);
+            configManager->save();
             snprintf(response, responseSize, "A1 vref set %.6f", val);
         } else {
-            snprintf(response, responseSize, "A1 vref failed: PressureManager not available");
+            snprintf(response, responseSize, "A1 vref failed: PressureManager or ConfigManager not available");
         }
     }
     else if (strcasecmp(param, "a1_gain") == 0) {
         float val = atof(value);
-        if (pressureManager) {
+        if (pressureManager && configManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC).setSensorGain(val);
+            configManager->setA1SensorGain(val);
+            configManager->save();
             snprintf(response, responseSize, "A1 gain set %.6f", val);
         } else {
-            snprintf(response, responseSize, "A1 gain failed: PressureManager not available");
+            snprintf(response, responseSize, "A1 gain failed: PressureManager or ConfigManager not available");
         }
     }
     else if (strcasecmp(param, "a1_offset") == 0) {
         float val = atof(value);
-        if (pressureManager) {
+        if (pressureManager && configManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC).setSensorOffset(val);
+            configManager->setA1SensorOffset(val);
+            configManager->save();
             snprintf(response, responseSize, "A1 offset set %.6f", val);
         } else {
-            snprintf(response, responseSize, "A1 offset failed: PressureManager not available");
+            snprintf(response, responseSize, "A1 offset failed: PressureManager or ConfigManager not available");
         }
     }
     // Individual sensor A5 (filter pressure) configuration
     else if (strcasecmp(param, "a5_maxpsi") == 0) {
         float val = atof(value);
-        if (pressureManager) {
+        if (pressureManager && configManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setMaxPressure(val);
+            configManager->setA5MaxPressure(val);
+            configManager->save();
             snprintf(response, responseSize, "A5 maxpsi set %.2f", val);
         } else {
-            snprintf(response, responseSize, "A5 maxpsi failed: PressureManager not available");
+            snprintf(response, responseSize, "A5 maxpsi failed: PressureManager or ConfigManager not available");
         }
     }
     else if (strcasecmp(param, "a5_vref") == 0) {
         float val = atof(value);
         if (pressureManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setAdcVref(val);
+            if (configManager) {
+                configManager->setA5AdcVref(val);
+                configManager->save();
+            }
             snprintf(response, responseSize, "A5 vref set %.6f", val);
         } else {
             snprintf(response, responseSize, "A5 vref failed: PressureManager not available");
@@ -338,6 +352,10 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         float val = atof(value);
         if (pressureManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setSensorGain(val);
+            if (configManager) {
+                configManager->setA5SensorGain(val);
+                configManager->save();
+            }
             snprintf(response, responseSize, "A5 gain set %.6f", val);
         } else {
             snprintf(response, responseSize, "A5 gain failed: PressureManager not available");
@@ -347,6 +365,10 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         float val = atof(value);
         if (pressureManager) {
             pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setSensorOffset(val);
+            if (configManager) {
+                configManager->setA5SensorOffset(val);
+                configManager->save();
+            }
             snprintf(response, responseSize, "A5 offset set %.6f", val);
         } else {
             snprintf(response, responseSize, "A5 offset failed: PressureManager not available");
@@ -394,8 +416,12 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
     else if (strcasecmp(param, "emaalpha") == 0) {
         float val = atof(value);
         if (val > 0.0f && val <= 1.0f) {
-            // Note: This would need PressureManager integration to work properly
-            snprintf(response, responseSize, "emaAlpha set %.3f (Note: requires PressureManager integration)", val);
+            if (pressureSensor) pressureSensor->setEmaAlpha(val);
+            if (configManager) {
+                configManager->setEmaAlpha(val);
+                configManager->save();
+            }
+            snprintf(response, responseSize, "emaAlpha set %.3f", val);
         } else {
             snprintf(response, responseSize, "emaAlpha must be between 0.0 and 1.0");
         }
@@ -438,15 +464,22 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
     }
     else if (strcasecmp(param, "debug") == 0) {
+        bool enabled;
         if (strcasecmp(value, "on") == 0 || strcasecmp(value, "1") == 0) {
-            g_debugEnabled = true;
-            snprintf(response, responseSize, "debug ON");
+            enabled = true;
         } else if (strcasecmp(value, "off") == 0 || strcasecmp(value, "0") == 0) {
-            g_debugEnabled = false;
-            snprintf(response, responseSize, "debug OFF");
+            enabled = false;
         } else {
             snprintf(response, responseSize, "debug value must be ON|OFF|1|0");
+            return;
         }
+        
+        g_debugEnabled = enabled;
+        if (configManager) {
+            configManager->setDebugEnabled(enabled);
+            configManager->save();
+        }
+        snprintf(response, responseSize, "debug %s", enabled ? "ON" : "OFF");
     }
     // Add more parameter handlers as needed
     else {

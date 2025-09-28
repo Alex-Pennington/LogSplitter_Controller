@@ -113,6 +113,7 @@ void ConfigManager::setDefaults() {
     config.seqStartStableMs = DEFAULT_SEQUENCE_START_STABLE_MS;
     config.seqTimeoutMs = DEFAULT_SEQUENCE_TIMEOUT_MS;
     config.relayEcho = true;
+    config.debugEnabled = false;  // Debug disabled by default
     
     // Individual sensor defaults - A1 (System Pressure, 4-20mA)
     config.a1_maxPressurePsi = DEFAULT_A1_MAX_PRESSURE_PSI;

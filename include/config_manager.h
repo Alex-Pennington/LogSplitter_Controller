@@ -24,6 +24,7 @@ struct CalibrationData {
     uint32_t seqStartStableMs;
     uint32_t seqTimeoutMs;
     bool relayEcho;
+    bool debugEnabled;
     
     // Individual sensor parameters - A1 (System Pressure)
     float a1_maxPressurePsi;
@@ -110,6 +111,14 @@ public:
     void setA5AdcVref(float val) { config.a5_adcVref = val; }
     void setA5SensorGain(float val) { config.a5_sensorGain = val; }
     void setA5SensorOffset(float val) { config.a5_sensorOffset = val; }
+    
+    // EMA Alpha configuration
+    float getEmaAlpha() const { return config.emaAlpha; }
+    void setEmaAlpha(float val) { config.emaAlpha = val; }
+    
+    // Debug configuration
+    bool getDebugEnabled() const { return config.debugEnabled; }
+    void setDebugEnabled(bool enabled) { config.debugEnabled = enabled; }
     
     // Direct access for specific settings
     bool isConfigValid() const { return configValid; }

@@ -284,6 +284,9 @@ bool initializeSystem() {
         Serial.println("WARNING: Using default configuration");
     }
     
+    // Load debug setting from configuration
+    g_debugEnabled = configManager.getDebugEnabled();
+    
     // Initialize system error manager
     systemErrorManager.begin();
     configManager.setSystemErrorManager(&systemErrorManager);
