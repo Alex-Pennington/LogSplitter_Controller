@@ -1,6 +1,8 @@
 #include "network_manager.h"
 #include "arduino_secrets.h"
 
+extern void debugPrintf(const char* fmt, ...);
+
 // Shared buffers for memory optimization
 extern char g_message_buffer[SHARED_BUFFER_SIZE];
 extern char g_topic_buffer[TOPIC_BUFFER_SIZE];
@@ -10,11 +12,10 @@ NetworkManager::NetworkManager() : mqttClient(wifiClient) {
 }
 
 bool NetworkManager::begin() {
-    Serial.println("NetworkManager: Initializing...");
+    debugPrintf("NetworkManager: Initializing...\n");
     
     generateClientId();
-    Serial.print("Using MQTT clientId: ");
-    Serial.println(clientId);
+    debugPrintf("Using MQTT clientId: %s\n", clientId);
     
     // Initialize state machine
     wifiState = WiFiState::DISCONNECTED;
@@ -24,7 +25,7 @@ bool NetworkManager::begin() {
     mqttRetries = 0;
     
     // Start initial connection attempt (non-blocking)
-    Serial.println("Starting initial network connection...");
+    debugPrintf("Starting initial network connection...\n");
     startWiFiConnection();
     
     // Always return true - connection happens asynchronously
@@ -46,9 +47,7 @@ bool NetworkManager::startWiFiConnection() {
         return true;
     }
     
-    Serial.print("Starting WiFi connection to '");
-    Serial.print(SECRET_SSID);
-    Serial.println("'...");
+    debugPrintf("Starting WiFi connection to '%s'...\n", SECRET_SSID);
     
     // Start connection attempt (non-blocking)
     WiFi.begin(SECRET_SSID, SECRET_PASS);
@@ -76,11 +75,11 @@ void NetworkManager::updateWiFiConnection() {
                 wifiRetries = 0;
                 printWiFiInfo();
             } else if (now - connectStartTime > WIFI_CONNECT_TIMEOUT_MS) {
-                Serial.println("\nWiFi connection timeout");
+                debugPrintf("\nWiFi connection timeout\n");
                 wifiState = WiFiState::FAILED;
                 printWiFiStatus();
             } else if (now - lastWiFiCheck > WIFI_CONNECT_CHECK_INTERVAL_MS) {
-                Serial.print('.');
+                debugPrintf(".");
                 lastWiFiCheck = now;
             }
             break;
@@ -113,10 +112,7 @@ bool NetworkManager::startMQTTConnection() {
         return true;
     }
     
-    Serial.print("Starting MQTT connection to ");
-    Serial.print(BROKER_HOST);
-    Serial.print(":");
-    Serial.println(BROKER_PORT);
+    debugPrintf("Starting MQTT connection to %s:%d\n", BROKER_HOST, BROKER_PORT);
     
     mqttClient.setId(clientId);
     
@@ -128,7 +124,7 @@ bool NetworkManager::startMQTTConnection() {
     
     // Attempt connection (this should be quick)
     if (mqttClient.connect(BROKER_HOST, BROKER_PORT)) {
-        Serial.println("MQTT connected!");
+        debugPrintf("MQTT connected!\n");
         mqttState = MQTTState::CONNECTED;
         mqttRetries = 0;
         
@@ -137,8 +133,7 @@ bool NetworkManager::startMQTTConnection() {
         subscribe(TOPIC_CONTROL);
         return true;
     } else {
-        Serial.print("MQTT connect failed, error: ");
-        Serial.println(mqttClient.connectError());
+        debugPrintf("MQTT connect failed, error: %d\n", mqttClient.connectError());
         mqttState = MQTTState::FAILED;
         return false;
     }
@@ -185,20 +180,14 @@ void NetworkManager::update() {
         if (wifiState == WiFiState::DISCONNECTED && wifiRetries < MAX_WIFI_RETRIES) {
             lastConnectAttempt = now;
             wifiRetries++;
-            Serial.print("WiFi attempt ");
-            Serial.print(wifiRetries);
-            Serial.print("/");
-            Serial.println(MAX_WIFI_RETRIES);
+            debugPrintf("WiFi attempt %d/%d\n", wifiRetries, MAX_WIFI_RETRIES);
             startWiFiConnection();
             attemptedConnection = true;
         }
         else if (wifiState == WiFiState::FAILED && wifiRetries < MAX_WIFI_RETRIES) {
             lastConnectAttempt = now;
             wifiRetries++;
-            Serial.print("WiFi retry ");
-            Serial.print(wifiRetries);
-            Serial.print("/");
-            Serial.println(MAX_WIFI_RETRIES);
+            debugPrintf("WiFi retry %d/%d\n", wifiRetries, MAX_WIFI_RETRIES);
             wifiState = WiFiState::DISCONNECTED;
             startWiFiConnection();
             attemptedConnection = true;
@@ -208,20 +197,14 @@ void NetworkManager::update() {
             if (mqttState == MQTTState::DISCONNECTED && mqttRetries < MAX_MQTT_RETRIES) {
                 lastConnectAttempt = now;
                 mqttRetries++;
-                Serial.print("MQTT attempt ");
-                Serial.print(mqttRetries);
-                Serial.print("/");
-                Serial.println(MAX_MQTT_RETRIES);
+                debugPrintf("MQTT attempt %d/%d\n", mqttRetries, MAX_MQTT_RETRIES);
                 startMQTTConnection();
                 attemptedConnection = true;
             }
             else if (mqttState == MQTTState::FAILED && mqttRetries < MAX_MQTT_RETRIES) {
                 lastConnectAttempt = now;
                 mqttRetries++;
-                Serial.print("MQTT retry ");
-                Serial.print(mqttRetries);
-                Serial.print("/");
-                Serial.println(MAX_MQTT_RETRIES);
+                debugPrintf("MQTT retry %d/%d\n", mqttRetries, MAX_MQTT_RETRIES);
                 mqttState = MQTTState::DISCONNECTED;
                 startMQTTConnection();
                 attemptedConnection = true;
@@ -231,12 +214,12 @@ void NetworkManager::update() {
         // Reset retry counters after extended wait period
         if (!attemptedConnection && wifiRetries >= MAX_WIFI_RETRIES && 
             now - lastConnectAttempt >= (MQTT_RECONNECT_INTERVAL_MS * 3)) {
-            Serial.println("Resetting WiFi retry count after extended wait");
+            debugPrintf("Resetting WiFi retry count after extended wait\n");
             wifiRetries = 0;
         }
         if (!attemptedConnection && mqttRetries >= MAX_MQTT_RETRIES && 
             now - lastConnectAttempt >= (MQTT_RECONNECT_INTERVAL_MS * 2)) {
-            Serial.println("Resetting MQTT retry count after extended wait");
+            debugPrintf("Resetting MQTT retry count after extended wait\n");
             mqttRetries = 0;
         }
     }
@@ -260,7 +243,7 @@ void NetworkManager::updateConnectionHealth() {
         // Mark as stable after continuous uptime
         if (!connectionStable && (now - connectionUptime) > NETWORK_STABILITY_TIME_MS) {
             connectionStable = true;
-            Serial.println("Network connection marked as stable");
+            debugPrintf("Network connection marked as stable\n");
         }
     } else {
         connectionUptime = 0;
@@ -283,9 +266,7 @@ bool NetworkManager::publish(const char* topic, const char* payload) {
         
         unsigned long duration = millis() - startTime;
         if (duration > 100) { // Warn if publish takes >100ms
-            Serial.print("WARNING: MQTT publish took ");
-            Serial.print(duration);
-            Serial.println("ms");
+            debugPrintf("WARNING: MQTT publish took %lums\n", duration);
         }
         
         if (!success) {
@@ -313,9 +294,7 @@ bool NetworkManager::publishWithRetain(const char* topic, const char* payload) {
         
         unsigned long duration = millis() - startTime;
         if (duration > 100) { // Warn if publish takes >100ms
-            Serial.print("WARNING: MQTT publish (retained) took ");
-            Serial.print(duration);
-            Serial.println("ms");
+            debugPrintf("WARNING: MQTT publish (retained) took %lums\n", duration);
         }
         
         if (!success) {
