@@ -102,7 +102,7 @@ This is a complete refactor of the original monolithic LogSplitter Controller co
 
 ### CommandProcessor
 
-- **Purpose**: Command validation and processing (Serial + MQTT)
+- **Purpose**: Command validation and processing (Serial + Telnet + MQTT)
 - **Features**: Input validation, rate limiting, security checks, shorthand relay commands (e.g. `R1 ON`)
 - **Improvements**: Protection against malformed commands, structured processing, compact `show` output
 
@@ -141,7 +141,7 @@ If future needs arise (publishing raw unclamped value, configurable span, or aut
 
 ## Usage
 
-### Serial / MQTT Commands
+### Serial / Telnet / MQTT Commands
 
 ```text
 help                             # Show available commands

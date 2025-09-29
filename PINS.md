@@ -56,6 +56,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Function**: Manual control for hydraulic cylinder extension
 - **Configuration**: INPUT_PULLUP (normally open button to ground)
 - **Active State**: LOW (button pressed)
+- **Debouncing**: 15ms software debounce
 - **Purpose**: Allows operator to manually extend cylinder independent of automatic sequence
 - **Safety Integration**: Automatically stops when extend limit (Pin 6) is reached
 - **Response**: Activates extend relay (R1) while button is held
@@ -88,7 +89,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Function**: Detects when hydraulic cylinder reaches full extension
 - **Configuration**: INPUT_PULLUP (normally closed switch to ground)
 - **Active State**: LOW (switch closed/activated)
-- **Debouncing**: Hardware debouncing recommended
+- **Debouncing**: Hardware debouncing recommended + 10ms software debounce
 - **Safety**: Critical for sequence control and over-travel protection
 - **Manual Safety**: Automatically stops extend relay (R1) when limit reached
 - **Response**: Triggers sequence state change, safety checks, and manual operation protection
@@ -97,7 +98,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Function**: Detects when hydraulic cylinder reaches full retraction
 - **Configuration**: INPUT_PULLUP (normally closed switch to ground)
 - **Active State**: LOW (switch closed/activated)
-- **Debouncing**: Hardware debouncing recommended
+- **Debouncing**: Hardware debouncing recommended + 10ms software debounce
 - **Safety**: Critical for sequence control and over-travel protection
 - **Manual Safety**: Automatically stops retract relay (R2) when limit reached
 - **Response**: Triggers sequence state change, safety checks, and manual operation protection

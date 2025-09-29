@@ -1,6 +1,6 @@
 # LogSplitter Controller Command Reference
 
-This document details all available commands for the LogSplitter Controller via Serial Console and MQTT.
+This document details all available commands for the LogSplitter Controller via Serial Console, Telnet, and MQTT.
 
 ## Communication Interfaces
 
@@ -9,10 +9,17 @@ This document details all available commands for the LogSplitter Controller via 
 - **Access**: Full command access including PIN mode configuration
 - **Format**: Plain text commands terminated with newline
 
+### Telnet Server
+- **Port**: 23 (standard telnet port)
+- **Access**: Full command access including PIN mode configuration (equivalent to Serial)
+- **Format**: Plain text commands terminated with newline
+- **Debug Output**: Real-time debug messages with timestamps
+- **Connection**: `telnet <device_ip> 23`
+
 ### MQTT Topics
 - **Subscribe (Commands)**: `r4/example/sub` and `r4/control`
 - **Publish (Responses)**: `r4/control/resp`
-- **Access**: All commands except `pins` (PIN mode changes restricted to serial for security)
+- **Access**: All commands except `pins` (PIN mode changes restricted to serial/telnet for security)
 
 ## Command Format
 
@@ -135,7 +142,7 @@ E-Stop not latched - no reset needed
 ### 6. PINS
 **Description**: Display current PIN mode configuration for all Arduino pins
 **Syntax**: `pins`
-**Access**: Serial ONLY (Security restriction)
+**Access**: Serial + Telnet ONLY (Security restriction)
 
 **Example Output**:
 ```
@@ -222,16 +229,16 @@ A5 offset set -10.500000
 ```
 
 ##### Sequence Controller Configuration
-- **seqstable** - Sequence stability time in milliseconds (default: 1000)
+- **seqstable** - Sequence stability time in milliseconds (default: 15)
   ```
-  > set seqstable 1000
-  set seqstable=1000
+  > set seqstable 15
+  set seqstable=15
   ```
 
-- **seqstartstable** - Sequence start stability time in milliseconds (default: 500)
+- **seqstartstable** - Sequence start stability time in milliseconds (default: 100)
   ```
-  > set seqstartstable 500
-  set seqstartstable=500
+  > set seqstartstable 100
+  set seqstartstable=100
   ```
 
 - **seqtimeout** - Sequence timeout in milliseconds (default: 30000)
@@ -482,4 +489,4 @@ relay R2 OFF
 - The system supports both uppercase and lowercase commands
 - MQTT responses are published to `r4/control/resp` topic
 - Serial responses are sent directly to the console
-- PIN mode changes are restricted to serial interface for security
+- PIN mode changes are restricted to serial and telnet interfaces for security
