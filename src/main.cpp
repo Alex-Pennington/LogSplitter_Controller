@@ -114,16 +114,24 @@ void checkSystemHealth() {
 
 void debugPrintf(const char* fmt, ...) {
     unsigned long ts = millis();
-    Serial.print("[TS ");
-    Serial.print(ts);
-    Serial.print("] ");
     
+    // Format the message once
     va_list args;
     va_start(args, fmt);
     vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
     va_end(args);
     
-    Serial.print(g_message_buffer);
+    // Prepare timestamp prefix
+    char timestamped_message[SHARED_BUFFER_SIZE + 50];
+    snprintf(timestamped_message, sizeof(timestamped_message), "[TS %lu] %s", ts, g_message_buffer);
+    
+    // Always output to Serial
+    Serial.print(timestamped_message);
+    
+    // Also output to telnet if client connected
+    if (telnet.isClientConnected()) {
+        telnet.print(timestamped_message);
+    }
 }
 
 // ============================================================================
@@ -340,6 +348,48 @@ void processSerialCommands() {
     }
 }
 
+void processTelnetCommands() {
+    static char telnetCommandBuffer[COMMAND_BUFFER_SIZE];
+    static size_t telnetLinePos = 0;
+    
+    while (telnet.available()) {
+        String input = telnet.readString();
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (c == '\r') continue; // Ignore CR
+            
+            if (c == '\n') {
+                telnetCommandBuffer[telnetLinePos] = '\0';
+                telnetLinePos = 0;
+                
+                if (strlen(telnetCommandBuffer) > 0) {
+                    // Process command (allow all commands via telnet including pins)
+                    bool success = commandProcessor.processCommand(telnetCommandBuffer, false, g_response_buffer, SHARED_BUFFER_SIZE);
+                    
+                    if (strlen(g_response_buffer) > 0) {
+                        telnet.print("Response: ");
+                        telnet.println(g_response_buffer);
+                    }
+                    
+                    if (!success) {
+                        telnet.println("Command failed. Type 'help' for available commands.");
+                    }
+                    
+                    // Also send response via MQTT if connected
+                    if (strlen(g_response_buffer) > 0 && networkManager.isConnected()) {
+                        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "telnet: %s", g_response_buffer);
+                        networkManager.publish(TOPIC_CONTROL_RESP, g_message_buffer);
+                    }
+                }
+            } else {
+                if (telnetLinePos < COMMAND_BUFFER_SIZE - 1) {
+                    telnetCommandBuffer[telnetLinePos++] = c;
+                }
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Arduino Main Functions
 // ============================================================================
@@ -362,6 +412,7 @@ void loop() {
             updateSystem();
             publishTelemetry();
             processSerialCommands();
+            processTelnetCommands();
             break;
             
         case SYS_ERROR:
@@ -375,6 +426,7 @@ void loop() {
             relayController.update();
             safetySystem.update(pressureManager.getPressure());
             processSerialCommands();
+            processTelnetCommands();
             delay(100);
             break;
             
