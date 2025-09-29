@@ -38,7 +38,11 @@ const char TOPIC_SEQUENCE_ELAPSED[] PROGMEM = "r4/sequence/elapsed";
 // Pin Configuration
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
-const unsigned long DEBOUNCE_DELAY_MS = 20;
+const unsigned long DEBOUNCE_DELAY_MS = 5;  // Reduced for fast-moving hydraulic cylinder limit switches
+
+// Pin-specific debounce delays (milliseconds)
+const unsigned long LIMIT_SWITCH_DEBOUNCE_MS = 3;   // Pins 6,7 - Very fast for moving cylinder
+const unsigned long BUTTON_DEBOUNCE_MS = 15;        // Pins 2,3,4,5 - Normal for manual buttons
 
 // Limit Switch Configuration
 const uint8_t LIMIT_EXTEND_PIN = 6;   // Cylinder fully extended limit switch
@@ -108,7 +112,7 @@ const float EXTEND_PRESSURE_LIMIT_PSI = 2300.0f;  // Pressure that triggers exte
 const float RETRACT_PRESSURE_LIMIT_PSI = 2300.0f; // Pressure that triggers retract limit reached
 
 // Sequence Control Constants
-const unsigned long DEFAULT_SEQUENCE_STABLE_MS = 50;
+const unsigned long DEFAULT_SEQUENCE_STABLE_MS = 15;  // Reduced for fast limit switch detection on moving cylinder
 const unsigned long DEFAULT_SEQUENCE_START_STABLE_MS = 100;
 const unsigned long DEFAULT_SEQUENCE_TIMEOUT_MS = 30000;
 const unsigned long SEQUENCE_STAGE_TIMEOUT_MS = 30000;

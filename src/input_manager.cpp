@@ -77,17 +77,36 @@ void InputManager::update() {
         }
         
         // Check if debounced state should change
-        if ((now - lastDebounceTime[i]) > DEBOUNCE_DELAY_MS) {
+        unsigned long debounceDelay = DEBOUNCE_DELAY_MS;  // Default
+        
+        // Use faster debounce for limit switches (pins 6,7)
+        if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
+            debounceDelay = LIMIT_SWITCH_DEBOUNCE_MS;
+        } else {
+            debounceDelay = BUTTON_DEBOUNCE_MS;
+        }
+        
+        if ((now - lastDebounceTime[i]) > debounceDelay) {
             if (lastReadings[i] != pinStates[i]) {
                 // State change after debounce
                 bool oldState = pinStates[i];
                 pinStates[i] = lastReadings[i];
                 
-                debugPrintf("[INPUT] Pin %d: %s -> %s\n", 
-                    pin, 
-                    oldState ? "ACTIVE" : "INACTIVE",
-                    pinStates[i] ? "ACTIVE" : "INACTIVE"
-                );
+                // Enhanced debug for limit switches
+                if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
+                    debugPrintf("[INPUT] Pin %d: %s -> %s (debounced in %lums)\n", 
+                        pin, 
+                        oldState ? "ACTIVE" : "INACTIVE",
+                        pinStates[i] ? "ACTIVE" : "INACTIVE",
+                        debounceDelay
+                    );
+                } else {
+                    debugPrintf("[INPUT] Pin %d: %s -> %s\n", 
+                        pin, 
+                        oldState ? "ACTIVE" : "INACTIVE",
+                        pinStates[i] ? "ACTIVE" : "INACTIVE"
+                    );
+                }
                 
                 // Publish to MQTT
                 if (g_networkManager && g_networkManager->isConnected()) {

@@ -18,6 +18,9 @@
 #include <ArduinoMqttClient.h>
 #include <EEPROM.h>
 
+// Include telnet server
+#include "telnet_server.h"
+
 // Module includes
 #include "constants.h"
 #include "network_manager.h"
@@ -240,6 +243,10 @@ bool initializeSystem() {
     if (networkManager.begin()) {
         networkManager.setMessageCallback(onMqttMessage);
         Serial.println("Network initialization started");
+        
+        // Initialize telnet server after network is up
+        telnet.begin();
+        Serial.println("Telnet server initialized");
     } else {
         Serial.println("Network initialization failed");
         return false;
@@ -261,6 +268,7 @@ void updateSystem() {
     
     // Update all subsystems with watchdog resets between heavy operations
     networkManager.update();
+    telnet.update(); // Update telnet server
     resetWatchdog(); // Reset after network operations (potential blocking)
     
     pressureManager.update();

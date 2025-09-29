@@ -170,8 +170,8 @@ void SequenceController::update() {
             // Poll extend limit (physical switch OR pressure-based limit)
             bool extendLimitReached = g_limitExtendActive;
             
-            // Check pressure-based extend limit
-            if (!extendLimitReached && pressureManager.isReady()) {
+            // Check pressure-based extend limit (parallel check, not conditional)
+            if (pressureManager.isReady()) {
                 float currentPressure = pressureManager.getHydraulicPressure();
                 if (currentPressure >= EXTEND_PRESSURE_LIMIT_PSI) {
                     extendLimitReached = true;
@@ -215,8 +215,8 @@ void SequenceController::update() {
             // Poll retract limit (physical switch OR pressure-based limit)
             bool retractLimitReached = g_limitRetractActive;
             
-            // Check pressure-based retract limit
-            if (!retractLimitReached && pressureManager.isReady()) {
+            // Check pressure-based retract limit (parallel check, not conditional)
+            if (pressureManager.isReady()) {
                 float currentPressure = pressureManager.getHydraulicPressure();
                 if (currentPressure >= RETRACT_PRESSURE_LIMIT_PSI) {
                     retractLimitReached = true;
