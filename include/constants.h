@@ -41,7 +41,7 @@ const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
 const unsigned long DEBOUNCE_DELAY_MS = 5;  // Reduced for fast-moving hydraulic cylinder limit switches
 
 // Pin-specific debounce delays (milliseconds)
-const unsigned long LIMIT_SWITCH_DEBOUNCE_MS = 3;   // Pins 6,7 - Very fast for moving cylinder
+const unsigned long LIMIT_SWITCH_DEBOUNCE_MS = 10;  // Pins 6,7 - Balanced for moving cylinder with switch bounce filtering
 const unsigned long BUTTON_DEBOUNCE_MS = 15;        // Pins 2,3,4,5 - Normal for manual buttons
 
 // Limit Switch Configuration
