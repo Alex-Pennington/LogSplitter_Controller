@@ -8,6 +8,7 @@
 #include "safety_system.h"
 #include "system_error_manager.h"
 #include "system_test_suite.h"
+#include "logger.h"
 #include <ctype.h>
 
 extern void debugPrintf(const char* fmt, ...);
@@ -483,6 +484,27 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             configManager->save();
         }
         snprintf(response, responseSize, "debug %s", enabled ? "ON" : "OFF");
+    }
+    else if (strcasecmp(param, "loglevel") == 0) {
+        LogLevel level;
+        if (strcasecmp(value, "debug") == 0) {
+            level = LOG_DEBUG;
+        } else if (strcasecmp(value, "info") == 0) {
+            level = LOG_INFO;
+        } else if (strcasecmp(value, "warn") == 0) {
+            level = LOG_WARNING;
+        } else if (strcasecmp(value, "error") == 0) {
+            level = LOG_ERROR;
+        } else if (strcasecmp(value, "critical") == 0) {
+            level = LOG_CRITICAL;
+        } else {
+            snprintf(response, responseSize, "loglevel must be: debug|info|warn|error|critical");
+            return;
+        }
+        
+        Logger::setLogLevel(level);
+        snprintf(response, responseSize, "log level set to %s", value);
+        LOG_INFO("Log level changed to %s", value);
     }
     else if (strcasecmp(param, "syslog") == 0) {
         if (networkManager) {

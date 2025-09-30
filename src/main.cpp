@@ -23,6 +23,7 @@
 
 // Module includes
 #include "constants.h"
+#include "logger.h"
 #include "network_manager.h"
 #include "pressure_manager.h"
 #include "sequence_controller.h"
@@ -115,27 +116,16 @@ void checkSystemHealth() {
 // Debug Utilities
 // ============================================================================
 
+// Legacy debugPrintf function - now uses new Logger system
+// This maintains compatibility with existing code
 void debugPrintf(const char* fmt, ...) {
-    // Format the message once
     va_list args;
     va_start(args, fmt);
     vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
     va_end(args);
     
-    // Send to syslog server if network is available
-    bool syslogSent = false;
-    if (networkManager.isWiFiConnected()) {
-        syslogSent = networkManager.sendSyslog(g_message_buffer);
-    }
-    
-    // Fallback to Serial if syslog fails (for debugging connectivity issues)
-    if (!syslogSent) {
-        unsigned long ts = millis();
-        Serial.print("[TS ");
-        Serial.print(ts);
-        Serial.print("] [SYSLOG_FAIL] ");
-        Serial.println(g_message_buffer);
-    }
+    // Route to new logging system as DEBUG level
+    Logger::log(LOG_DEBUG, "%s", g_message_buffer);
 }
 
 // ============================================================================
@@ -255,6 +245,11 @@ bool initializeSystem() {
     if (networkManager.begin()) {
         networkManager.setMessageCallback(onMqttMessage);
         Serial.println("Network initialization started");
+        
+        // Initialize logger after network manager is available
+        Logger::begin(&networkManager);
+        Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
+        LOG_INFO("Logger initialized with network manager");
         
         // Initialize telnet server after network is up
         telnet.begin();

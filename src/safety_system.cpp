@@ -2,13 +2,14 @@
 #include "relay_controller.h"
 #include "network_manager.h"
 #include "sequence_controller.h"
+#include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
 
 void SafetySystem::begin() {
     // Initialize engine stop pin as output
     initEngineStopPin();
-    debugPrintf("SafetySystem: Engine stop pin initialized\n");
+    LOG_INFO("SafetySystem: Engine stop pin initialized");
 }
 
 void SafetySystem::initEngineStopPin() {
@@ -82,7 +83,7 @@ void SafetySystem::activate(const char* reason) {
     
     safetyActive = true;
     
-    debugPrintf("SAFETY ACTIVATED: %s (pressure=%.1f PSI)\n", 
+    LOG_CRITICAL("SAFETY ACTIVATED: %s (pressure=%.1f PSI)", 
         reason ? reason : "unknown", lastPressure);
     
     // Emergency stop sequence
@@ -119,7 +120,7 @@ void SafetySystem::emergencyStop(const char* reason) {
     
     // SAFETY CRITICAL: Stop engine immediately via direct GPIO
     setEngineStop(true);
-    debugPrintf("SAFETY: Engine stopped via direct GPIO pin %d\n", ENGINE_STOP_PIN);
+    LOG_CRITICAL("SAFETY: Engine stopped via direct GPIO pin %d", ENGINE_STOP_PIN);
     
     Serial.print("EMERGENCY STOP: ");
     Serial.println(reason ? reason : "unknown");
@@ -131,7 +132,7 @@ void SafetySystem::deactivate() {
     
     safetyActive = false;
     
-    debugPrintf("Safety system deactivated manually\n");
+    LOG_WARN("Safety system deactivated manually");
     
     if (relayController) {
         relayController->disableSafety();

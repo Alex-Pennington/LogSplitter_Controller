@@ -1,5 +1,6 @@
 #include "relay_controller.h"
 #include "system_error_manager.h"
+#include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
 
@@ -17,7 +18,7 @@ void RelayController::begin() {
     sendCommand(RELAY_POWER_PIN, false);
     boardPowered = true;
     
-    debugPrintf("RelayController initialized\n");
+    LOG_INFO("RelayController initialized");
 }
 
 void RelayController::sendCommand(uint8_t relayNumber, bool on) {
@@ -61,7 +62,7 @@ bool RelayController::sendCommandWithRetry(uint8_t relayNumber, bool on) {
     }
     
     // All retries failed - report critical error
-    debugPrintf("CRITICAL: Relay R%d command failed after %d retries\n", relayNumber, MAX_RETRIES);
+    LOG_CRITICAL("Relay R%d command failed after %d retries", relayNumber, MAX_RETRIES);
     if (errorManager) {
         char errorMsg[64];
         snprintf(errorMsg, sizeof(errorMsg), "Relay R%d communication timeout", relayNumber);
@@ -78,52 +79,49 @@ bool RelayController::waitForOkResponse() {
     while (millis() - startTime < RESPONSE_TIMEOUT_MS) {
         if (Serial1.available()) {
             char c = Serial1.read();
-            if (c == '\n' || c == '\r') {
+            if (c == '\n') {
+                response.trim();
                 if (response.length() > 0) {
-                    response.trim();
-                    debugPrintf("Relay response: '%s'\n", response.c_str());
-                    
-                    // Check if response contains "OK" (capital letters only)
                     if (response.indexOf("OK") >= 0) {
+                        debugPrintf("Relay response: '%s'\n", response.c_str());
                         waitingForResponse = false;
                         return true;
                     }
-                    response = "";
                 }
-            } else if (c >= 32 && c <= 126) { // Printable ASCII
+                response = "";
+            } else if (c != '\r') {
                 response += c;
             }
         }
-        delay(1); // Small delay to prevent busy waiting
     }
     
     waitingForResponse = false;
-    return false; // Timeout
+    debugPrintf("Relay response timeout (100ms)\n");
+    return false;
 }
 
 void RelayController::ensurePowerOn() {
     if (!boardPowered) {
         sendCommand(RELAY_POWER_PIN, false); // R9 OFF powers on the board
         boardPowered = true;
-        delay(50); // Allow time for power stabilization
+        delay(100); // Give board time to power up
     }
 }
 
 void RelayController::update() {
-    // Check for response timeout (100ms)
+    // Check for timeouts
     if (waitingForResponse && (millis() - lastCommandTime > RESPONSE_TIMEOUT_MS)) {
         debugPrintf("Relay response timeout (100ms)\n");
         waitingForResponse = false;
     }
     
-    // Handle serial echo from relay board (only when not waiting for response)
+    // Echo any unexpected relay board responses for debugging
     if (echoEnabled && !waitingForResponse && Serial1.available()) {
+        Serial.print("Relay echo: ");
         while (Serial1.available()) {
-            int byte = Serial1.read();
-            if (byte >= 0) {
-                Serial.write((uint8_t)byte);
-            }
+            Serial.write(Serial1.read());
         }
+        Serial.println();
     }
 }
 
@@ -133,15 +131,16 @@ void RelayController::setRelay(uint8_t relayNumber, bool on) {
 
 void RelayController::setRelay(uint8_t relayNumber, bool on, bool isManualCommand) {
     if (relayNumber < 1 || relayNumber > MAX_RELAYS) {
+        debugPrintf("Invalid relay number: %d\n", relayNumber);
         return;
     }
     
-    // Check if state actually changed
+    // Check if already in desired state
     if (relayStates[relayNumber] == on) {
-        return; // No change needed
+        return; // Already in desired state
     }
     
-    // Safety check - block automatic operations when safety is active, but allow manual
+    // Safety check: prevent automatic relay activation during safety mode
     if (safetyActive && on && relayNumber != RELAY_POWER_PIN && !isManualCommand) {
         debugPrintf("Safety active - blocking automatic relay R%d ON (use manual override)\n", relayNumber);
         return;
@@ -152,22 +151,19 @@ void RelayController::setRelay(uint8_t relayNumber, bool on, bool isManualComman
         debugPrintf("Manual override: R%d %s during safety condition\n", relayNumber, on ? "ON" : "OFF");
     }
     
-    // Ensure relay board is powered (except when controlling power relay itself)
+    // Ensure power is on before sending commands (except for power relay itself)
     if (relayNumber != RELAY_POWER_PIN) {
         ensurePowerOn();
     }
     
-    // Send command with retry and update state only on success
+    // Send command with retries
     if (sendCommandWithRetry(relayNumber, on)) {
         relayStates[relayNumber] = on;
+        debugPrintf("[RelayController] R%d -> %s %s\n", relayNumber, on ? "ON" : "OFF", 
+                   isManualCommand ? "(manual)" : "(auto)");
     } else {
-        // Command failed - don't update state
         debugPrintf("Failed to set relay R%d to %s - state not updated\n", relayNumber, on ? "ON" : "OFF");
-        return;
     }
-    
-    debugPrintf("[RelayController] R%d -> %s %s\n", relayNumber, on ? "ON" : "OFF", 
-        isManualCommand ? "(manual)" : "(auto)");
 }
 
 bool RelayController::getRelayState(uint8_t relayNumber) const {
@@ -180,76 +176,73 @@ bool RelayController::getRelayState(uint8_t relayNumber) const {
 void RelayController::allRelaysOff() {
     debugPrintf("Turning off all relays\n");
     
-    // Turn off relays 1-8 (keep power relay R9 as-is)
-    for (uint8_t i = 1; i < RELAY_POWER_PIN; i++) {
-        setRelay(i, false);
+    // Turn off all relays except power relay (R9)
+    for (uint8_t i = 1; i <= MAX_RELAYS; i++) {
+        if (i != RELAY_POWER_PIN) {
+            setRelay(i, false);
+        }
     }
 }
 
 void RelayController::powerOn() {
-    sendCommand(RELAY_POWER_PIN, false); // R9 OFF = power on
+    setRelay(RELAY_POWER_PIN, false); // R9 OFF = power ON (inverted logic)
     boardPowered = true;
-    delay(50);
 }
 
 void RelayController::powerOff() {
     // Turn off all relays first
-    allRelaysOff();
-    delay(100);
-    
-    // Then power off the board
-    sendCommand(RELAY_POWER_PIN, true); // R9 ON = power off
+    for (uint8_t i = 1; i <= MAX_RELAYS; i++) {
+        if (i != RELAY_POWER_PIN) {
+            setRelay(i, false);
+        }
+    }
+    setRelay(RELAY_POWER_PIN, true); // R9 ON = power OFF (inverted logic)
     boardPowered = false;
 }
 
 bool RelayController::processCommand(const char* relayToken, const char* stateToken) {
     if (!relayToken || !stateToken) {
-        return false;
-    }
-    
-    // Parse relay token (expect "R1" to "R9" or "r1" to "r9")
-    if ((relayToken[0] != 'R' && relayToken[0] != 'r') || strlen(relayToken) < 2) {
         debugPrintf("Invalid relay token format\n");
         return false;
     }
     
-    int relayNum = atoi(relayToken + 1);
+    // Parse relay number (expect format like "R1", "R2", etc.)
+    int relayNum = atoi(relayToken + 1); // Skip 'R' prefix
     if (relayNum < 1 || relayNum > MAX_RELAYS) {
         debugPrintf("Invalid relay number: %d\n", relayNum);
         return false;
     }
     
-    // Parse state token
-    bool on = (strcasecmp(stateToken, "ON") == 0);
-    bool off = (strcasecmp(stateToken, "OFF") == 0);
-    
-    if (!on && !off) {
+    // Parse state
+    bool on;
+    if (strcasecmp(stateToken, "ON") == 0 || strcasecmp(stateToken, "1") == 0) {
+        on = true;
+    } else if (strcasecmp(stateToken, "OFF") == 0 || strcasecmp(stateToken, "0") == 0) {
+        on = false;
+    } else {
         debugPrintf("Invalid relay state: %s\n", stateToken);
         return false;
     }
     
-    // Execute command as manual operation (allows override during safety)
-    setRelay(relayNum, on, true); // Manual command flag set
+    // Execute command (manual command = true for command interface)
+    setRelay(relayNum, on, true);
     
-    // Provide feedback
-    char response[32];
-    snprintf(response, sizeof(response), "relay %s %s", relayToken, on ? "ON" : "OFF");
+    char response[64];
+    snprintf(response, sizeof(response), "relay R%d %s", relayNum, on ? "ON" : "OFF");
     debugPrintf("Relay command executed: %s\n", response);
     
     return true;
 }
 
 void RelayController::getStatusString(char* buffer, size_t bufferSize) {
-    int offset = 0;
-    offset += snprintf(buffer + offset, bufferSize - offset, "relays:");
+    int offset = snprintf(buffer, bufferSize, "relays:");
     
-    for (uint8_t i = 1; i <= MAX_RELAYS && offset < (int)bufferSize - 10; i++) {
+    for (int i = 1; i <= MAX_RELAYS && offset < bufferSize - 10; i++) {
         offset += snprintf(buffer + offset, bufferSize - offset, 
             " R%d=%s", i, relayStates[i] ? "ON" : "OFF");
     }
     
-    if (offset < (int)bufferSize - 20) {
-        offset += snprintf(buffer + offset, bufferSize - offset, 
-            " safety=%s", safetyActive ? "ACTIVE" : "OFF");
-    }
+    // Add safety status
+    offset += snprintf(buffer + offset, bufferSize - offset, 
+        " safety=%s", safetyActive ? "ACTIVE" : "OFF");
 }

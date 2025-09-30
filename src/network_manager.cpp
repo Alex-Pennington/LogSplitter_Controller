@@ -1,5 +1,6 @@
 #include "network_manager.h"
 #include "arduino_secrets.h"
+#include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
 
@@ -141,7 +142,7 @@ bool NetworkManager::startMQTTConnection() {
     if (mqttClient.connect(BROKER_HOST, BROKER_PORT)) {
         unsigned long connectDuration = millis() - connectStart;
         if (connectDuration > 2000) {
-            debugPrintf("WARNING: MQTT connect took %lums\n", connectDuration);
+            LOG_WARN("MQTT connect took %lums", connectDuration);
         }
         
         debugPrintf("MQTT connected!\n");
@@ -253,7 +254,7 @@ void NetworkManager::update() {
         mqttClient.poll();
         unsigned long pollDuration = millis() - pollStart;
         if (pollDuration > 100) {
-            debugPrintf("WARNING: MQTT poll took %lums\n", pollDuration);
+            LOG_WARN("MQTT poll took %lums", pollDuration);
         }
     }
 }
@@ -291,7 +292,7 @@ bool NetworkManager::publish(const char* topic, const char* payload) {
         
         unsigned long duration = millis() - startTime;
         if (duration > 100) { // Warn if publish takes >100ms
-            debugPrintf("WARNING: MQTT publish took %lums\n", duration);
+            LOG_WARN("MQTT publish took %lums", duration);
         }
         
         if (!success) {
@@ -319,7 +320,7 @@ bool NetworkManager::publishWithRetain(const char* topic, const char* payload) {
         
         unsigned long duration = millis() - startTime;
         if (duration > 100) { // Warn if publish takes >100ms
-            debugPrintf("WARNING: MQTT publish (retained) took %lums\n", duration);
+            LOG_WARN("MQTT publish (retained) took %lums", duration);
         }
         
         if (!success) {
