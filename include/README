@@ -1,37 +1,66 @@
 
-This directory is intended for project header files.
+# LogSplitter Controller - Header Files
 
-A header file is a file containing C declarations and macro definitions
-to be shared between several project source files. You request the use of a
-header file in your project source file (C, C++, etc) located in `src` folder
-by including it, with the C preprocessing directive `#include'.
+This directory contains all header files (.h) for the LogSplitter Controller project.
 
-```src/main.c
+## Core System Headers
 
-#include "header.h"
+### Safety & Control
+- `safety_system.h` - Emergency stop, over-pressure protection, system health monitoring
+- `system_error_manager.h` - Error reporting, acknowledgment, and LED status indication
+- `sequence_controller.h` - Hydraulic cylinder sequence state machine (extend/retract)
+- `relay_controller.h` - Hardware relay control via Serial1 interface
 
-int main (void)
-{
- ...
-}
+### Sensors & Input
+- `pressure_manager.h` - Dual pressure sensor management (A1 hydraulic, A5 filter)
+- `pressure_sensor.h` - Individual pressure sensor with filtering and calibration
+- `input_manager.h` - Digital input debouncing and pin state monitoring
+
+### Communication & Configuration
+- `network_manager.h` - WiFi/MQTT connectivity with automatic hostname and syslog support
+- `telnet_server.h` - Telnet server for remote command access
+- `command_processor.h` - Command validation, parsing, and execution
+- `config_manager.h` - EEPROM configuration persistence and validation
+
+### Testing & Constants
+- `system_test_suite.h` - Comprehensive hardware validation framework
+- `constants.h` - System constants, pin definitions, and configuration parameters
+- `arduino_secrets.h` - WiFi/MQTT credentials (user-created from template)
+
+## Header File Usage
+
+Include headers in your source files with:
+
+```cpp
+#include "header_name.h"
 ```
 
-Including a header file produces the same results as copying the header file
-into each source file that needs it. Such copying would be time-consuming
-and error-prone. With a header file, the related declarations appear
-in only one place. If they need to be changed, they can be changed in one
-place, and programs that include the header file will automatically use the
-new version when next recompiled. The header file eliminates the labor of
-finding and changing all the copies as well as the risk that a failure to
-find one copy will result in inconsistencies within a program.
+All headers use include guards to prevent multiple inclusion and are compatible with the Arduino framework and PlatformIO build system.
 
-In C, the convention is to give header files names that end with `.h'.
+## Configuration
 
-Read more about using header files in official GCC documentation:
+### WiFi/MQTT Credentials
+Create `arduino_secrets.h` from the provided template:
+```bash
+cp arduino_secrets.h.template arduino_secrets.h
+```
 
-* Include Syntax
-* Include Operation
-* Once-Only Headers
-* Computed Includes
+Then edit with your network credentials. This file is excluded from version control.
 
-https://gcc.gnu.org/onlinedocs/cpp/Header-Files.html
+### System Configuration
+Modify `constants.h` to adjust:
+- Pin assignments and hardware configuration
+- Pressure sensor ranges and calibration
+- Network timeouts and retry limits
+- Safety thresholds and timing parameters
+- MQTT topics and syslog server settings
+
+## Memory Usage
+
+All constants are stored in PROGMEM (flash memory) when possible to conserve RAM. Current memory usage:
+- **RAM**: 34.5% (11,308 bytes)
+- **Flash**: 43.3% (113,432 bytes)
+
+---
+
+**Note**: Headers should contain declarations only. Implementation goes in corresponding .cpp files in the src/ directory.

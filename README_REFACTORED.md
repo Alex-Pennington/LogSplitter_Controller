@@ -157,6 +157,8 @@ set offset -12.5                 # Apply offset (" ")
 set pinmode 6 NC                 # Configure limit / input as NO or NC
 set syslog 192.168.1.100         # Set rsyslog server IP address
 set syslog 192.168.1.100:514     # Set rsyslog server IP and port
+syslog test                      # Send test message to rsyslog server
+syslog status                    # Show rsyslog server status and connectivity
 R1 ON                            # Shorthand relay control (works over MQTT & Serial)
 relay R2 OFF                     # Long form relay control
 ```
@@ -199,10 +201,11 @@ Exact tokens may vary; order kept stable for easy parsing.
 
 ## Memory Usage
 
+- **Current Usage**: RAM: 34.5% (11,308 bytes), Flash: 43.3% (113,432 bytes)
 - **Shared Buffers**: 256-byte message buffer, 64-byte topic buffer
 - **Stack Safety**: No large local arrays in functions
 - **PROGMEM**: Constants stored in flash memory
-- **Estimated Savings**: ~60% reduction in RAM usage vs original
+- **Estimated Savings**: ~60% reduction in RAM usage vs original monolithic design
 
 ## Compilation
 
@@ -334,5 +337,5 @@ Potential areas for continued improvement:
 
 **Author**: Refactored from original monolithic design  
 **Date**: September 2025  
-**Version**: 2.2.0 (SystemTestSuite framework, extended pressure scaling, shorthand relay commands)  
+**Version**: 2.3.0 (Hostname configuration, syslog integration, SystemTestSuite framework, extended pressure scaling, shorthand relay commands)  
 **Compatibility**: Arduino UNO R4 WiFi with PlatformIO

@@ -269,7 +269,68 @@ A5 offset set -10.500000
   set debug=OFF
   ```
 
-### 8. ERROR
+##### Syslog Configuration
+- **syslog** - Configure rsyslog server IP address and port for centralized logging
+  **Syntax**: `set syslog <ip>` or `set syslog <ip>:<port>`
+  ```
+  > set syslog 192.168.1.238
+  syslog server set to 192.168.1.238:514
+  
+  > set syslog 192.168.1.100:1514
+  syslog server set to 192.168.1.100:1514
+  ```
+  
+  **Notes**:
+  - Default port is 514 (standard syslog UDP port)
+  - All debug output is sent exclusively to syslog server
+  - RFC 3164 compliant format with facility Local0 and severity Info
+  - Use `syslog test` to verify connectivity
+
+### 8. SYSLOG
+**Description**: Syslog server configuration and testing for centralized logging
+**Syntax**: `syslog <command>`
+**Access**: Serial + MQTT
+
+#### Syslog Commands:
+
+##### Test Syslog Connection
+**Command**: `syslog test`
+**Function**: Send a test message to the configured syslog server
+
+**Example**:
+```
+> syslog test
+syslog test message sent successfully to 192.168.1.238:514
+
+> syslog test
+syslog test message failed to send to 192.168.1.238:514
+```
+
+##### Check Syslog Status
+**Command**: `syslog status`
+**Function**: Display current syslog server configuration and connectivity
+
+**Example Output**:
+```
+> syslog status
+syslog server: 192.168.1.238:514, wifi: connected, local IP: 192.168.1.100
+```
+
+**Syslog Configuration**:
+- **Default Server**: 192.168.1.238:514 (configured in constants.h)
+- **Protocol**: RFC 3164 compliant UDP syslog
+- **Facility**: Local0 (16) for custom application logs
+- **Severity**: Info (6) for normal operational messages
+- **Hostname**: "LogSplitter" for easy identification
+- **Tag**: "logsplitter" for application identification
+
+**Debug Output Integration**:
+- All debugPrintf() messages are sent exclusively to the syslog server
+- No local debug output to Serial or Telnet (cleaner operation)
+- Configure syslog server with `set syslog <ip>` or `set syslog <ip>:<port>`
+- Test connectivity with `syslog test` command
+
+### 9. ERROR
 **Description**: System error management for diagnostics and maintenance
 **Syntax**: `error <command> [parameter]`
 **Access**: Serial + MQTT
@@ -329,7 +390,7 @@ All errors cleared
 - Includes error code, description, and timestamp
 - Automatic error reporting on detection
 
-### 9. RELAY
+### 10. RELAY
 **Description**: Control hydraulic system relays
 **Syntax**: `relay R<number> <state>`
 **Access**: Serial + MQTT
