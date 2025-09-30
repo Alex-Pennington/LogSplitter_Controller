@@ -391,8 +391,6 @@ void processTelnetCommands() {
                 *(end + 1) = '\0';
                 
                 if (strlen(start) > 0) {
-                    debugPrintf("[TELNET] Processing command: '%s'\n", start);
-                    
                     // Process command (allow all commands via telnet including pins)
                     bool success = commandProcessor.processCommand(start, false, g_response_buffer, SHARED_BUFFER_SIZE);
                     
