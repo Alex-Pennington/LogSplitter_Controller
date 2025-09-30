@@ -351,20 +351,50 @@ void processSerialCommands() {
 void processTelnetCommands() {
     static char telnetCommandBuffer[COMMAND_BUFFER_SIZE];
     static size_t telnetLinePos = 0;
+    static bool inTelnetCommand = false;
     
     while (telnet.available()) {
-        String input = telnet.readString();
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
-            if (c == '\r') continue; // Ignore CR
+        int c = telnet.read();
+        if (c == -1) break; // No more data
+        
+        // Handle telnet protocol commands (IAC = 255)
+        if (c == 255) { // IAC (Interpret As Command)
+            inTelnetCommand = true;
+            continue;
+        }
+        
+        if (inTelnetCommand) {
+            // Skip telnet command bytes (WILL, WONT, DO, DONT, etc.)
+            if (c >= 240 && c <= 254) {
+                // Multi-byte command, need to read one more byte
+                if (telnet.available()) {
+                    telnet.read(); // consume the option byte
+                }
+            }
+            inTelnetCommand = false;
+            continue;
+        }
+        
+        if (c == '\r') continue; // Ignore CR
+        
+        if (c == '\n') {
+            telnetCommandBuffer[telnetLinePos] = '\0';
+            telnetLinePos = 0;
             
-            if (c == '\n') {
-                telnetCommandBuffer[telnetLinePos] = '\0';
-                telnetLinePos = 0;
+            if (strlen(telnetCommandBuffer) > 0) {
+                // Trim whitespace from beginning and end
+                char* start = telnetCommandBuffer;
+                while (*start && (*start == ' ' || *start == '\t')) start++;
                 
-                if (strlen(telnetCommandBuffer) > 0) {
+                char* end = start + strlen(start) - 1;
+                while (end > start && (*end == ' ' || *end == '\t' || *end == '\'' || *end == '"')) end--;
+                *(end + 1) = '\0';
+                
+                if (strlen(start) > 0) {
+                    debugPrintf("[TELNET] Processing command: '%s'\n", start);
+                    
                     // Process command (allow all commands via telnet including pins)
-                    bool success = commandProcessor.processCommand(telnetCommandBuffer, false, g_response_buffer, SHARED_BUFFER_SIZE);
+                    bool success = commandProcessor.processCommand(start, false, g_response_buffer, SHARED_BUFFER_SIZE);
                     
                     if (strlen(g_response_buffer) > 0) {
                         telnet.print("Response: ");
@@ -381,12 +411,13 @@ void processTelnetCommands() {
                         networkManager.publish(TOPIC_CONTROL_RESP, g_message_buffer);
                     }
                 }
-            } else {
-                if (telnetLinePos < COMMAND_BUFFER_SIZE - 1) {
-                    telnetCommandBuffer[telnetLinePos++] = c;
-                }
+            }
+        } else if (c >= 32 && c <= 126 && c != '\'' && c != '"') { // Only accept printable ASCII, exclude quotes
+            if (telnetLinePos < COMMAND_BUFFER_SIZE - 1) {
+                telnetCommandBuffer[telnetLinePos++] = (char)c;
             }
         }
+        // Ignore all other characters (control characters, escape sequences, quotes, etc.)
     }
 }
 

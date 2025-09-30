@@ -94,6 +94,13 @@ bool TelnetServer::available() {
     return isClientConnected() && client.available();
 }
 
+int TelnetServer::read() {
+    if (available()) {
+        return client.read();
+    }
+    return -1;
+}
+
 String TelnetServer::readString() {
     if (available()) {
         return client.readString();

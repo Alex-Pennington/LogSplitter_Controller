@@ -26,6 +26,7 @@ public:
     size_t printf(const char* fmt, ...);
     
     bool available();
+    int read();
     String readString();
     void flush();
     
