@@ -82,6 +82,9 @@ unsigned long lastWatchdogReset = 0;
 unsigned long systemStartTime = 0;
 const unsigned long publishInterval = 5000; // 5 seconds
 
+// Track if telnet connection info has been set
+static bool telnetInfoSet = false;
+
 // Serial command line buffer
 static uint8_t serialLinePos = 0;
 
@@ -113,24 +116,25 @@ void checkSystemHealth() {
 // ============================================================================
 
 void debugPrintf(const char* fmt, ...) {
-    unsigned long ts = millis();
-    
     // Format the message once
     va_list args;
     va_start(args, fmt);
     vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
     va_end(args);
     
-    // Prepare timestamp prefix
-    char timestamped_message[SHARED_BUFFER_SIZE + 50];
-    snprintf(timestamped_message, sizeof(timestamped_message), "[TS %lu] %s", ts, g_message_buffer);
+    // Send to syslog server if network is available
+    bool syslogSent = false;
+    if (networkManager.isWiFiConnected()) {
+        syslogSent = networkManager.sendSyslog(g_message_buffer);
+    }
     
-    // Always output to Serial
-    Serial.print(timestamped_message);
-    
-    // Also output to telnet if client connected
-    if (telnet.isClientConnected()) {
-        telnet.print(timestamped_message);
+    // Fallback to Serial if syslog fails (for debugging connectivity issues)
+    if (!syslogSent) {
+        unsigned long ts = millis();
+        Serial.print("[TS ");
+        Serial.print(ts);
+        Serial.print("] [SYSLOG_FAIL] ");
+        Serial.println(g_message_buffer);
     }
 }
 
@@ -276,6 +280,16 @@ void updateSystem() {
     
     // Update all subsystems with watchdog resets between heavy operations
     networkManager.update();
+    
+    // Set telnet connection info when network first connects
+    if (!telnetInfoSet && networkManager.isWiFiConnected()) {
+        String ipStr = WiFi.localIP().toString();
+        telnet.setConnectionInfo(networkManager.getHostname(), ipStr.c_str());
+        telnetInfoSet = true;
+        debugPrintf("Telnet connection info set: %s @ %s\n", 
+                   networkManager.getHostname(), ipStr.c_str());
+    }
+    
     telnet.update(); // Update telnet server
     resetWatchdog(); // Reset after network operations (potential blocking)
     

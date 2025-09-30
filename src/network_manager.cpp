@@ -9,6 +9,12 @@ extern char g_topic_buffer[TOPIC_BUFFER_SIZE];
 
 NetworkManager::NetworkManager() : mqttClient(wifiClient) {
     memset(clientId, 0, sizeof(clientId));
+    memset(hostname, 0, sizeof(hostname));
+    
+    // Initialize syslog configuration
+    strncpy(syslogServer, SYSLOG_SERVER, sizeof(syslogServer) - 1);
+    syslogServer[sizeof(syslogServer) - 1] = '\0';
+    syslogPort = SYSLOG_PORT;
 }
 
 bool NetworkManager::begin() {
@@ -16,6 +22,9 @@ bool NetworkManager::begin() {
     
     generateClientId();
     debugPrintf("Using MQTT clientId: %s\n", clientId);
+    
+    // Initialize UDP client for syslog
+    udpClient.begin(0); // Use any available local port
     
     // Initialize state machine
     wifiState = WiFiState::DISCONNECTED;
@@ -48,6 +57,11 @@ bool NetworkManager::startWiFiConnection() {
     }
     
     debugPrintf("Starting WiFi connection to '%s'...\n", SECRET_SSID);
+    
+    // Set hostname for easier identification on network
+    snprintf(hostname, sizeof(hostname), "LogSplitter");
+    WiFi.setHostname(hostname);
+    debugPrintf("Setting hostname: %s\n", hostname);
     
     // Start connection attempt (non-blocking)
     WiFi.begin(SECRET_SSID, SECRET_PASS);
@@ -355,6 +369,10 @@ void NetworkManager::printWiFiInfo() {
     Serial.print("Firmware: ");
     Serial.println(WiFi.firmwareVersion());
     
+    // Print hostname
+    Serial.print("Hostname: ");
+    Serial.println(hostname);
+    
     uint8_t mac[6];
     if (WiFi.macAddress(mac)) {
         Serial.print("MAC: ");
@@ -448,4 +466,48 @@ void NetworkManager::getHealthString(char* buffer, size_t bufferSize) {
         failedPublishCount,
         isConnected() ? (millis() - connectionUptime) / 1000 : 0
     );
+}
+
+bool NetworkManager::sendSyslog(const char* message, int severity) {
+    if (wifiState != WiFiState::CONNECTED) {
+        return false;
+    }
+    
+    // RFC 3164 syslog format: <PRI>TIMESTAMP HOSTNAME TAG: MESSAGE
+    // Priority = Facility * 8 + Severity
+    int priority = SYSLOG_FACILITY * 8 + severity;
+    
+    // Get current time (simplified timestamp)
+    unsigned long now = millis();
+    
+    // Format syslog message
+    char syslogMessage[512];
+    snprintf(syslogMessage, sizeof(syslogMessage),
+        "<%d>Jan  1 00:%02lu:%02lu %s %s: %s",
+        priority,
+        (now / 60000) % 60,    // minutes
+        (now / 1000) % 60,     // seconds
+        SYSLOG_HOSTNAME,
+        SYSLOG_TAG,
+        message
+    );
+    
+    // Send UDP packet with error checking
+    if (!udpClient.beginPacket(syslogServer, syslogPort)) {
+        return false;  // Failed to begin packet
+    }
+    
+    size_t bytesWritten = udpClient.write((const uint8_t*)syslogMessage, strlen(syslogMessage));
+    if (bytesWritten != strlen(syslogMessage)) {
+        udpClient.endPacket(); // Clean up
+        return false;  // Failed to write all bytes
+    }
+    
+    return udpClient.endPacket();  // Returns true if packet sent successfully
+}
+
+void NetworkManager::setSyslogServer(const char* server, int port) {
+    strncpy(syslogServer, server, sizeof(syslogServer) - 1);
+    syslogServer[sizeof(syslogServer) - 1] = '\0';
+    syslogPort = port;
 }

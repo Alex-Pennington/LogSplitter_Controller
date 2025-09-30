@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFiS3.h>
+#include <WiFiUdp.h>
 #include <ArduinoMqttClient.h>
 #include "constants.h"
 
@@ -24,7 +25,9 @@ class NetworkManager {
 private:
     WiFiClient wifiClient;
     MqttClient mqttClient;
+    WiFiUDP udpClient;  // For syslog messages
     char clientId[32];
+    char hostname[32];  // Store hostname locally since WiFi.getHostname() may not be available
     
     // Non-blocking connection state machine
     WiFiState wifiState = WiFiState::DISCONNECTED;
@@ -40,6 +43,10 @@ private:
     unsigned long totalDisconnections = 0;
     unsigned long failedPublishCount = 0;
     bool connectionStable = false;
+    
+    // Syslog configuration
+    char syslogServer[64];
+    int syslogPort;
     
     // Connection helpers (now non-blocking)
     void updateWiFiConnection();
@@ -72,6 +79,10 @@ public:
     void poll() { if (mqttState == MQTTState::CONNECTED) mqttClient.poll(); }
     void setMessageCallback(void (*callback)(int));
     
+    // Syslog operations
+    bool sendSyslog(const char* message, int severity = SYSLOG_SEVERITY);
+    void setSyslogServer(const char* server, int port = SYSLOG_PORT);
+    
     // Access to underlying client for message reading
     MqttClient& getMqttClient() { return mqttClient; }
     
@@ -81,4 +92,5 @@ public:
     void getHealthString(char* buffer, size_t bufferSize);
     unsigned long getConnectionUptime() const { return connectionUptime; }
     unsigned long getFailedPublishCount() const { return failedPublishCount; }
+    const char* getHostname() const { return hostname; }
 };

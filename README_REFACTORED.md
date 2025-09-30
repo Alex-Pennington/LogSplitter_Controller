@@ -108,9 +108,11 @@ This is a complete refactor of the original monolithic LogSplitter Controller co
 
 ### NetworkManager
 
-- **Purpose**: WiFi + MQTT connectivity management
-- **Features**: Non-blocking reconnect, publish helper, status tracking
+- **Purpose**: WiFi + MQTT connectivity management + Syslog logging
+- **Features**: Non-blocking reconnect, publish helper, status tracking, automatic hostname setting, UDP syslog support
 - **Improvements**: Avoids main loop stalls during outages
+- **Hostname**: Automatically sets device hostname as `LogSplitter` for easier telnet server discovery
+- **Syslog**: Sends debug messages to configurable rsyslog server (RFC 3164 format over UDP)
 
 ### Pressure Scaling Details (A1)
 
@@ -153,9 +155,15 @@ set filter median3               # Filter: none | median3 | ema
 set gain 1.02                    # Apply scalar gain to raw pressure (legacy single-sensor path)
 set offset -12.5                 # Apply offset (" ")
 set pinmode 6 NC                 # Configure limit / input as NO or NC
+set syslog 192.168.1.100         # Set rsyslog server IP address
+set syslog 192.168.1.100:514     # Set rsyslog server IP and port
 R1 ON                            # Shorthand relay control (works over MQTT & Serial)
 relay R2 OFF                     # Long form relay control
 ```
+
+**Telnet Access**: The device automatically sets its hostname to `LogSplitter`. This makes it easier to find and connect to the telnet server on your network. The telnet server runs on port 23 and displays the hostname and IP address in the welcome message.
+
+**Syslog Integration**: All debug messages are sent exclusively to the configured rsyslog server using RFC 3164 format over UDP port 514. Configure with `set syslog <server_ip>` or `set syslog <server_ip>:<port>`. Debug output has been removed from Serial and Telnet for cleaner operation.
 
 Example `show` response (single line):
 

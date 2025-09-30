@@ -9,6 +9,7 @@ private:
     WiFiClient client;
     bool clientConnected;
     uint16_t port;
+    char connectionInfo[128];  // Store hostname and IP info for welcome message
     
 public:
     TelnetServer(uint16_t telnetPort = 23);
@@ -16,6 +17,7 @@ public:
     void begin();
     void update();
     void stop();
+    void setConnectionInfo(const char* hostname, const char* ipAddress);
     
     bool isClientConnected();
     size_t print(const char* str);

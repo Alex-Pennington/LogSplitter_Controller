@@ -484,6 +484,31 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
         snprintf(response, responseSize, "debug %s", enabled ? "ON" : "OFF");
     }
+    else if (strcasecmp(param, "syslog") == 0) {
+        if (networkManager) {
+            // Parse syslog server address and optional port
+            char* portPtr = strchr(value, ':');
+            int port = SYSLOG_PORT;
+            
+            if (portPtr) {
+                *portPtr = '\0'; // Split the string
+                port = atoi(portPtr + 1);
+                if (port <= 0 || port > 65535) {
+                    snprintf(response, responseSize, "Invalid port number");
+                    return;
+                }
+            }
+            
+            networkManager->setSyslogServer(value, port);
+            if (portPtr) {
+                snprintf(response, responseSize, "syslog server set to %s:%d", value, port);
+            } else {
+                snprintf(response, responseSize, "syslog server set to %s:%d", value, SYSLOG_PORT);
+            }
+        } else {
+            snprintf(response, responseSize, "Network manager not available");
+        }
+    }
     // Add more parameter handlers as needed
     else {
         snprintf(response, responseSize, "unknown parameter %s", param);
@@ -713,6 +738,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleTest(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "syslog") == 0) {
+        char* param = strtok(NULL, " ");
+        handleSyslog(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
@@ -768,5 +797,44 @@ void CommandProcessor::handleTest(char* param, char* response, size_t responseSi
     else {
         snprintf(response, responseSize, 
             "unknown test command: %s (try: all, safety, outputs, systems, report)", param);
+    }
+}
+
+void CommandProcessor::handleSyslog(char* param, char* response, size_t responseSize) {
+    if (!networkManager) {
+        snprintf(response, responseSize, "network manager not initialized");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, 
+            "syslog commands: test, status");
+        return;
+    }
+    
+    if (strcasecmp(param, "test") == 0) {
+        if (!networkManager->isWiFiConnected()) {
+            snprintf(response, responseSize, "WiFi not connected - cannot send syslog");
+            return;
+        }
+        
+        // Send test message to syslog server
+        bool result = networkManager->sendSyslog("SYSLOG TEST MESSAGE - LogSplitter Controller");
+        if (result) {
+            snprintf(response, responseSize, "syslog test message sent successfully to %s:%d", SYSLOG_SERVER, SYSLOG_PORT);
+        } else {
+            snprintf(response, responseSize, "syslog test message failed to send to %s:%d", SYSLOG_SERVER, SYSLOG_PORT);
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        snprintf(response, responseSize, 
+            "syslog server: %s:%d, wifi: %s, local IP: %s", 
+            SYSLOG_SERVER, SYSLOG_PORT,
+            networkManager->isWiFiConnected() ? "connected" : "disconnected",
+            networkManager->isWiFiConnected() ? WiFi.localIP().toString().c_str() : "none");
+    }
+    else {
+        snprintf(response, responseSize, 
+            "unknown syslog command: %s (try: test, status)", param);
     }
 }

@@ -5,6 +5,7 @@
 TelnetServer telnet;
 
 TelnetServer::TelnetServer(uint16_t telnetPort) : server(telnetPort), port(telnetPort), clientConnected(false) {
+    memset(connectionInfo, 0, sizeof(connectionInfo));
 }
 
 void TelnetServer::begin() {
@@ -12,6 +13,11 @@ void TelnetServer::begin() {
     clientConnected = false;
     Serial.print("Telnet server started on port ");
     Serial.println(port);
+}
+
+void TelnetServer::setConnectionInfo(const char* hostname, const char* ipAddress) {
+    snprintf(connectionInfo, sizeof(connectionInfo), "Device: %s | IP: %s | Port: %d", 
+             hostname, ipAddress, port);
 }
 
 void TelnetServer::update() {
@@ -128,6 +134,9 @@ void TelnetServer::handleNewClient() {
         // Send welcome message
         client.println();
         client.println("=== LogSplitter Controller Telnet Console ===");
+        if (strlen(connectionInfo) > 0) {
+            client.println(connectionInfo);
+        }
         client.println("Type 'help' for available commands");
         client.println();
     }

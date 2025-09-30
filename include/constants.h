@@ -17,6 +17,14 @@ const uint8_t MAX_CONNECT_RETRIES = 3;
 const uint8_t MAX_WIFI_RETRIES = 3;
 const uint8_t MAX_MQTT_RETRIES = 3;
 
+// Syslog Constants
+const char* const SYSLOG_SERVER = "192.168.1.238";  // Default rsyslog server IP
+const int SYSLOG_PORT = 514;                        // Standard syslog UDP port
+const char* const SYSLOG_HOSTNAME = "LogSplitter";  // Hostname for syslog messages
+const char* const SYSLOG_TAG = "logsplitter";       // Application tag for syslog
+const int SYSLOG_FACILITY = 16;                     // Local use facility (local0 = 16)
+const int SYSLOG_SEVERITY = 6;                      // Info level (0=emergency, 6=info, 7=debug)
+
 // MQTT Topics
 const char TOPIC_PUBLISH[] PROGMEM = "r4/example/pub";
 const char TOPIC_SUBSCRIBE[] PROGMEM = "r4/example/sub";
