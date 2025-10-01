@@ -6,7 +6,7 @@
 #include "command_processor.h"
 #include "lcd_display.h"
 #include "mcp9600_sensor.h"
-#include "shared/logger/logger.h"
+#include "logger.h"
 
 // Global instances
 NetworkManager networkManager;

@@ -1,7 +1,7 @@
 #include "monitor_system.h"
 #include "network_manager.h"
 #include "lcd_display.h"
-#include "shared/logger/logger.h"
+#include "logger.h"
 #include <Arduino.h>
 #include <WiFiS3.h>
 
