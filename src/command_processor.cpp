@@ -155,7 +155,7 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network, reset, error, test";
+    const char* helpText = "Commands: help, show, debug, network, reset, error, test, loglevel [0-7]";
     if (!fromMqtt) {
         snprintf(response, responseSize, "%s, pins, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
@@ -486,25 +486,16 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         snprintf(response, responseSize, "debug %s", enabled ? "ON" : "OFF");
     }
     else if (strcasecmp(param, "loglevel") == 0) {
-        LogLevel level;
-        if (strcasecmp(value, "debug") == 0) {
-            level = LOG_DEBUG;
-        } else if (strcasecmp(value, "info") == 0) {
-            level = LOG_INFO;
-        } else if (strcasecmp(value, "warn") == 0) {
-            level = LOG_WARNING;
-        } else if (strcasecmp(value, "error") == 0) {
-            level = LOG_ERROR;
-        } else if (strcasecmp(value, "critical") == 0) {
-            level = LOG_CRITICAL;
-        } else {
-            snprintf(response, responseSize, "loglevel must be: debug|info|warn|error|critical");
+        // Parse numeric log level (0-7)
+        int level = atoi(value);
+        if (level < 0 || level > 7) {
+            snprintf(response, responseSize, "loglevel must be 0-7 (0=EMERGENCY, 7=DEBUG)");
             return;
         }
         
-        Logger::setLogLevel(level);
-        snprintf(response, responseSize, "log level set to %s", value);
-        LOG_INFO("Log level changed to %s", value);
+        Logger::setLogLevel(static_cast<LogLevel>(level));
+        snprintf(response, responseSize, "log level set to %d", level);
+        LOG_INFO("Log level changed to %d", level);
     }
     else if (strcasecmp(param, "syslog") == 0) {
         if (networkManager) {
@@ -764,6 +755,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleSyslog(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "loglevel") == 0) {
+        char* param = strtok(NULL, " ");
+        handleLogLevel(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
@@ -858,5 +853,55 @@ void CommandProcessor::handleSyslog(char* param, char* response, size_t response
     else {
         snprintf(response, responseSize, 
             "unknown syslog command: %s (try: test, status)", param);
+    }
+}
+
+void CommandProcessor::handleLogLevel(const char* param, char* response, size_t responseSize) {
+    if (!param || strcasecmp(param, "get") == 0) {
+        // Show current log level
+        LogLevel currentLevel = Logger::getLogLevel();
+        const char* levelName;
+        switch (currentLevel) {
+            case LOG_EMERGENCY: levelName = "EMERGENCY"; break;
+            case LOG_ALERT: levelName = "ALERT"; break;
+            case LOG_CRITICAL: levelName = "CRITICAL"; break;
+            case LOG_ERROR: levelName = "ERROR"; break;
+            case LOG_WARNING: levelName = "WARNING"; break;
+            case LOG_NOTICE: levelName = "NOTICE"; break;
+            case LOG_INFO: levelName = "INFO"; break;
+            case LOG_DEBUG: levelName = "DEBUG"; break;
+            default: levelName = "UNKNOWN"; break;
+        }
+        snprintf(response, responseSize, "Current log level: %d (%s)", currentLevel, levelName);
+    }
+    else if (strcasecmp(param, "list") == 0) {
+        snprintf(response, responseSize, 
+            "Log levels: 0=EMERGENCY, 1=ALERT, 2=CRITICAL, 3=ERROR, 4=WARNING, 5=NOTICE, 6=INFO, 7=DEBUG");
+    }
+    else if (strcasecmp(param, "set") == 0) {
+        snprintf(response, responseSize, "usage: loglevel set <0-7>");
+    }
+    else {
+        // Try to parse as numeric level
+        int level = atoi(param);
+        if (level >= 0 && level <= 7) {
+            Logger::setLogLevel(static_cast<LogLevel>(level));
+            const char* levelName;
+            switch (level) {
+                case LOG_EMERGENCY: levelName = "EMERGENCY"; break;
+                case LOG_ALERT: levelName = "ALERT"; break;
+                case LOG_CRITICAL: levelName = "CRITICAL"; break;
+                case LOG_ERROR: levelName = "ERROR"; break;
+                case LOG_WARNING: levelName = "WARNING"; break;
+                case LOG_NOTICE: levelName = "NOTICE"; break;
+                case LOG_INFO: levelName = "INFO"; break;
+                case LOG_DEBUG: levelName = "DEBUG"; break;
+                default: levelName = "UNKNOWN"; break;
+            }
+            snprintf(response, responseSize, "Log level set to %d (%s)", level, levelName);
+            LOG_INFO("Log level changed to %d (%s)", level, levelName);
+        } else {
+            snprintf(response, responseSize, "usage: loglevel [get|list|<0-7>]");
+        }
     }
 }

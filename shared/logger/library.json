@@ -1,0 +1,23 @@
+{
+    "name": "LogSplitter-Logger",
+    "version": "1.0.0",
+    "description": "Unified logging system for LogSplitter projects",
+    "keywords": ["logging", "syslog", "arduino", "rfc3164"],
+    "repository": {
+        "type": "git",
+        "url": "."
+    },
+    "authors": [
+        {
+            "name": "LogSplitter Team"
+        }
+    ],
+    "license": "MIT",
+    "homepage": ".",
+    "frameworks": ["arduino"],
+    "platforms": ["renesas-ra"],
+    "dependencies": {},
+    "export": {
+        "include": "."
+    }
+}

@@ -51,6 +51,7 @@ private:
     void handleError(char* param, char* value, char* response, size_t responseSize);
     void handleTest(char* param, char* response, size_t responseSize);
     void handleSyslog(char* param, char* response, size_t responseSize);
+    void handleLogLevel(const char* param, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;

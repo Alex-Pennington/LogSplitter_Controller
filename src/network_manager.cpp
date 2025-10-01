@@ -474,6 +474,11 @@ bool NetworkManager::sendSyslog(const char* message, int severity) {
         return false;
     }
     
+    // Validate severity level (0-7 per RFC 3164)
+    if (severity < 0 || severity > 7) {
+        severity = 6; // Default to INFO if invalid
+    }
+    
     // RFC 3164 syslog format: <PRI>TIMESTAMP HOSTNAME TAG: MESSAGE
     // Priority = Facility * 8 + Severity
     int priority = SYSLOG_FACILITY * 8 + severity;

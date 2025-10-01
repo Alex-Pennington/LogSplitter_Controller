@@ -73,12 +73,22 @@ debugPrintf("Legacy debug message\n");  // -> LOG_DEBUG
 Configure log levels via serial/telnet/MQTT commands:
 
 ```bash
-# Set log level (only messages at or above this level are sent)
-set loglevel debug      # Show all messages (development)
-set loglevel info       # Show INFO and above (normal operation)
-set loglevel warn       # Show WARN and above (production monitoring)
-set loglevel error      # Show ERROR and above (minimal logging)
-set loglevel critical   # Show only CRITICAL messages (emergency only)
+# Direct loglevel commands (numeric 0-7)
+loglevel                    # Show current log level
+loglevel get                # Get current log level
+loglevel list               # List all available log levels
+loglevel 0                  # Set to EMERGENCY level
+loglevel 1                  # Set to ALERT level
+loglevel 2                  # Set to CRITICAL level
+loglevel 3                  # Set to ERROR level
+loglevel 4                  # Set to WARNING level
+loglevel 5                  # Set to NOTICE level
+loglevel 6                  # Set to INFO level (normal operation)
+loglevel 7                  # Set to DEBUG level (development)
+
+# Legacy set commands (still supported)
+set loglevel 0              # Set log level using numeric value
+set loglevel 7              # Set to maximum debug level
 
 # Configure syslog server
 set syslog 192.168.1.238       # Default port 514
