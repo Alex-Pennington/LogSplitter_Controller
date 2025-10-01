@@ -4,28 +4,28 @@ A distributed Arduino-based control system for industrial log splitting operatio
 
 ## 🏗️ System Architecture
 
-The LogSplitter system consists of two coordinated Arduino UNO R4 WiFi units:
+The LogSplitter system consists of two coordinated Arduino UNO R4 WiFi units in a unified repository:
 
-- **[Controller](controller/)** - Main control unit with safety systems and relay management
+- **Controller** (root directory) - Main control unit with safety systems and relay management
 - **[Monitor](monitor/)** - Remote monitoring with precision sensors and LCD display
 
-Both units share a unified logging infrastructure and communicate via MQTT for real-time coordination.
+Both units share unified logging infrastructure and communicate via MQTT for real-time coordination.
 
 ## ⚡ Quick Start
 
 ### 1. Controller Setup
 ```bash
-cd controller/
+# Controller files are in the root directory
 pio run --target upload
 ```
-See [controller/README_REFACTORED.md](controller/README_REFACTORED.md) for detailed setup.
+See [README_REFACTORED.md](README_REFACTORED.md) for detailed controller setup.
 
 ### 2. Monitor Setup
 ```bash
 cd monitor/
 pio run --target upload
 ```
-See [monitor/README.md](monitor/README.md) for detailed setup.
+See [monitor/README.md](monitor/README.md) for detailed monitor setup.
 
 ### 3. System Integration
 See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for complete system deployment.
@@ -109,13 +109,13 @@ See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for complete system dep
 1. **Clone Repository**
    ```bash
    git clone <repository-url>
-   cd LogSplitter
+   cd LogSplitter_Controller
    ```
 
 2. **Configure Secrets**
    ```bash
-   # Controller
-   cp controller/include/arduino_secrets.h.template controller/include/arduino_secrets.h
+   # Controller (root directory)
+   cp include/arduino_secrets.h.template include/arduino_secrets.h
    # Monitor  
    cp monitor/include/arduino_secrets.h.template monitor/include/arduino_secrets.h
    # Edit both files with your WiFi/MQTT credentials
@@ -123,10 +123,10 @@ See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for complete system dep
 
 3. **Build and Deploy**
    ```bash
-   # Build controller
-   cd controller && pio run --target upload
+   # Build controller (from root)
+   pio run --target upload
    # Build monitor
-   cd ../monitor && pio run --target upload
+   cd monitor && pio run --target upload
    ```
 
 4. **Verify Operation**
@@ -174,7 +174,7 @@ syslog status           # Show syslog configuration
 ## 📚 Documentation
 
 ### Component Documentation
-- **[Controller](controller/README_REFACTORED.md)** - Detailed controller setup and operation
+- **[Controller](README_REFACTORED.md)** - Detailed controller setup and operation (root directory)
 - **[Monitor](monitor/README.md)** - Monitor system configuration and features
 - **[Logging System](docs/LOGGING_SYSTEM.md)** - Unified logging architecture
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Complete system deployment
@@ -182,7 +182,7 @@ syslog status           # Show syslog configuration
 ### Technical Documentation
 - **[System Architecture](docs/SYSTEM_ARCHITECTURE.md)** - Technical system overview
 - **[Network Integration](docs/NETWORK_INTEGRATION.md)** - MQTT and syslog setup
-- **[Safety Systems](controller/COMPREHENSIVE_REVIEW.md)** - Safety system details
+- **[Safety Systems](COMPREHENSIVE_REVIEW.md)** - Safety system details (root directory)
 - **[Command Reference](docs/COMMAND_REFERENCE.md)** - Complete command documentation
 
 ## 🔧 Development
@@ -193,8 +193,8 @@ syslog status           # Show syslog configuration
 make build-all
 
 # Build individual components
-cd controller && pio run
-cd monitor && pio run
+pio run              # Controller (from root directory)
+cd monitor && pio run  # Monitor
 ```
 
 ### Testing
@@ -203,8 +203,8 @@ cd monitor && pio run
 make test
 
 # Test individual components
-cd controller && pio test
-cd monitor && pio test
+pio test              # Controller (from root directory)
+cd monitor && pio test  # Monitor
 ```
 
 ### Debugging

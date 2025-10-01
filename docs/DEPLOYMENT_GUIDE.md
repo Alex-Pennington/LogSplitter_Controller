@@ -123,13 +123,13 @@ git clone <repository-url> LogSplitter
 cd LogSplitter
 
 # Configure WiFi credentials
-cp controller/include/arduino_secrets.h.template controller/include/arduino_secrets.h
+cp include/arduino_secrets.h.template include/arduino_secrets.h
 cp monitor/include/arduino_secrets.h.template monitor/include/arduino_secrets.h
 ```
 
 Edit secrets files:
 ```cpp
-// controller/include/arduino_secrets.h
+// include/arduino_secrets.h
 #define SECRET_SSID "LogSplitter_Network"
 #define SECRET_PASS "your_wifi_password"
 #define MQTT_BROKER "192.168.1.238"
@@ -143,7 +143,7 @@ Edit secrets files:
 ### 2. Build and Upload Controller
 
 ```bash
-cd controller/
+# Controller files are in root directory
 
 # Build firmware
 pio run
@@ -345,7 +345,7 @@ sudo cp /etc/rsyslog.conf /backup/logsplitter/
 sudo cp /etc/rsyslog.d/* /backup/logsplitter/
 
 # Backup firmware
-cp controller/.pio/build/uno_r4_wifi/firmware.bin /backup/logsplitter/controller-firmware.bin
+cp .pio/build/uno_r4_wifi/firmware.bin /backup/logsplitter/controller-firmware.bin
 cp monitor/.pio/build/uno_r4_wifi/firmware.bin /backup/logsplitter/monitor-firmware.bin
 ```
 
