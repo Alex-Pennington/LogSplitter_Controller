@@ -7,9 +7,15 @@ A distributed Arduino-based control system for industrial log splitting operatio
 The LogSplitter system consists of two coordinated Arduino UNO R4 WiFi units in a unified repository:
 
 - **Controller** (root directory) - Main control unit with safety systems and relay management
-- **[Monitor](monitor/)** - Remote monitoring with precision sensors and LCD display
+- **[Monitor](monitor/)** - Remote monitoring with precision sensors, LCD display, and LED matrix heartbeat animation
 
 Both units share unified logging infrastructure and communicate via MQTT for real-time coordination.
+
+### Key Features of the Unified Architecture:
+- **Clean Separation**: Controller handles industrial control, Monitor handles displays and sensing
+- **Visual Feedback**: Monitor features 12x8 LED matrix with animated heartbeat (30-200 BPM)
+- **Shared Infrastructure**: Unified logging, MQTT communication, and command interfaces
+- **Coordinated Operation**: Both units work together for comprehensive system management
 
 ## ⚡ Quick Start
 
@@ -175,7 +181,8 @@ syslog status           # Show syslog configuration
 
 ### Component Documentation
 - **[Controller](README_REFACTORED.md)** - Detailed controller setup and operation (root directory)
-- **[Monitor](monitor/README.md)** - Monitor system configuration and features
+- **[Monitor](monitor/README.md)** - Monitor system configuration with LCD and heartbeat animation
+- **[Unified Architecture](docs/UNIFIED_ARCHITECTURE.md)** - Complete system architecture and coordination
 - **[Logging System](docs/LOGGING_SYSTEM.md)** - Unified logging architecture
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Complete system deployment
 

@@ -2,9 +2,15 @@
 
 ## Overview
 
-The LogSplitter Monitor is a companion system to the LogSplitter Controller, designed to provide remote monitoring, data collection, and system oversight capabilities. It features integrated NAU7802 precision weight sensing for load monitoring and connects to the same network infrastructure and logs to the same rsyslog server for centralized monitoring.
+The LogSplitter Monitor is a companion system to the LogSplitter Controller, designed to provide remote monitoring, data collection, and visual feedback capabilities. It features integrated NAU7802 precision weight sensing for load monitoring, LCD display for real-time status, and LED matrix heartbeat animation for visual system health indication. The Monitor connects to the same network infrastructure and logs to the same rsyslog server for centralized monitoring.
 
 ## Features
+
+### Visual Display Systems
+- **LCD Display**: 20x4 character LCD with real-time system status display
+- **LED Matrix Heartbeat Animation**: 12x8 LED matrix displaying animated heartbeat pattern
+- **Configurable Heartbeat**: Adjustable heart rate (30-200 BPM) and brightness (0-255)
+- **Visual Health Indicator**: Heartbeat animation provides immediate visual feedback of system status
 
 ### Networking
 - **WiFi Connectivity**: Automatic connection to the same network as the Controller
@@ -41,6 +47,7 @@ The LogSplitter Monitor is a companion system to the LogSplitter Controller, des
 - **WiFi**: Built-in WiFi with automatic hostname setting
 - **I2C**: Dual I2C buses (Wire: A4/A5, Wire1: Qwiic connector)
 - **Weight Sensor**: NAU7802 24-bit precision ADC via Qwiic connector
+- **LED Matrix**: Built-in 12x8 LED matrix for heartbeat animation
 
 ### Pin Assignments
 ```
@@ -53,6 +60,7 @@ A2  - Spare analog input
 5   - Digital output 2 (controllable)
 6-9 - Additional watch pins (configurable)
 13  - Status LED (built-in)
+Built-in LED Matrix - 12x8 matrix for heartbeat animation
 Qwiic - LCD2004A I2C display (SDA1/SCL1 via Wire1)
 Qwiic - NAU7802 weight sensor (SDA1/SCL1 via Wire1)
 ```
@@ -189,6 +197,19 @@ lcd clear                # Clear LCD display
 lcd backlight on         # Turn LCD backlight on
 lcd backlight off        # Turn LCD backlight off
 lcd info <message>       # Display custom message
+```
+
+#### Heartbeat Animation Control
+```
+heartbeat                # Show heartbeat status
+heartbeat status         # Show heartbeat status (ENABLED/DISABLED, BPM, brightness)
+heartbeat on             # Enable heartbeat animation
+heartbeat off            # Disable heartbeat animation
+heartbeat enable         # Enable heartbeat animation (alias for 'on')
+heartbeat disable        # Disable heartbeat animation (alias for 'off')
+heartbeat rate 72        # Set heart rate to 72 BPM (30-200 range)
+heartbeat brightness 255 # Set LED brightness (0-255 range)
+heartbeat frame 2        # Display specific frame (0-3 for debugging)
 ```
 
 #### System Control
