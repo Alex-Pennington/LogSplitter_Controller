@@ -23,6 +23,7 @@ public:
     bool isTemperatureSensorReady();
     void getTemperatureSensorStatus(char* buffer, size_t bufferSize);
     void setTemperatureOffset(float localOffset, float remoteOffset);
+    MCP9600Sensor* getTemperatureSensor(); // Access to sensor for debug control
     
     // NAU7802 Load Cell functions
     float getWeight();

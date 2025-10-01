@@ -45,6 +45,13 @@ void MonitorSystem::begin() {
     debugPrintf("MonitorSystem: Initializing MCP9600 temperature sensor...");
     if (temperatureSensor.begin()) {
         LOG_INFO("MonitorSystem: MCP9600 temperature sensor initialized successfully");
+        
+        // Enable temperature filtering to smooth readings
+        temperatureSensor.enableFiltering(true, 5);  // 5-sample moving average
+        
+        // Set thermocouple type to K-type (most common)
+        temperatureSensor.setThermocoupleType(0x00); // Type K
+        debugPrintf("MonitorSystem: MCP9600 configured (Type K, 5-sample filter)\n");
     } else {
         LOG_WARN("MonitorSystem: MCP9600 temperature sensor initialization failed or not present");
     }
@@ -174,18 +181,76 @@ void MonitorSystem::readTemperatureSensor() {
         if (lastSensorAvailable != currentAvailable) {
             if (currentAvailable) {
                 LOG_INFO("MCP9600 temperature sensor reconnected");
-                debugPrintf("MonitorSystem: MCP9600 sensor reconnected");
+                debugPrintf("\n=== MCP9600 sensor reconnected ===\n");
             } else {
                 LOG_CRITICAL("MCP9600 temperature sensor disconnected or failed");
-                debugPrintf("MonitorSystem: CRITICAL - MCP9600 sensor disconnected!");
+                debugPrintf("\n*** CRITICAL - MCP9600 sensor disconnected! ***\n");
             }
             lastSensorAvailable = currentAvailable;
         }
         
         if (currentAvailable) {
-            localTemperature = temperatureSensor.getLocalTemperature();
-            remoteTemperature = temperatureSensor.getRemoteTemperature();
+            // Only show verbose debug if temperature sensor debug is enabled
+            bool tempDebugEnabled = temperatureSensor.isDebugEnabled();
             
+            if (tempDebugEnabled) {
+                debugPrintf("\n--- Temperature Reading Cycle ---\n");
+            }
+            
+            float newLocalTemp = temperatureSensor.getLocalTemperature();
+            float newRemoteTemp = temperatureSensor.getRemoteTemperature();
+            
+            // Static variables to track previous temperatures for validation
+            static float lastLocalTemp = newLocalTemp;
+            static float lastRemoteTemp = newRemoteTemp;
+            static bool firstRead = true;
+            
+            if (!firstRead) {
+                float localChange = newLocalTemp - lastLocalTemp;
+                float remoteChange = newRemoteTemp - lastRemoteTemp;
+                
+                if (tempDebugEnabled) {
+                    debugPrintf("MonitorSystem: Local change: %.3fC (%.1f -> %.1f)\n", localChange, lastLocalTemp, newLocalTemp);
+                    debugPrintf("MonitorSystem: Remote change: %.3fC (%.1f -> %.1f)\n", remoteChange, lastRemoteTemp, newRemoteTemp);
+                }
+                
+                // Rate limiting: reject readings with unreasonable changes (>5C/second)
+                if (abs(localChange) > 5.0 && newLocalTemp > -990.0) {
+                    if (tempDebugEnabled) {
+                        debugPrintf("MonitorSystem: *** REJECTED local temp jump: %.1fC ***\n", localChange);
+                    }
+                    newLocalTemp = lastLocalTemp; // Keep previous value
+                }
+                
+                if (abs(remoteChange) > 5.0 && newRemoteTemp > -990.0) {
+                    if (tempDebugEnabled) {
+                        debugPrintf("MonitorSystem: *** REJECTED remote temp jump: %.1fC ***\n", remoteChange);
+                    }
+                    newRemoteTemp = lastRemoteTemp; // Keep previous value
+                }
+            } else {
+                if (tempDebugEnabled) {
+                    debugPrintf("MonitorSystem: First temperature reading\n");
+                }
+            }
+            
+            // Only update if readings are reasonable
+            if (newLocalTemp > -990.0) {
+                localTemperature = newLocalTemp;
+                lastLocalTemp = newLocalTemp;
+            }
+            
+            if (newRemoteTemp > -990.0) {
+                remoteTemperature = newRemoteTemp;
+                lastRemoteTemp = newRemoteTemp;
+            }
+            
+            if (tempDebugEnabled) {
+                debugPrintf("MonitorSystem: FINAL - Local: %.1fC, Remote: %.1fC\n", localTemperature, remoteTemperature);
+                debugPrintf("--- End Temperature Cycle ---\n\n");
+            }
+            
+            firstRead = false;
             lastTemperatureRead = now;
         } else {
             // Sensor not available - use last known values but don't update timestamp
@@ -341,6 +406,10 @@ void MonitorSystem::getTemperatureSensorStatus(char* buffer, size_t bufferSize) 
 
 void MonitorSystem::setTemperatureOffset(float localOffset, float remoteOffset) {
     temperatureSensor.setTemperatureOffset(localOffset, remoteOffset);
+}
+
+MCP9600Sensor* MonitorSystem::getTemperatureSensor() {
+    return &temperatureSensor;
 }
 
 unsigned long MonitorSystem::getUptime() const {

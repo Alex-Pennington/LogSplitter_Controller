@@ -120,6 +120,11 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* value = strtok(NULL, " ");
         handleWeight(param, value, response, responseSize);
     }
+    else if (strcasecmp(cmd, "temp") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleTemperature(param, value, response, responseSize);
+    }
     else if (strcasecmp(cmd, "loglevel") == 0) {
         char* param = strtok(NULL, " ");
         handleLogLevel(param, response, responseSize);
@@ -166,6 +171,7 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "temp local|localc - Local temperature (F/C)\r\n"
         "temp remote|remotec - Remote temperature (F/C)\r\n"
         "temp status    - Show temperature sensor status\r\n"
+        "temp debug on|off - Toggle temperature sensor debug output\r\n"
         "temp offset <local> <remote> - Set temperature offsets\r\n"
         "lcd on|off     - Turn LCD display on/off\r\n"
         "lcd backlight on|off - Control LCD backlight\r\n"
@@ -702,7 +708,7 @@ void CommandProcessor::handleTemperature(char* param, char* value, char* respons
     }
     
     if (!param) {
-        snprintf(response, responseSize, "temp commands: read, readc, local, remote, localc, remotec, status, offset");
+        snprintf(response, responseSize, "temp commands: read, readc, local, remote, localc, remotec, status, debug, offset");
         return;
     }
     
@@ -768,6 +774,29 @@ void CommandProcessor::handleTemperature(char* param, char* value, char* respons
         monitorSystem->setTemperatureOffset(localOffset, remoteOffset);
         snprintf(response, responseSize, "temperature offsets set: local=%.2f°C, remote=%.2f°C", 
                 localOffset, remoteOffset);
+    }
+    else if (strcasecmp(param, "debug") == 0) {
+        if (!value) {
+            // Show current debug state
+            MCP9600Sensor* tempSensor = monitorSystem->getTemperatureSensor();
+            bool debugEnabled = tempSensor->isDebugEnabled();
+            snprintf(response, responseSize, "temperature debug: %s", debugEnabled ? "ON" : "OFF");
+            return;
+        }
+        
+        if (strcasecmp(value, "on") == 0) {
+            MCP9600Sensor* tempSensor = monitorSystem->getTemperatureSensor();
+            tempSensor->enableDebugOutput(true);
+            snprintf(response, responseSize, "temperature debug enabled");
+        }
+        else if (strcasecmp(value, "off") == 0) {
+            MCP9600Sensor* tempSensor = monitorSystem->getTemperatureSensor();
+            tempSensor->enableDebugOutput(false);
+            snprintf(response, responseSize, "temperature debug disabled");
+        }
+        else {
+            snprintf(response, responseSize, "usage: temp debug [on|off]");
+        }
     }
     else {
         snprintf(response, responseSize, "unknown temperature command: %s", param);

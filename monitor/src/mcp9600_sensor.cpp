@@ -10,6 +10,7 @@ MCP9600Sensor::MCP9600Sensor(uint8_t address) :
     thermocoupleTempOffset(0.0),
     filteringEnabled(false),
     filterLevel(4),
+    debugOutputEnabled(false),
     filterSize(5),
     bufferIndex(0),
     validSamples(0)
@@ -94,16 +95,48 @@ float MCP9600Sensor::getThermocoupleTemperature() {
     if (!initialized) return -999.0;
     
     uint16_t rawTemp = readRegister16(MCP9600_REG_HOT_JUNCTION);
-    LOG_DEBUG("MCP9600: Raw thermocouple reading from 0x%02X = 0x%04X", MCP9600_REG_HOT_JUNCTION, rawTemp);
     
-    if (rawTemp == 0xFFFF) return -999.0; // Read error
+    if (rawTemp == 0xFFFF) {
+        if (debugOutputEnabled) {
+            debugPrintf("MCP9600: ERROR - Thermocouple read failed (0xFFFF)\n");
+        }
+        return -999.0; // Read error
+    }
     
-    float temperature = convertRawToTemperature(rawTemp) + thermocoupleTempOffset;
-    LOG_DEBUG("MCP9600: Converted thermocouple temperature = %.2fC", temperature);
+    // Show conversion steps
+    int16_t signedRaw = (int16_t)rawTemp;
+    float temperature = signedRaw * 0.0625 + thermocoupleTempOffset;
+    
+    if (debugOutputEnabled) {
+        debugPrintf("MCP9600: Raw=0x%04X (%d) -> %.3fC\n", rawTemp, signedRaw, temperature);
+    }
+    
+    // Static variable to track previous temperature for rate checking
+    static float lastTemp = temperature;
+    static bool firstReading = true;
+    
+    if (!firstReading && debugOutputEnabled) {
+        float tempChange = temperature - lastTemp;
+        debugPrintf("MCP9600: Change: %.3fC (%.3f -> %.3f)\n", tempChange, lastTemp, temperature);
+        
+        // Flag suspicious large changes
+        if (abs(tempChange) > 10.0) {
+            debugPrintf("MCP9600: *** WARNING - Large jump detected! ***\n");
+        }
+    } else if (firstReading && debugOutputEnabled) {
+        debugPrintf("MCP9600: First reading\n");
+    }
     
     if (filteringEnabled) {
-        temperature = applyFilter(temperature, thermocoupleTempBuffer);
+        float filteredTemp = applyFilter(temperature, thermocoupleTempBuffer);
+        if (debugOutputEnabled) {
+            debugPrintf("MCP9600: Filtered: %.3fC (from raw: %.3fC)\n", filteredTemp, temperature);
+        }
+        temperature = filteredTemp;
     }
+    
+    lastTemp = temperature;
+    firstReading = false;
     
     return temperature;
 }
@@ -241,10 +274,23 @@ void MCP9600Sensor::enableFiltering(bool enabled, uint8_t filterLevel) {
             thermocoupleTempBuffer[i] = 0.0;
         }
         
-        debugPrintf("MCP9600: Temperature filtering enabled (level %d)", filterLevel);
+        if (debugOutputEnabled) {
+            debugPrintf("MCP9600: Temperature filtering enabled (level %d)\n", filterLevel);
+        }
     } else {
-        debugPrintf("MCP9600: Temperature filtering disabled");
+        if (debugOutputEnabled) {
+            debugPrintf("MCP9600: Temperature filtering disabled\n");
+        }
     }
+}
+
+void MCP9600Sensor::enableDebugOutput(bool enabled) {
+    debugOutputEnabled = enabled;
+    debugPrintf("MCP9600: Debug output %s\n", enabled ? "ENABLED" : "DISABLED");
+}
+
+bool MCP9600Sensor::isDebugEnabled() const {
+    return debugOutputEnabled;
 }
 
 bool MCP9600Sensor::checkI2CDevice(uint8_t address) {

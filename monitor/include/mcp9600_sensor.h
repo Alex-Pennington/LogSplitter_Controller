@@ -184,6 +184,18 @@ public:
      * @param filterLevel Filter level (1-7, higher = more filtering)
      */
     void enableFiltering(bool enabled, uint8_t filterLevel = 4);
+    
+    /**
+     * Enable/disable debug output for temperature readings
+     * @param enabled true to enable debug output
+     */
+    void enableDebugOutput(bool enabled);
+    
+    /**
+     * Get current debug output state
+     * @return true if debug output is enabled
+     */
+    bool isDebugEnabled() const;
 
 private:
     uint8_t i2cAddress;                // I2C address
@@ -192,6 +204,7 @@ private:
     float thermocoupleTempOffset;      // Thermocouple temperature offset for calibration
     bool filteringEnabled;             // Temperature filtering enabled
     uint8_t filterLevel;               // Filter level (1-7)
+    bool debugOutputEnabled;           // Debug output enabled
     
     // Temperature filter buffers
     static const int MAX_FILTER_SIZE = 10;
