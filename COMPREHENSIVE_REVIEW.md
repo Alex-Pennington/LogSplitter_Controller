@@ -31,7 +31,7 @@ The LogSplitter Controller follows a **modular, safety-first architecture** with
 ┌─────────────────┐
 │   Main Loop     │ ← State machine coordination
 ├─────────────────┤
-│ Command Processor │ ← Input validation & routing
+│Command Processor│ ← Input validation & routing
 ├─────────────────┤
 │ Safety System   │ ← Emergency stop & monitoring
 ├─────────────────┤
