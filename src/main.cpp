@@ -34,7 +34,6 @@
 #include "command_processor.h"
 #include "system_test_suite.h"
 #include "arduino_secrets.h"
-#include "heartbeat_animation.h"
 
 // ============================================================================
 // Global Shared Buffers (Memory Optimization)
@@ -57,7 +56,6 @@ ConfigManager configManager;
 InputManager inputManager;
 SafetySystem safetySystem;
 CommandProcessor commandProcessor;
-HeartbeatAnimation heartbeat;
 
 // Use the global SystemTestSuite defined in system_test_suite.cpp
 extern SystemTestSuite systemTestSuite;
@@ -239,7 +237,6 @@ bool initializeSystem() {
     commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
     commandProcessor.setSystemTestSuite(&systemTestSuite);
-    commandProcessor.setHeartbeatAnimation(&heartbeat);
     
     Serial.println("Core systems initialized");
     
@@ -257,13 +254,6 @@ bool initializeSystem() {
         // Initialize telnet server after network is up
         telnet.begin();
         Serial.println("Telnet server initialized");
-        
-        // Initialize heartbeat animation
-        heartbeat.begin();
-        heartbeat.setHeartRate(72); // Normal resting heart rate
-        heartbeat.setBrightness(128); // Medium brightness
-        heartbeat.enable();
-        Serial.println("Heartbeat animation started");
     } else {
         Serial.println("Network initialization failed");
         return false;
@@ -282,9 +272,6 @@ bool initializeSystem() {
 
 void updateSystem() {
     resetWatchdog();
-    
-    // Update heartbeat animation (minimal CPU usage)
-    heartbeat.update();
     
     // Update all subsystems with watchdog resets between heavy operations
     networkManager.update();

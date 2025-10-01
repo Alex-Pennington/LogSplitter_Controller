@@ -7,6 +7,7 @@
 #include "lcd_display.h"
 #include "mcp9600_sensor.h"
 #include "logger.h"
+#include "heartbeat_animation.h"
 
 // Global instances
 NetworkManager networkManager;
@@ -14,6 +15,7 @@ TelnetServer telnetServer;
 MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
 LCDDisplay lcdDisplay;
+HeartbeatAnimation heartbeat;
 
 // Global pointer for external access
 NetworkManager* g_networkManager = &networkManager;
@@ -77,11 +79,19 @@ void setup() {
         Serial.println("DEBUG: LCD display initialization failed or not present");
     }
     
+    Serial.println("DEBUG: Initializing heartbeat animation...");
+    heartbeat.begin();
+    heartbeat.setHeartRate(72); // Normal resting heart rate
+    heartbeat.setBrightness(128); // Medium brightness
+    heartbeat.enable();
+    Serial.println("DEBUG: Heartbeat animation started successfully");
+    
     monitorSystem.setSystemState(SYS_INITIALIZING);
     Serial.println("DEBUG: System state set to initializing");
     
     Serial.println("DEBUG: Initializing command processor...");
     commandProcessor.begin(&networkManager, &monitorSystem);
+    commandProcessor.setHeartbeatAnimation(&heartbeat);
     Serial.println("DEBUG: Command processor initialized");
     
     Serial.println("DEBUG: About to initialize network manager...");
@@ -122,6 +132,9 @@ void loop() {
     // Update all system components
     networkManager.update();
     monitorSystem.update();
+    
+    // Update heartbeat animation (minimal CPU usage)
+    heartbeat.update();
     
     // Start telnet server once network is connected
     if (networkManager.isWiFiConnected() && currentSystemState == SYS_CONNECTING) {

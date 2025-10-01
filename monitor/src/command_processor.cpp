@@ -1,6 +1,7 @@
 #include "command_processor.h"
 #include "lcd_display.h"
 #include "logger.h"
+#include "heartbeat_animation.h"
 #include <ctype.h>
 #include <string.h>
 #include <Wire.h>
@@ -133,6 +134,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* value = strtok(NULL, " ");
         handleLCD(param, value, response, responseSize);
     }
+    else if (strcasecmp(cmd, "heartbeat") == 0) {
+        char* param = strtok(NULL, " ");
+        handleHeartbeat(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
@@ -165,6 +170,9 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "lcd on|off     - Turn LCD display on/off\r\n"
         "lcd backlight on|off - Control LCD backlight\r\n"
         "lcd clear      - Clear LCD display\r\n"
+        "heartbeat on|off - Control heartbeat animation\r\n"
+        "heartbeat rate <bpm> - Set heart rate (30-200 BPM)\r\n"
+        "heartbeat brightness <0-255> - Set brightness\r\n"
         "test network   - Test network connectivity\r\n"
         "syslog test    - Send test syslog message\r\n"
         "reset system   - Restart the device");
@@ -935,5 +943,96 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
         } else {
             snprintf(response, responseSize, "usage: loglevel [get|list|<0-7>]");
         }
+    }
+}
+
+void CommandProcessor::handleHeartbeat(char* param, char* response, size_t responseSize) {
+    if (!heartbeatAnimation) {
+        snprintf(response, responseSize, "heartbeat animation not initialized");
+        return;
+    }
+
+    if (!param || strcasecmp(param, "status") == 0) {
+        // Show heartbeat status
+        bool enabled = heartbeatAnimation->getEnabled();
+        uint16_t bpm = heartbeatAnimation->getHeartRate();
+        uint8_t brightness = heartbeatAnimation->getBrightness();
+        snprintf(response, responseSize, "Heartbeat: %s, %d BPM, brightness %d", 
+                 enabled ? "ENABLED" : "DISABLED", bpm, brightness);
+                 
+    } else if (strcasecmp(param, "on") == 0 || strcasecmp(param, "enable") == 0) {
+        heartbeatAnimation->enable();
+        snprintf(response, responseSize, "Heartbeat animation enabled");
+        
+    } else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "disable") == 0) {
+        heartbeatAnimation->disable();
+        snprintf(response, responseSize, "Heartbeat animation disabled");
+        
+    } else if (strncasecmp(param, "rate", 4) == 0) {
+        // Extract BPM value: "rate 72" or "rate72"
+        char* bpmStr = param + 4;
+        if (*bpmStr == ' ') bpmStr++; // Skip space if present
+        if (*bpmStr == '\0') {
+            // No value provided, get next token
+            bpmStr = strtok(NULL, " ");
+        }
+        
+        if (bpmStr) {
+            int bpm = atoi(bpmStr);
+            if (bpm >= 30 && bpm <= 200) {
+                heartbeatAnimation->setHeartRate(bpm);
+                snprintf(response, responseSize, "Heart rate set to %d BPM", bpm);
+            } else {
+                snprintf(response, responseSize, "Invalid heart rate (30-200 BPM)");
+            }
+        } else {
+            snprintf(response, responseSize, "usage: heartbeat rate <30-200>");
+        }
+        
+    } else if (strncasecmp(param, "brightness", 10) == 0) {
+        // Extract brightness value: "brightness 128" or "brightness128"
+        char* brightnessStr = param + 10;
+        if (*brightnessStr == ' ') brightnessStr++; // Skip space if present
+        if (*brightnessStr == '\0') {
+            // No value provided, get next token
+            brightnessStr = strtok(NULL, " ");
+        }
+        
+        if (brightnessStr) {
+            int brightness = atoi(brightnessStr);
+            if (brightness >= 0 && brightness <= 255) {
+                heartbeatAnimation->setBrightness(brightness);
+                snprintf(response, responseSize, "Brightness set to %d", brightness);
+            } else {
+                snprintf(response, responseSize, "Invalid brightness (0-255)");
+            }
+        } else {
+            snprintf(response, responseSize, "usage: heartbeat brightness <0-255>");
+        }
+        
+    } else if (strncasecmp(param, "frame", 5) == 0) {
+        // Extract frame number: "frame 2" or "frame2"
+        char* frameStr = param + 5;
+        if (*frameStr == ' ') frameStr++; // Skip space if present
+        if (*frameStr == '\0') {
+            // No value provided, get next token
+            frameStr = strtok(NULL, " ");
+        }
+        
+        if (frameStr) {
+            int frame = atoi(frameStr);
+            if (frame >= 0 && frame <= 3) {
+                heartbeatAnimation->displayFrame(frame);
+                snprintf(response, responseSize, "Displaying frame %d", frame);
+            } else {
+                snprintf(response, responseSize, "Invalid frame (0-3)");
+            }
+        } else {
+            snprintf(response, responseSize, "usage: heartbeat frame <0-3>");
+        }
+        
+    } else {
+        snprintf(response, responseSize, 
+                "usage: heartbeat [on|off|rate <bpm>|brightness <0-255>|frame <0-3>|status]");
     }
 }
