@@ -38,6 +38,7 @@ private:
     class SafetySystem* safetySystem = nullptr;
     class SystemErrorManager* systemErrorManager = nullptr;
     class SystemTestSuite* systemTestSuite = nullptr;
+    class HeartbeatAnimation* heartbeatAnimation = nullptr;
     
     // Command handlers
     void handleHelp(char* response, size_t responseSize, bool fromMqtt);
@@ -52,6 +53,7 @@ private:
     void handleTest(char* param, char* response, size_t responseSize);
     void handleSyslog(char* param, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
+    void handleHeartbeat(char* param, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;
@@ -66,6 +68,7 @@ public:
     void setSafetySystem(class SafetySystem* safety) { safetySystem = safety; }
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     void setSystemTestSuite(class SystemTestSuite* testSuite) { systemTestSuite = testSuite; }
+    void setHeartbeatAnimation(class HeartbeatAnimation* heartbeat) { heartbeatAnimation = heartbeat; }
     
     // Main processing function
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);
