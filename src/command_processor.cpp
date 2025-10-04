@@ -228,8 +228,12 @@ void CommandProcessor::handlePins(char* response, size_t responseSize, bool from
             function = "RETRACT_LIMIT ";
         } else if (pin == 2 || pin == 3) {
             function = "MANUAL_CTRL ";
-        } else if (pin == 4 || pin == 5) {
-            function = "SEQUENCE_CTRL ";
+        } else if (pin == 4) {
+            function = "SAFETY_CLEAR ";
+        } else if (pin == 5) {
+            function = "SEQUENCE_START ";
+        } else if (pin == 12) {
+            function = "E_STOP ";
         }
         
         if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {

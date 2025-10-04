@@ -31,6 +31,7 @@
 #include "config_manager.h"
 #include "input_manager.h"
 #include "safety_system.h"
+#include "system_error_manager.h"
 #include "command_processor.h"
 #include "system_test_suite.h"
 #include "arduino_secrets.h"
@@ -55,6 +56,7 @@ RelayController relayController;
 ConfigManager configManager;
 InputManager inputManager;
 SafetySystem safetySystem;
+SystemErrorManager systemErrorManager;
 CommandProcessor commandProcessor;
 
 // Use the global SystemTestSuite defined in system_test_suite.cpp
@@ -225,6 +227,10 @@ bool initializeSystem() {
     safetySystem.setNetworkManager(&networkManager);
     safetySystem.setSequenceController(&sequenceController);
     
+    // Initialize system error manager
+    systemErrorManager.begin();
+    systemErrorManager.setNetworkManager(&networkManager);
+    
     // Initialize system test suite
     systemTestSuite.begin(&safetySystem, &relayController, &inputManager, 
                           &pressureManager, &sequenceController, &networkManager);
@@ -238,6 +244,11 @@ bool initializeSystem() {
     commandProcessor.setSafetySystem(&safetySystem);
     commandProcessor.setSystemTestSuite(&systemTestSuite);
     commandProcessor.setInputManager(&inputManager);
+    commandProcessor.setSystemErrorManager(&systemErrorManager);
+    
+    // Connect error manager to other components
+    configManager.setSystemErrorManager(&systemErrorManager);
+    sequenceController.setErrorManager(&systemErrorManager);
     
     Serial.println("Core systems initialized");
     
@@ -293,6 +304,7 @@ void updateSystem() {
     sequenceController.update();
     relayController.update();
     inputManager.update();
+    systemErrorManager.update();
     
     // Update safety system with current pressure
     if (pressureManager.isReady()) {

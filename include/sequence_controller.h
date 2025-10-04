@@ -35,6 +35,9 @@ private:
     int pendingPressPin = 0;
     unsigned long pendingPressTime = 0;
     
+    // Error management integration
+    class SystemErrorManager* errorManager = nullptr;
+    
     // Helper methods
     void enterState(SequenceState newState);
     bool checkTimeout();
@@ -49,6 +52,7 @@ public:
     void setStableTime(unsigned long ms) { stableTimeMs = ms; }
     void setStartStableTime(unsigned long ms) { startStableTimeMs = ms; }
     void setTimeout(unsigned long ms) { timeoutMs = ms; }
+    void setErrorManager(class SystemErrorManager* em) { errorManager = em; }
     
     unsigned long getStableTime() const { return stableTimeMs; }
     unsigned long getStartStableTime() const { return startStableTimeMs; }

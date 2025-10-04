@@ -48,7 +48,8 @@ enum SystemErrorType {
     ERROR_NETWORK_PERSISTENT = 0x08,   // Network connection persistently failed
     ERROR_CONFIG_INVALID = 0x10,       // Configuration parameters invalid
     ERROR_MEMORY_LOW = 0x20,           // Memory allocation issues
-    ERROR_HARDWARE_FAULT = 0x40        // General hardware fault
+    ERROR_HARDWARE_FAULT = 0x40,       // General hardware fault
+    ERROR_SEQUENCE_TIMEOUT = 0x80      // Sequence operation timeout
 };
 ```
 
@@ -64,6 +65,7 @@ enum SystemErrorType {
 - `ERROR_SENSOR_FAULT` - Pressure sensor malfunction
 - `ERROR_NETWORK_PERSISTENT` - Network connection persistently failed
 - `ERROR_CONFIG_INVALID` - Configuration parameters invalid
+- `ERROR_SEQUENCE_TIMEOUT` - Sequence operation timeout
 
 ## LED Pattern Logic
 

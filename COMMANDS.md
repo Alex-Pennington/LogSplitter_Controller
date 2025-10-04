@@ -359,6 +359,7 @@ Active errors: 0x01:(ACK)EEPROM_CRC, 0x10:CONFIG_INVALID
 - `0x10` - Configuration parameters invalid
 - `0x20` - Memory allocation issues
 - `0x40` - General hardware fault
+- `0x80` - Sequence operation timeout
 
 **Examples**:
 ```

@@ -166,6 +166,7 @@ const char* SystemErrorManager::getErrorDescription(SystemErrorType errorType) {
         case ERROR_CONFIG_INVALID:     return "Configuration parameters invalid";
         case ERROR_MEMORY_LOW:         return "Memory allocation issues";
         case ERROR_HARDWARE_FAULT:     return "General hardware fault";
+        case ERROR_SEQUENCE_TIMEOUT:   return "Sequence operation timeout";
         default:                       return "Unknown error";
     }
 }

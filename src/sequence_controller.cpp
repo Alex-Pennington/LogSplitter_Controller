@@ -2,6 +2,7 @@
 #include "relay_controller.h"
 #include "network_manager.h"
 #include "pressure_manager.h"
+#include "system_error_manager.h"
 #include "constants.h"
 
 // External references for relay control and network publishing
@@ -74,6 +75,11 @@ void SequenceController::abortSequence(const char* reason) {
     allowButtonRelease = false;
     pendingPressPin = 0;
     pendingPressTime = 0;
+    
+    // Trigger mill light for timeout errors
+    if (reason && strcmp(reason, "timeout") == 0 && errorManager) {
+        errorManager->setError(ERROR_SEQUENCE_TIMEOUT, "Hydraulic sequence operation timed out");
+    }
     
     // Publish abort event
     if (g_networkManager && g_networkManager->isConnected()) {

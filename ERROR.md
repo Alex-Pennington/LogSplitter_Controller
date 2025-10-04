@@ -213,6 +213,34 @@ These errors trigger solid or slow blinking patterns:
   - Reconfigure invalid parameters
   - Reset to defaults if necessary
 
+#### ERROR_SEQUENCE_TIMEOUT (0x80)
+- **Severity**: ERROR
+- **Mill Lamp**: Solid ON (single) / Slow Blink (multiple)
+- **Log Level**: LOG_ERROR
+- **Description**: Hydraulic sequence operation exceeded maximum time limit
+- **Causes**:
+  - Cylinder stuck due to mechanical obstruction
+  - Hydraulic pressure too low to complete movement
+  - Limit switch malfunction preventing sequence completion
+  - Hydraulic valve failure or blockage
+  - Excessive system load preventing normal operation
+- **Source Locations**:
+  ```cpp
+  File: src/sequence_controller.cpp
+  Line: ~40 - Timeout detection in update() method
+  Line: ~78 - abortSequence("timeout") call with error manager integration
+  
+  Error Generation:
+  errorManager->setError(ERROR_SEQUENCE_TIMEOUT, "Hydraulic sequence operation timed out");
+  ```
+- **Impact**: Hydraulic sequence aborted, system returns to idle state, mill lamp alerts operator
+- **Resolution**:
+  - Check for mechanical obstructions in cylinder path
+  - Verify hydraulic pressure levels are adequate
+  - Test limit switch functionality (pins 6 & 7)
+  - Inspect hydraulic lines for blockages
+  - Acknowledge error: `errors ack 0x80` after resolving underlying issue
+
 ## Error Status Commands
 
 ### Viewing Error Status

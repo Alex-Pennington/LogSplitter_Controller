@@ -130,7 +130,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
   - **Solid ON**: Single error (e.g., configuration issue)
   - **Slow Blink (1Hz)**: Multiple errors present
   - **Fast Blink (5Hz)**: Critical errors (EEPROM CRC, memory issues)
-- **Error Types**: EEPROM faults, sensor malfunctions, network issues, configuration errors
+- **Error Types**: EEPROM faults, sensor malfunctions, network issues, configuration errors, sequence timeouts
 - **MQTT**: Error details published to `r4/system/error` topic
 - **Acknowledgment**: Errors can be acknowledged but LED indicates until fault is cleared
 

@@ -44,7 +44,7 @@ const char TOPIC_SEQUENCE_ACTIVE[] PROGMEM = "r4/sequence/active";
 const char TOPIC_SEQUENCE_ELAPSED[] PROGMEM = "r4/sequence/elapsed";
 
 // Pin Configuration
-const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7};
+const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
 const unsigned long DEBOUNCE_DELAY_MS = 5;  // Reduced for fast-moving hydraulic cylinder limit switches
 
