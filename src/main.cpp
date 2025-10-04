@@ -158,6 +158,13 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
             safetySystem.clearEmergencyStop();  // Clear safety state to allow operation
             // Note: Error list is NOT cleared - manager must clear errors separately via commands
         }
+        
+        // Re-enable sequence controller if it was disabled due to timeout
+        if (!sequenceController.isSequenceEnabled()) {
+            LOG_INFO("SEQ: Re-enabling sequence controller after safety clear");
+            sequenceController.enableSequence();
+        }
+        
         return;  // Safety clear handled, don't process as normal input
     }
     

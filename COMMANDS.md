@@ -383,8 +383,9 @@ All errors cleared
 ##### Safety Clear vs Error Clear
 **Safety Clear (Pin 4 Button)**:
 - **Purpose**: Operational recovery - allows resuming normal operation
-- **Action**: Clears safety system lockouts to restore system functionality
+- **Action**: Clears safety system lockouts and re-enables sequence controller after timeout
 - **Error History**: Preserves all error records for management review
+- **Sequence Control**: Re-enables sequence controller if disabled due to timeout errors
 - **Use Case**: Managing operator restores operation after addressing fault causes
 
 **Error Clear (Command)**:
@@ -395,9 +396,10 @@ All errors cleared
 
 **Typical Recovery Sequence**:
 1. Fault occurs → Safety system activates → Mill light indicates errors
-2. Operator addresses root cause of fault condition
-3. Manager presses Safety Clear (Pin 4) → System operational, errors still logged
-4. Manager reviews error list → Documents incident → Issues `error clear` command
+2. **Sequence Timeout**: If timeout occurs, sequence controller is disabled
+3. Operator addresses root cause of fault condition
+4. Manager presses Safety Clear (Pin 4) → System operational, sequence re-enabled, errors still logged
+5. Manager reviews error list → Documents incident → Issues `error clear` command
 
 **System Error LED (Pin 9)**:
 - **OFF**: No errors

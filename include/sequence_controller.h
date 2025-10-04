@@ -35,6 +35,9 @@ private:
     int pendingPressPin = 0;
     unsigned long pendingPressTime = 0;
     
+    // Sequence lockout after timeout
+    bool sequenceDisabled = false;
+    
     // Error management integration
     class SystemErrorManager* errorManager = nullptr;
     
@@ -71,6 +74,9 @@ public:
     // Manual control
     void abort() { abortSequence("manual_abort"); }
     void reset();
+    void enableSequence() { sequenceDisabled = false; }
+    void disableSequence() { sequenceDisabled = true; }
+    bool isSequenceEnabled() const { return !sequenceDisabled; }
     
     // Status for telemetry
     void getStatusString(char* buffer, size_t bufferSize);

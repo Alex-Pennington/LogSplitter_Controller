@@ -84,9 +84,11 @@ void SequenceController::abortSequence(const char* reason) {
     pendingPressPin = 0;
     pendingPressTime = 0;
     
-    // Trigger mill light for timeout errors
+    // Trigger mill light for timeout errors and disable sequence
     if (reason && strcmp(reason, "timeout") == 0 && errorManager) {
         errorManager->setError(ERROR_SEQUENCE_TIMEOUT, "Hydraulic sequence operation timed out");
+        sequenceDisabled = true;
+        LOG_WARNING("SEQ: Sequence controller DISABLED due to timeout - requires safety clear to re-enable");
     }
     
     // Publish abort event
@@ -280,6 +282,15 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
     
     switch (currentState) {
         case SEQ_IDLE:
+            // Check if sequence is disabled (timeout lockout)
+            if (sequenceDisabled) {
+                if (startButtonsActive) {
+                    LOG_WARNING("SEQ: Sequence start blocked - controller disabled due to timeout");
+                    debugPrintf("[SEQ] Sequence start blocked - controller disabled (timeout lockout)\n");
+                }
+                return false; // Don't handle the input, allow normal processing
+            }
+            
             // Check for sequence start condition
             if (startButtonsActive) {
                 // Just became active, start debounce timer
@@ -371,13 +382,14 @@ void SequenceController::getStatusString(char* buffer, size_t bufferSize) {
     unsigned long elapsed = getElapsedTime();
     
     snprintf(buffer, bufferSize, 
-        "stage=%u active=%d elapsed=%lu stableMs=%lu startStableMs=%lu timeoutMs=%lu",
+        "stage=%u active=%d elapsed=%lu stableMs=%lu startStableMs=%lu timeoutMs=%lu disabled=%d",
         getStage(), 
         (currentState != SEQ_IDLE) ? 1 : 0,
         elapsed,
         stableTimeMs,
         startStableTimeMs,
-        timeoutMs
+        timeoutMs,
+        sequenceDisabled ? 1 : 0
     );
 }
 
