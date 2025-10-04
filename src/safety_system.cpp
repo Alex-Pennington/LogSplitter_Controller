@@ -7,8 +7,9 @@
 extern void debugPrintf(const char* fmt, ...);
 
 void SafetySystem::begin() {
-    // No need to initialize engine stop pin - controlled via relay controller
-    LOG_INFO("SafetySystem: Engine stop relay (R8) configured for relay controller");
+    // Initialize engine to running state (turn OFF Relay 8 - engine runs when relay is OFF)
+    setEngineStop(false);  // Start engine on system startup
+    LOG_INFO("SafetySystem: Engine started - relay R8 initialized to OFF (running state)");
 }
 
 void SafetySystem::setEngineStop(bool stop) {
@@ -58,19 +59,16 @@ void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
         }
     } else if (pressure < (SAFETY_THRESHOLD_PSI - SAFETY_HYSTERESIS_PSI)) {
         if (safetyActive) {
-            // Pressure dropped below threshold with hysteresis
-            debugPrintf("Safety cleared: pressure %.1f PSI below threshold\n", pressure);
+            // Pressure dropped below threshold with hysteresis - BUT DO NOT AUTO-CLEAR
+            // Safety system should only be cleared manually via safety clear button
+            debugPrintf("Pressure normalized: %.1f PSI below threshold - safety remains active (manual clear required)\n", pressure);
             
             if (networkManager && networkManager->isConnected()) {
-                networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: cleared");
+                networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: pressure normalized - manual clear required");
             }
             
-            safetyActive = false;
-            
-            // Re-enable relay operations
-            if (relayController) {
-                relayController->disableSafety();
-            }
+            // DO NOT automatically clear safety - must be done via safety clear button
+            // safetyActive remains true until manual intervention
         }
     }
 }
