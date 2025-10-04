@@ -7,6 +7,7 @@ class SafetySystem {
 private:
     bool safetyActive = false;
     bool engineStopped = false;
+    bool eStopActive = false;  // Tracks E-stop button state
     float lastPressure = 0.0f;
     unsigned long lastSafetyCheck = 0;
     
@@ -34,6 +35,8 @@ public:
     void checkPressure(float pressure);
     void checkPressure(float pressure, bool atLimitSwitch);
     void emergencyStop(const char* reason);
+    void activateEStop();  // E-stop specific activation
+    void clearEStop();     // E-stop specific clearing
     
     // Manual control
     void activate(const char* reason = "manual");
@@ -44,5 +47,6 @@ public:
     // Status
     bool isActive() const { return safetyActive; }
     bool isEngineStopped() const { return engineStopped; }
+    bool isEStopActive() const { return eStopActive; }
     void getStatusString(char* buffer, size_t bufferSize);
 };

@@ -48,13 +48,15 @@ const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
 const unsigned long DEBOUNCE_DELAY_MS = 5;  // Reduced for fast-moving hydraulic cylinder limit switches
 
+// Specific Pin Definitions
+const uint8_t E_STOP_PIN = 12;
+const uint8_t SAFETY_CLEAR_PIN = 4;
+const uint8_t LIMIT_EXTEND_PIN = 6;
+const uint8_t LIMIT_RETRACT_PIN = 7;
+
 // Pin-specific debounce delays (milliseconds)
 const unsigned long LIMIT_SWITCH_DEBOUNCE_MS = 10;  // Pins 6,7 - Balanced for moving cylinder with switch bounce filtering
 const unsigned long BUTTON_DEBOUNCE_MS = 15;        // Pins 2,3,4,5 - Normal for manual buttons
-
-// Limit Switch Configuration
-const uint8_t LIMIT_EXTEND_PIN = 6;   // Cylinder fully extended limit switch
-const uint8_t LIMIT_RETRACT_PIN = 7;  // Cylinder fully retracted limit switch
 
 // Relay Configuration Labels
 const uint8_t RELAY_EXTEND = 1;       // Relay 1 - Cylinder extend (hydraulic valve)

@@ -146,23 +146,56 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
         debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
     }
     
+    // PRIORITY: Handle E-Stop before any other processing
+    if (pin == E_STOP_PIN) {
+        if (!state) {  // E-stop pressed (NC switch goes LOW)
+            LOG_CRITICAL("E-STOP ACTIVATED - Emergency shutdown initiated");
+            safetySystem.activateEStop();
+            sequenceController.abort(); // Immediate sequence abort
+            sequenceController.disableSequence(); // Disable until E-stop cleared
+            return; // Skip all other processing
+        } else {
+            // E-stop released - but system should remain in safe state
+            LOG_INFO("E-STOP: Physical button released - system remains in safe state");
+            return; // Don't process as normal input
+        }
+    }
+    
     // Let sequence controller handle input first
     bool handledBySequence = sequenceController.processInputChange(pin, state, allStates);
     //debugPrintf("handledBySequence: %s\n", handledBySequence ? "ACTIVE" : "INACTIVE");
     //debugPrintf("sequenceController: %s\n", sequenceController.isActive() ? "ACTIVE" : "INACTIVE");
     
     // Handle safety clear button (Pin 4) - allows operational recovery without clearing error history
-    if (pin == 4 && state) {  // Safety clear button pressed
+    if (pin == SAFETY_CLEAR_PIN && state) {  // Safety clear button pressed
+        bool systemCleared = false;
+        
+        // Clear E-stop state if active
+        if (safetySystem.isEStopActive()) {
+            LOG_INFO("SAFETY: Manager override - clearing E-stop state, preserving error history");
+            safetySystem.clearEStop();
+            systemCleared = true;
+        }
+        
+        // Clear general safety system if active
         if (safetySystem.isActive()) {
             LOG_INFO("SAFETY: Manager override - clearing safety system, preserving error history");
             safetySystem.clearEmergencyStop();  // Clear safety state to allow operation
+            systemCleared = true;
             // Note: Error list is NOT cleared - manager must clear errors separately via commands
         }
         
-        // Re-enable sequence controller if it was disabled due to timeout
+        // Re-enable sequence controller if it was disabled due to timeout or E-stop
         if (!sequenceController.isSequenceEnabled()) {
             LOG_INFO("SEQ: Re-enabling sequence controller after safety clear");
             sequenceController.enableSequence();
+            systemCleared = true;
+        }
+        
+        if (systemCleared) {
+            LOG_INFO("SAFETY: System fully restored to operational state");
+        } else {
+            LOG_INFO("SAFETY: Clear button pressed - system already operational");
         }
         
         return;  // Safety clear handled, don't process as normal input

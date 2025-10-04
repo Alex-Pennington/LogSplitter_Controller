@@ -116,6 +116,10 @@ void SafetySystem::emergencyStop(const char* reason) {
             relayController->setRelay(i, false, false); // false = automatic operation
         }
         
+        // Turn ON relay 9 for E-stop condition indication
+        if (eStopActive) {
+            relayController->setRelay(9, true, false);  // Turn on relay 9 during E-stop
+        }
     }
     
     // SAFETY CRITICAL: Stop engine immediately via direct GPIO
@@ -125,6 +129,46 @@ void SafetySystem::emergencyStop(const char* reason) {
     Serial.print("EMERGENCY STOP: ");
     Serial.println(reason ? reason : "unknown");
     Serial.println("Manual relay control still available for pressure relief");
+}
+
+void SafetySystem::activateEStop() {
+    if (eStopActive) return; // Already active
+    
+    eStopActive = true;
+    safetyActive = true;  // E-stop also activates general safety
+    
+    LOG_CRITICAL("E-STOP ACTIVATED - Emergency shutdown initiated");
+    
+    // Emergency stop sequence with E-stop specific handling
+    emergencyStop("e_stop_pressed");
+    
+    // Publish E-stop alert
+    if (networkManager && networkManager->isConnected()) {
+        networkManager->publish(TOPIC_CONTROL_RESP, "E-STOP: ACTIVATED - System shutdown");
+    }
+}
+
+void SafetySystem::clearEStop() {
+    if (!eStopActive) return; // Not active
+    
+    eStopActive = false;
+    
+    LOG_INFO("E-STOP: Cleared via safety clear button");
+    
+    // Turn OFF relay 9 when E-stop is cleared
+    if (relayController) {
+        relayController->setRelay(9, false, false);  // Turn off relay 9
+    }
+    
+    // Clear general safety system
+    if (safetyActive) {
+        deactivate();
+    }
+    
+    // Publish E-stop clear
+    if (networkManager && networkManager->isConnected()) {
+        networkManager->publish(TOPIC_CONTROL_RESP, "E-STOP: Cleared - System restored");
+    }
 }
 
 void SafetySystem::deactivate() {
@@ -148,21 +192,27 @@ void SafetySystem::deactivate() {
 }
 
 void SafetySystem::clearEmergencyStop() {
-    if (safetyActive) {
+    if (safetyActive || eStopActive) {
         Serial.println("Safety system cleared via E-Stop reset");
         
         if (networkManager && networkManager->isConnected()) {
             networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: E-Stop cleared");
         }
         
-        deactivate();
+        // Clear E-stop state first
+        if (eStopActive) {
+            clearEStop();
+        } else {
+            deactivate();
+        }
     }
 }
 
 void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
     snprintf(buffer, bufferSize, 
-        "safety=%s engine=%s pressure=%.1f threshold=%.1f",
+        "safety=%s estop=%s engine=%s pressure=%.1f threshold=%.1f",
         safetyActive ? "ACTIVE" : "OK",
+        eStopActive ? "ACTIVE" : "OK",
         engineStopped ? "STOPPED" : "RUNNING",
         lastPressure,
         SAFETY_THRESHOLD_PSI
