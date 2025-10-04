@@ -216,7 +216,7 @@ These errors trigger solid or slow blinking patterns:
 #### ERROR_SEQUENCE_TIMEOUT (0x80)
 - **Severity**: ERROR
 - **Mill Lamp**: Solid ON (single) / Slow Blink (multiple)
-- **Log Level**: LOG_ERROR
+- **Log Level**: LOG_CRITICAL
 - **Description**: Hydraulic sequence operation exceeded maximum time limit
 - **Causes**:
   - Cylinder stuck due to mechanical obstruction

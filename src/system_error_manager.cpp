@@ -1,5 +1,6 @@
 #include "system_error_manager.h"
 #include "network_manager.h"
+#include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
 
@@ -32,7 +33,17 @@ void SystemErrorManager::setError(SystemErrorType errorType, const char* descrip
     // Generate description if not provided
     const char* errorDesc = description ? description : getErrorDescription(errorType);
     
-    // Log to serial
+    // Log with appropriate priority
+    if (errorType == ERROR_SEQUENCE_TIMEOUT || 
+        errorType == ERROR_EEPROM_CRC || 
+        errorType == ERROR_MEMORY_LOW || 
+        errorType == ERROR_HARDWARE_FAULT) {
+        LOG_CRITICAL("SystemErrorManager: ERROR 0x%02X - %s", errorType, errorDesc);
+    } else {
+        LOG_ERROR("SystemErrorManager: ERROR 0x%02X - %s", errorType, errorDesc);
+    }
+    
+    // Also log to debug for backward compatibility
     debugPrintf("SystemErrorManager: ERROR 0x%02X - %s\n", errorType, errorDesc);
     
     // Publish to MQTT

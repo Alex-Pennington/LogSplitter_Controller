@@ -3,6 +3,7 @@
 #include "network_manager.h"
 #include "pressure_manager.h"
 #include "system_error_manager.h"
+#include "logger.h"
 #include "constants.h"
 
 // External references for relay control and network publishing
@@ -17,6 +18,7 @@ extern PressureManager pressureManager;
 
 void SequenceController::enterState(SequenceState newState) {
     if (currentState != newState) {
+        LOG_INFO("SEQ: State change %d -> %d", (int)currentState, (int)newState);
         debugPrintf("[SEQ] State change: %d -> %d\n", (int)currentState, (int)newState);
         currentState = newState;
         stateEntryTime = millis();
@@ -62,6 +64,12 @@ bool SequenceController::checkStableLimit(uint8_t pin, bool active) {
 }
 
 void SequenceController::abortSequence(const char* reason) {
+    // Use appropriate log level based on reason
+    if (reason && strcmp(reason, "timeout") == 0) {
+        LOG_CRITICAL("SEQ: Sequence TIMEOUT - aborting operation");
+    } else {
+        LOG_INFO("SEQ: Aborting sequence: %s", reason ? reason : "unknown");
+    }
     debugPrintf("[SEQ] Aborting sequence: %s\n", reason ? reason : "unknown");
     
     // Turn off all hydraulic relays involved in sequence
