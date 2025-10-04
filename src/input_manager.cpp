@@ -1,6 +1,7 @@
 #include "input_manager.h"
 #include "network_manager.h"
 #include "config_manager.h"
+#include "logger.h"
 
 extern NetworkManager* g_networkManager;
 extern void debugPrintf(const char* fmt, ...);
@@ -26,12 +27,17 @@ void InputManager::begin(ConfigManager* config) {
         
         lastDebounceTime[i] = millis();
         
+        LOG_INFO("INPUT: Pin %d configured as %s, initial state: %s", 
+                   pin, 
+                   (configManager && configManager->isPinNC(i)) ? "NC" : "NO",
+                   pinStates[i] ? "ACTIVE" : "INACTIVE");
         debugPrintf("Pin %d configured as %s, initial state: %s\n", 
                    pin, 
                    (configManager && configManager->isPinNC(i)) ? "NC" : "NO",
                    pinStates[i] ? "ACTIVE" : "INACTIVE");
     }
     
+    LOG_INFO("INPUT: InputManager initialized");
     debugPrintf("InputManager initialized\n");
 }
 
@@ -77,6 +83,11 @@ void InputManager::update() {
             
             // Debug raw changes for limit switches (if enabled)
             if (debugPinChanges && (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN)) {
+                LOG_INFO("INPUT: Pin %d RAW: digitalRead()=%s -> %s (starting debounce)", 
+                    pin, 
+                    digitalRead(pin) == HIGH ? "HIGH" : "LOW",
+                    reading ? "ACTIVE" : "INACTIVE"
+                );
                 debugPrintf("[INPUT] Pin %d RAW: digitalRead()=%s -> %s (starting debounce)\n", 
                     pin, 
                     digitalRead(pin) == HIGH ? "HIGH" : "LOW",
@@ -105,6 +116,12 @@ void InputManager::update() {
                 
                 // Enhanced debug for limit switches
                 if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
+                    LOG_INFO("INPUT: Pin %d: %s -> %s (debounced in %lums)", 
+                        pin, 
+                        oldState ? "ACTIVE" : "INACTIVE",
+                        pinStates[i] ? "ACTIVE" : "INACTIVE",
+                        debounceDelay
+                    );
                     debugPrintf("[INPUT] Pin %d: %s -> %s (debounced in %lums)\n", 
                         pin, 
                         oldState ? "ACTIVE" : "INACTIVE",
@@ -112,6 +129,11 @@ void InputManager::update() {
                         debounceDelay
                     );
                 } else {
+                    LOG_INFO("INPUT: Pin %d: %s -> %s", 
+                        pin, 
+                        oldState ? "ACTIVE" : "INACTIVE",
+                        pinStates[i] ? "ACTIVE" : "INACTIVE"
+                    );
                     debugPrintf("[INPUT] Pin %d: %s -> %s\n", 
                         pin, 
                         oldState ? "ACTIVE" : "INACTIVE",
