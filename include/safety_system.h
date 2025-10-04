@@ -16,9 +16,6 @@ private:
     class NetworkManager* networkManager = nullptr;
     class SequenceController* sequenceController = nullptr;
     
-    // Engine control methods
-    void initEngineStopPin();
-    
 public:
     SafetySystem() = default;
     

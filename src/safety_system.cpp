@@ -7,24 +7,21 @@
 extern void debugPrintf(const char* fmt, ...);
 
 void SafetySystem::begin() {
-    // Initialize engine stop pin as output
-    initEngineStopPin();
-    LOG_INFO("SafetySystem: Engine stop pin initialized");
-}
-
-void SafetySystem::initEngineStopPin() {
-    pinMode(ENGINE_STOP_PIN, OUTPUT);
-    // Engine runs when pin is LOW, stops when pin is HIGH
-    digitalWrite(ENGINE_STOP_PIN, LOW);  // Allow engine to run initially
-    engineStopped = false;
-    debugPrintf("Engine stop pin %d initialized (LOW = run, HIGH = stop)\n", ENGINE_STOP_PIN);
+    // No need to initialize engine stop pin - controlled via relay controller
+    LOG_INFO("SafetySystem: Engine stop relay (R8) configured for relay controller");
 }
 
 void SafetySystem::setEngineStop(bool stop) {
     if (engineStopped != stop) {
         engineStopped = stop;
-        digitalWrite(ENGINE_STOP_PIN, stop ? HIGH : LOW);
-        debugPrintf("Engine %s via pin %d\n", stop ? "STOPPED" : "STARTED", ENGINE_STOP_PIN);
+        
+        // Control engine via Relay 8 through relay controller
+        if (relayController) {
+            relayController->setRelay(RELAY_ENGINE_STOP, stop, false); // false = automatic operation
+            debugPrintf("Engine %s via relay R%d\n", stop ? "STOPPED" : "STARTED", RELAY_ENGINE_STOP);
+        } else {
+            debugPrintf("Engine control failed - relay controller not available\n");
+        }
         
         // Publish engine state change
         if (networkManager && networkManager->isConnected()) {
@@ -122,9 +119,9 @@ void SafetySystem::emergencyStop(const char* reason) {
         }
     }
     
-    // SAFETY CRITICAL: Stop engine immediately via direct GPIO
+    // SAFETY CRITICAL: Stop engine immediately via relay controller
     setEngineStop(true);
-    LOG_CRITICAL("SAFETY: Engine stopped via direct GPIO pin %d", ENGINE_STOP_PIN);
+    LOG_CRITICAL("SAFETY: Engine stopped via relay R%d", RELAY_ENGINE_STOP);
     
     Serial.print("EMERGENCY STOP: ");
     Serial.println(reason ? reason : "unknown");

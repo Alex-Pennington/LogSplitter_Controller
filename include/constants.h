@@ -65,7 +65,6 @@ const uint8_t RELAY_ENGINE_STOP = 8;  // Relay 8 - Engine stop relay (safety)
 // Note: RELAY_POWER_PIN = 9 (relay board power control)
 
 // Safety System Pin Configuration
-const uint8_t ENGINE_STOP_PIN = 12;    // Pin 12 - Emergency stop input (from PINS.md)
 const uint8_t SYSTEM_ERROR_LED_PIN = 9; // Pin 9 - System Error LED (from PINS.md)
 
 // Relay Configuration
