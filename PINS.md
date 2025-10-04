@@ -69,13 +69,14 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Safety Integration**: Automatically stops when retract limit (Pin 7) is reached
 - **Response**: Activates retract relay (R2) while button is held
 
-#### Pin 4 - Safety Reset Input
-- **Function**: Emergency stop and safety system reset
-- **Configuration**: INPUT_PULLUP (normally open E-stop button)
-- **Active State**: LOW (E-stop button pressed)
-- **Priority**: Highest priority safety input - overrides all operations
-- **Response**: Immediate system shutdown, all relays OFF, requires manual reset
-- **Safety Standards**: Should meet IEC 60947-5-5 Category 0 stop requirements
+#### Pin 4 - Safety Clear Input
+- **Function**: Safety system reset for operational recovery
+- **Configuration**: INPUT_PULLUP (normally open safety clear button)
+- **Active State**: LOW (safety clear button pressed)
+- **Priority**: Management override - clears safety system but preserves error history
+- **Response**: Clears safety lockouts to restore normal operation, mill light errors remain active
+- **Usage**: Allows managing operator to restore operation after reviewing/addressing fault causes
+- **Note**: Error history must be cleared separately via `error clear` command after fault resolution
 
 #### Pin 5 - Sequence Start Input
 - **Function**: Initiates automatic hydraulic sequence (extend then retract)

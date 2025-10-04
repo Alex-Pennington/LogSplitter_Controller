@@ -150,6 +150,17 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     bool handledBySequence = sequenceController.processInputChange(pin, state, allStates);
     //debugPrintf("handledBySequence: %s\n", handledBySequence ? "ACTIVE" : "INACTIVE");
     //debugPrintf("sequenceController: %s\n", sequenceController.isActive() ? "ACTIVE" : "INACTIVE");
+    
+    // Handle safety clear button (Pin 4) - allows operational recovery without clearing error history
+    if (pin == 4 && state) {  // Safety clear button pressed
+        if (safetySystem.isActive()) {
+            LOG_INFO("SAFETY: Manager override - clearing safety system, preserving error history");
+            safetySystem.clearEmergencyStop();  // Clear safety state to allow operation
+            // Note: Error list is NOT cleared - manager must clear errors separately via commands
+        }
+        return;  // Safety clear handled, don't process as normal input
+    }
+    
     if (!handledBySequence && !sequenceController.isActive()) {
         // Handle simple pin->relay mapping when no sequence active
         if (pin == 2) {

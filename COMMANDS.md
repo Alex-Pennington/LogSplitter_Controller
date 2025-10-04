@@ -380,6 +380,25 @@ Error 0x10 acknowledged
 All errors cleared
 ```
 
+##### Safety Clear vs Error Clear
+**Safety Clear (Pin 4 Button)**:
+- **Purpose**: Operational recovery - allows resuming normal operation
+- **Action**: Clears safety system lockouts to restore system functionality
+- **Error History**: Preserves all error records for management review
+- **Use Case**: Managing operator restores operation after addressing fault causes
+
+**Error Clear (Command)**:
+- **Purpose**: Error history management - clears error records
+- **Action**: Removes error entries from system error list
+- **Safety State**: Does not affect safety system lockouts
+- **Use Case**: Management clears error history after review and documentation
+
+**Typical Recovery Sequence**:
+1. Fault occurs → Safety system activates → Mill light indicates errors
+2. Operator addresses root cause of fault condition
+3. Manager presses Safety Clear (Pin 4) → System operational, errors still logged
+4. Manager reviews error list → Documents incident → Issues `error clear` command
+
 **System Error LED (Pin 9)**:
 - **OFF**: No errors
 - **Solid ON**: Single error or all errors acknowledged
