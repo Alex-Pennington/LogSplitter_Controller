@@ -48,10 +48,37 @@ void SafetySystem::checkPressure(float pressure) {
 }
 
 void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
-    // Simplified pressure checking - no special allowances at limit switches
-    // Sequence controller now handles pressure-based limits, so we don't need
-    // to allow higher pressures at physical limits
+    unsigned long now = millis();
     
+    // Check for sustained high pressure (E-stop trigger)
+    if (pressure >= HIGH_PRESSURE_ESTOP_THRESHOLD) {  // 2300 PSI
+        if (!highPressureActive) {
+            // Start timing high pressure condition
+            highPressureActive = true;
+            highPressureStartTime = now;
+            debugPrintf("High pressure detected: %.1f PSI >= %.1f PSI - starting 10s timer\n", 
+                       pressure, HIGH_PRESSURE_ESTOP_THRESHOLD);
+        } else {
+            // Check if sustained for too long
+            if (now - highPressureStartTime >= HIGH_PRESSURE_TIMEOUT_MS) {
+                if (!eStopActive) {  // Only trigger if E-stop not already active
+                    LOG_CRITICAL("Sustained high pressure %.1f PSI for %lu ms - triggering E-stop", 
+                                pressure, now - highPressureStartTime);
+                    activateEStop();  // Trigger E-stop due to sustained pressure
+                }
+            }
+        }
+    } else {
+        // Pressure dropped below E-stop threshold - reset timer
+        if (highPressureActive) {
+            debugPrintf("High pressure cleared: %.1f PSI < %.1f PSI after %lu ms\n", 
+                       pressure, HIGH_PRESSURE_ESTOP_THRESHOLD, now - highPressureStartTime);
+            highPressureActive = false;
+            highPressureStartTime = 0;
+        }
+    }
+    
+    // Original safety threshold logic (2500 PSI)
     if (pressure >= SAFETY_THRESHOLD_PSI) {
         if (!safetyActive) {
             const char* reason = atLimitSwitch ? "pressure_at_limit" : "pressure_threshold";
@@ -148,7 +175,11 @@ void SafetySystem::clearEStop() {
     
     eStopActive = false;
     
-    LOG_INFO("E-STOP: Cleared via safety clear button");
+    // Reset high pressure monitoring when E-stop is cleared
+    highPressureActive = false;
+    highPressureStartTime = 0;
+    
+    LOG_INFO("E-STOP: Cleared via safety clear button - high pressure timer reset");
     
     // Turn OFF relay 9 when E-stop is cleared
     if (relayController) {
@@ -204,12 +235,19 @@ void SafetySystem::clearEmergencyStop() {
 }
 
 void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
+    unsigned long highPressureElapsed = 0;
+    if (highPressureActive && highPressureStartTime > 0) {
+        highPressureElapsed = millis() - highPressureStartTime;
+    }
+    
     snprintf(buffer, bufferSize, 
-        "safety=%s estop=%s engine=%s pressure=%.1f threshold=%.1f",
+        "safety=%s estop=%s engine=%s pressure=%.1f threshold=%.1f highP=%s elapsed=%lums",
         safetyActive ? "ACTIVE" : "OK",
         eStopActive ? "ACTIVE" : "OK",
         engineStopped ? "STOPPED" : "RUNNING",
         lastPressure,
-        SAFETY_THRESHOLD_PSI
+        SAFETY_THRESHOLD_PSI,
+        highPressureActive ? "ACTIVE" : "OK",
+        highPressureElapsed
     );
 }

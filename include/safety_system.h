@@ -11,6 +11,12 @@ private:
     float lastPressure = 0.0f;
     unsigned long lastSafetyCheck = 0;
     
+    // Time-based pressure monitoring for E-stop activation
+    bool highPressureActive = false;
+    unsigned long highPressureStartTime = 0;
+    const unsigned long HIGH_PRESSURE_TIMEOUT_MS = 10000; // 10 seconds
+    const float HIGH_PRESSURE_ESTOP_THRESHOLD = 2300.0f;  // PSI threshold for E-stop
+    
     // External dependencies (set by main)
     class RelayController* relayController = nullptr;
     class NetworkManager* networkManager = nullptr;
