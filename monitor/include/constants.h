@@ -18,7 +18,7 @@ const uint8_t MAX_WIFI_RETRIES = 3;
 const uint8_t MAX_MQTT_RETRIES = 3;
 
 // Syslog Constants
-const char* const SYSLOG_SERVER = "192.168.1.238";  // Default rsyslog server IP
+const char* const SYSLOG_SERVER = "192.168.1.113";  // Default rsyslog server IP
 const int SYSLOG_PORT = 514;                        // Standard syslog UDP port
 const char* const SYSLOG_HOSTNAME = "LogMonitor";   // Hostname for syslog messages
 const char* const SYSLOG_TAG = "logmonitor";        // Application tag for syslog

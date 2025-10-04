@@ -129,9 +129,9 @@ void ConfigManager::setDefaults() {
     config.a5_sensorGain = DEFAULT_A5_SENSOR_GAIN;
     config.a5_sensorOffset = DEFAULT_A5_SENSOR_OFFSET;
     
-    // Set default pin modes (pins 6,7 as NC by default for limit switches)
+    // Set default pin modes (all pins as NO - limit switches are NO hardware)
     for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
-        pinIsNC[i] = (WATCH_PINS[i] == 6 || WATCH_PINS[i] == 7);
+        pinIsNC[i] = false;  // All pins configured as NO (Normally Open)
     }
     
     // Calculate and set CRC32 for the default configuration

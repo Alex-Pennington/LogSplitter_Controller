@@ -8,6 +8,7 @@
 #include "safety_system.h"
 #include "system_error_manager.h"
 #include "system_test_suite.h"
+#include "input_manager.h"
 #include "logger.h"
 #include <ctype.h>
 
@@ -157,9 +158,9 @@ bool CommandValidator::checkRateLimit() {
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
     const char* helpText = "Commands: help, show, debug, network, reset, error, test, loglevel [0-7]";
     if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, set <param> <val>, relay R<n> ON|OFF", helpText);
+        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
-        snprintf(response, responseSize, "%s, set <param> <val>, relay R<n> ON|OFF", helpText);
+        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF", helpText);
     }
 }
 
@@ -231,13 +232,56 @@ void CommandProcessor::handlePins(char* response, size_t responseSize, bool from
             function = "SEQUENCE_CTRL ";
         }
         
-        debugPrintf("Pin %d: %smode=%s\n", pin, function, isNC ? "NC" : "NO");
+        if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
+            const char* debounceLevel = inputManager ? inputManager->getPinDebounceLevel(pin) : "N/A";
+            unsigned long debounceMs = inputManager ? inputManager->getPinDebounceMs(pin) : 0;
+            debugPrintf("Pin %d: %smode=%s debounce=%s(%lums)\n", pin, function, isNC ? "NC" : "NO", debounceLevel, debounceMs);
+        } else {
+            debugPrintf("Pin %d: %smode=%s\n", pin, function, isNC ? "NC" : "NO");
+        }
     }
     
     debugPrintf("\nUsage: set pinmode <pin> <NO|NC>\n");
     debugPrintf("Example: set pinmode 6 NC  (set extend limit to normally closed)\n");
+    debugPrintf("Debounce: pin <6|7> debounce <low|med|high>  (adjust response time)\n");
+    debugPrintf("Debug: set debugpins ON|OFF  (enable raw pin change logging)\n");
     
     response[0] = '\0'; // No MQTT response
+}
+
+void CommandProcessor::handlePin(char* param1, char* param2, char* param3, char* response, size_t responseSize) {
+    if (!param1 || !param2 || !param3) {
+        snprintf(response, responseSize, "Usage: pin <6|7> debounce <low|med|high>");
+        return;
+    }
+    
+    // Parse pin number
+    uint8_t pin = atoi(param1);
+    if (pin != 6 && pin != 7) {
+        snprintf(response, responseSize, "Pin must be 6 or 7 (limit switches only)");
+        return;
+    }
+    
+    // Check for "debounce" command
+    if (strcasecmp(param2, "debounce") != 0) {
+        snprintf(response, responseSize, "Usage: pin <6|7> debounce <low|med|high>");
+        return;
+    }
+    
+    // Validate and apply debounce level
+    if (strcasecmp(param3, "low") != 0 && strcasecmp(param3, "med") != 0 && 
+        strcasecmp(param3, "medium") != 0 && strcasecmp(param3, "high") != 0) {
+        snprintf(response, responseSize, "Debounce level must be: low, med, or high");
+        return;
+    }
+    
+    if (inputManager) {
+        inputManager->setPinDebounce(pin, param3);
+        unsigned long newMs = inputManager->getPinDebounceMs(pin);
+        snprintf(response, responseSize, "Pin %d debounce: %s (%lums)", pin, param3, newMs);
+    } else {
+        snprintf(response, responseSize, "InputManager not available");
+    }
 }
 
 void CommandProcessor::handleSet(char* param, char* value, char* response, size_t responseSize) {
@@ -485,6 +529,24 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
         snprintf(response, responseSize, "debug %s", enabled ? "ON" : "OFF");
     }
+    else if (strcasecmp(param, "debugpins") == 0) {
+        bool enabled;
+        if (strcasecmp(value, "on") == 0 || strcasecmp(value, "1") == 0) {
+            enabled = true;
+        } else if (strcasecmp(value, "off") == 0 || strcasecmp(value, "0") == 0) {
+            enabled = false;
+        } else {
+            snprintf(response, responseSize, "debugpins value must be ON|OFF|1|0");
+            return;
+        }
+        
+        if (inputManager) {
+            inputManager->setDebugPinChanges(enabled);
+            snprintf(response, responseSize, "debugpins %s", enabled ? "ON" : "OFF");
+        } else {
+            snprintf(response, responseSize, "InputManager not available");
+        }
+    }
     else if (strcasecmp(param, "loglevel") == 0) {
         // Parse numeric log level (0-7)
         int level = atoi(value);
@@ -695,6 +757,12 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     }
     else if (strcasecmp(cmd, "pins") == 0) {
         handlePins(response, responseSize, fromMqtt);
+    }
+    else if (strcasecmp(cmd, "pin") == 0) {
+        char* param1 = strtok(NULL, " ");
+        char* param2 = strtok(NULL, " ");
+        char* param3 = strtok(NULL, " ");
+        handlePin(param1, param2, param3, response, responseSize);
     }
     // Support shorthand relay control: "R1 ON" style (works for both Serial & MQTT)
     else if ((cmd[0] == 'R' || cmd[0] == 'r') && cmd[1] && (cmd[1] >= '0' && cmd[1] <= '9')) {

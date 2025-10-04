@@ -74,14 +74,25 @@ void InputManager::update() {
             // Raw reading changed, reset debounce timer
             lastDebounceTime[i] = now;
             lastReadings[i] = reading;
+            
+            // Debug raw changes for limit switches (if enabled)
+            if (debugPinChanges && (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN)) {
+                debugPrintf("[INPUT] Pin %d RAW: digitalRead()=%s -> %s (starting debounce)\n", 
+                    pin, 
+                    digitalRead(pin) == HIGH ? "HIGH" : "LOW",
+                    reading ? "ACTIVE" : "INACTIVE"
+                );
+            }
         }
         
         // Check if debounced state should change
         unsigned long debounceDelay = DEBOUNCE_DELAY_MS;  // Default
         
-        // Use faster debounce for limit switches (pins 6,7)
-        if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
-            debounceDelay = LIMIT_SWITCH_DEBOUNCE_MS;
+        // Use configurable debounce for limit switches (pins 6,7)
+        if (pin == LIMIT_EXTEND_PIN) {
+            debounceDelay = pin6DebounceMs;
+        } else if (pin == LIMIT_RETRACT_PIN) {
+            debounceDelay = pin7DebounceMs;
         } else {
             debounceDelay = BUTTON_DEBOUNCE_MS;
         }
@@ -138,4 +149,45 @@ bool InputManager::getPinState(uint8_t pin) const {
         }
     }
     return false; // Pin not found
+}
+
+void InputManager::setPinDebounce(uint8_t pin, const char* level) {
+    unsigned long newDebounceMs;
+    
+    // Convert level string to timing value
+    if (strcasecmp(level, "low") == 0) {
+        newDebounceMs = 2;  // Fastest response
+    } else if (strcasecmp(level, "med") == 0 || strcasecmp(level, "medium") == 0) {
+        newDebounceMs = 5;  // Medium filtering
+    } else if (strcasecmp(level, "high") == 0) {
+        newDebounceMs = 10; // Most filtering (current default)
+    } else {
+        return; // Invalid level
+    }
+    
+    // Apply to the specified pin
+    if (pin == LIMIT_EXTEND_PIN) {
+        pin6DebounceMs = newDebounceMs;
+        debugPrintf("Pin 6 (EXTEND) debounce set to %s (%lums)\n", level, newDebounceMs);
+    } else if (pin == LIMIT_RETRACT_PIN) {
+        pin7DebounceMs = newDebounceMs;
+        debugPrintf("Pin 7 (RETRACT) debounce set to %s (%lums)\n", level, newDebounceMs);
+    }
+}
+
+unsigned long InputManager::getPinDebounceMs(uint8_t pin) const {
+    if (pin == LIMIT_EXTEND_PIN) {
+        return pin6DebounceMs;
+    } else if (pin == LIMIT_RETRACT_PIN) {
+        return pin7DebounceMs;
+    } else {
+        return BUTTON_DEBOUNCE_MS; // Default for other pins
+    }
+}
+
+const char* InputManager::getPinDebounceLevel(uint8_t pin) const {
+    unsigned long ms = getPinDebounceMs(pin);
+    if (ms <= 2) return "LOW";
+    else if (ms <= 5) return "MED"; 
+    else return "HIGH";
 }

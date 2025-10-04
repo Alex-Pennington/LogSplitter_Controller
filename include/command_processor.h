@@ -38,11 +38,13 @@ private:
     class SafetySystem* safetySystem = nullptr;
     class SystemErrorManager* systemErrorManager = nullptr;
     class SystemTestSuite* systemTestSuite = nullptr;
+    class InputManager* inputManager = nullptr;
     
     // Command handlers
     void handleHelp(char* response, size_t responseSize, bool fromMqtt);
     void handleShow(char* response, size_t responseSize, bool fromMqtt);
     void handlePins(char* response, size_t responseSize, bool fromMqtt);
+    void handlePin(char* param1, char* param2, char* param3, char* response, size_t responseSize);
     void handleSet(char* param, char* value, char* response, size_t responseSize);
     void handleRelay(char* relayToken, char* stateToken, char* response, size_t responseSize);
     void handleDebug(char* param, char* response, size_t responseSize);
@@ -66,6 +68,7 @@ public:
     void setSafetySystem(class SafetySystem* safety) { safetySystem = safety; }
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     void setSystemTestSuite(class SystemTestSuite* testSuite) { systemTestSuite = testSuite; }
+    void setInputManager(class InputManager* input) { inputManager = input; }
     
     // Main processing function
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);

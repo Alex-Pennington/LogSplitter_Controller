@@ -237,6 +237,7 @@ bool initializeSystem() {
     commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
     commandProcessor.setSystemTestSuite(&systemTestSuite);
+    commandProcessor.setInputManager(&inputManager);
     
     Serial.println("Core systems initialized");
     

@@ -16,7 +16,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | 1 | Digital I/O | Serial TX | USB Serial communication | N/A |
 | 2 | Digital In | Manual Extend Input | Manual extend control button | Active LOW |
 | 3 | Digital In | Manual Retract Input | Manual retract control button | Active LOW |
-| 4 | Digital In | Safety Reset Input | Emergency stop/safety reset button | Active LOW |
+| 4 | Digital In | Safety Reset/Clear Input | Saftay Stop State Reset/Clear Button | Active LOW |
 | 5 | Digital In | Sequence Start Input | Auto sequence start button | Active LOW |
 | 6 | Digital In | Extend Limit Switch | Hydraulic cylinder extend limit | Active LOW |
 | 7 | Digital In | Retract Limit Switch | Hydraulic cylinder retract limit | Active LOW |
@@ -87,7 +87,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 
 #### Pin 6 - Extend Limit Switch
 - **Function**: Detects when hydraulic cylinder reaches full extension
-- **Configuration**: INPUT_PULLUP (normally closed switch to ground)
+- **Configuration**: INPUT_PULLUP (normally open switch to ground)
 - **Active State**: LOW (switch closed/activated)
 - **Debouncing**: Hardware debouncing recommended + 10ms software debounce
 - **Safety**: Critical for sequence control and over-travel protection
@@ -96,7 +96,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 
 #### Pin 7 - Retract Limit Switch
 - **Function**: Detects when hydraulic cylinder reaches full retraction
-- **Configuration**: INPUT_PULLUP (normally closed switch to ground)
+- **Configuration**: INPUT_PULLUP (normally open switch to ground)
 - **Active State**: LOW (switch closed/activated)
 - **Debouncing**: Hardware debouncing recommended + 10ms software debounce
 - **Safety**: Critical for sequence control and over-travel protection

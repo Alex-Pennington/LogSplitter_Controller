@@ -36,6 +36,17 @@
 				"run"
 			],
 			"group": "build"
+		},
+		{
+			"label": "PlatformIO Upload",
+			"type": "shell",
+			"command": "pio",
+			"args": [
+				"run",
+				"--target",
+				"upload"
+			],
+			"group": "build"
 		}
 	]
 }
