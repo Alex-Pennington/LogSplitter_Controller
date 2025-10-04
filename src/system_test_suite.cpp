@@ -862,13 +862,13 @@ void SystemTestSuite::publishToMQTT() {
         return;
     }
     
-    // Publish overall status
+    // Publish overall status with new topic hierarchy
     TestResult overall = getOverallResult();
-    networkManager->publishWithRetain("r4/test/status", resultToString(overall));
+    networkManager->publishWithRetain("controller/test/status", resultToString(overall));
     
-    // Publish individual test results
+    // Publish individual test results with new topic hierarchy
     for (uint8_t i = 0; i < testCount; i++) {
-        String topic = "r4/test/result/" + String(testCases[i].name);
+        String topic = "controller/test/result/" + String(testCases[i].name);
         topic.replace(" ", "_");
         topic.toLowerCase();
         

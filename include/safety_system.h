@@ -52,4 +52,5 @@ public:
     bool isEngineStopped() const { return engineStopped; }
     bool isEStopActive() const { return eStopActive; }
     void getStatusString(char* buffer, size_t bufferSize);
+    void publishIndividualValues();  // Publish individual MQTT values
 };

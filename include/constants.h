@@ -25,23 +25,59 @@ const char* const SYSLOG_TAG = "logsplitter";       // Application tag for syslo
 const int SYSLOG_FACILITY = 16;                     // Local use facility (local0 = 16)
 const int SYSLOG_SEVERITY = 6;                      // Info level (0=emergency, 6=info, 7=debug)
 
-// MQTT Topics
-const char TOPIC_PUBLISH[] PROGMEM = "r4/example/pub";
-const char TOPIC_SUBSCRIBE[] PROGMEM = "r4/example/sub";
-const char TOPIC_CONTROL[] PROGMEM = "r4/control";
-const char TOPIC_CONTROL_RESP[] PROGMEM = "r4/control/resp";
-const char TOPIC_PRESSURE[] PROGMEM = "r4/pressure";
-const char TOPIC_HYDRAULIC_SYSTEM_PRESSURE[] PROGMEM = "r4/pressure/hydraulic_system";
-const char TOPIC_HYDRAULIC_FILTER_PRESSURE[] PROGMEM = "r4/pressure/hydraulic_filter";
-const char TOPIC_HYDRAULIC_SYSTEM_VOLTAGE[] PROGMEM = "r4/pressure/hydraulic_system_voltage";
-const char TOPIC_HYDRAULIC_FILTER_VOLTAGE[] PROGMEM = "r4/pressure/hydraulic_filter_voltage";
+// MQTT Topics - Hierarchical structure starting with /controller
+const char TOPIC_PUBLISH[] PROGMEM = "r4/example/pub";  // Legacy - kept for compatibility
+const char TOPIC_SUBSCRIBE[] PROGMEM = "r4/example/sub";  // Legacy - kept for compatibility
+const char TOPIC_CONTROL[] PROGMEM = "r4/control";  // Command input - kept as is
+const char TOPIC_CONTROL_RESP[] PROGMEM = "r4/control/resp";  // Command responses - kept as is
+
+// New hierarchical topic structure under /controller
+const char TOPIC_PRESSURE[] PROGMEM = "controller/pressure";
+const char TOPIC_HYDRAULIC_SYSTEM_PRESSURE[] PROGMEM = "controller/pressure/hydraulic_system";
+const char TOPIC_HYDRAULIC_FILTER_PRESSURE[] PROGMEM = "controller/pressure/hydraulic_filter";
+const char TOPIC_HYDRAULIC_SYSTEM_VOLTAGE[] PROGMEM = "controller/pressure/hydraulic_system_voltage";
+const char TOPIC_HYDRAULIC_FILTER_VOLTAGE[] PROGMEM = "controller/pressure/hydraulic_filter_voltage";
+
+// Safety system individual values
+const char TOPIC_SAFETY_ACTIVE[] PROGMEM = "controller/safety/active";
+const char TOPIC_SAFETY_ESTOP[] PROGMEM = "controller/safety/estop";
+const char TOPIC_SAFETY_ENGINE[] PROGMEM = "controller/safety/engine";
+const char TOPIC_SAFETY_PRESSURE_CURRENT[] PROGMEM = "controller/safety/pressure_current";
+const char TOPIC_SAFETY_PRESSURE_THRESHOLD[] PROGMEM = "controller/safety/pressure_threshold";
+const char TOPIC_SAFETY_HIGH_PRESSURE_ACTIVE[] PROGMEM = "controller/safety/high_pressure_active";
+const char TOPIC_SAFETY_HIGH_PRESSURE_ELAPSED[] PROGMEM = "controller/safety/high_pressure_elapsed";
+
+// Sequence controller individual values
+const char TOPIC_SEQUENCE_ACTIVE[] PROGMEM = "controller/sequence/active";
+const char TOPIC_SEQUENCE_STAGE[] PROGMEM = "controller/sequence/stage";
+const char TOPIC_SEQUENCE_ELAPSED[] PROGMEM = "controller/sequence/elapsed";
+const char TOPIC_SEQUENCE_DISABLED[] PROGMEM = "controller/sequence/disabled";
+const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "controller/sequence/event";
+const char TOPIC_SEQUENCE_STATE[] PROGMEM = "controller/sequence/state";
+
+// System status individual values
+const char TOPIC_SYSTEM_UPTIME[] PROGMEM = "controller/system/uptime";
+const char TOPIC_SYSTEM_MEMORY_FREE[] PROGMEM = "controller/system/memory_free";
+const char TOPIC_SYSTEM_NETWORK_CONNECTED[] PROGMEM = "controller/system/network_connected";
+
+// Input monitoring individual values
+const char TOPIC_INPUTS_PIN2[] PROGMEM = "controller/inputs/pin2";
+const char TOPIC_INPUTS_PIN3[] PROGMEM = "controller/inputs/pin3";
+const char TOPIC_INPUTS_PIN4[] PROGMEM = "controller/inputs/pin4";
+const char TOPIC_INPUTS_PIN5[] PROGMEM = "controller/inputs/pin5";
+const char TOPIC_INPUTS_PIN6[] PROGMEM = "controller/inputs/pin6";
+const char TOPIC_INPUTS_PIN7[] PROGMEM = "controller/inputs/pin7";
+const char TOPIC_INPUTS_PIN12[] PROGMEM = "controller/inputs/pin12";
+
+// Relay status individual values
+const char TOPIC_RELAYS_R1[] PROGMEM = "controller/relays/r1";
+const char TOPIC_RELAYS_R2[] PROGMEM = "controller/relays/r2";
+const char TOPIC_RELAYS_R8[] PROGMEM = "controller/relays/r8";
+const char TOPIC_RELAYS_R9[] PROGMEM = "controller/relays/r9";
+
+// Legacy topics for backward compatibility (remove these later)
 const char TOPIC_PRESSURE_STATUS[] PROGMEM = "r4/pressure/status";
 const char TOPIC_SEQUENCE_STATUS[] PROGMEM = "r4/sequence/status";
-const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "r4/sequence/event";
-const char TOPIC_SEQUENCE_STATE[] PROGMEM = "r4/sequence/state";
-const char TOPIC_SEQUENCE_STAGE[] PROGMEM = "r4/sequence/stage";
-const char TOPIC_SEQUENCE_ACTIVE[] PROGMEM = "r4/sequence/active";
-const char TOPIC_SEQUENCE_ELAPSED[] PROGMEM = "r4/sequence/elapsed";
 
 // Pin Configuration
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};

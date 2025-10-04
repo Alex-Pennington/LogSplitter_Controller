@@ -251,3 +251,34 @@ void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
         highPressureElapsed
     );
 }
+
+void SafetySystem::publishIndividualValues() {
+    if (!networkManager || !networkManager->isConnected()) {
+        return;
+    }
+    
+    // Publish individual safety system values
+    networkManager->publish(TOPIC_SAFETY_ACTIVE, safetyActive ? "1" : "0");
+    networkManager->publish(TOPIC_SAFETY_ESTOP, eStopActive ? "1" : "0");
+    networkManager->publish(TOPIC_SAFETY_ENGINE, engineStopped ? "STOPPED" : "RUNNING");
+    
+    // Publish pressure values
+    char pressureBuffer[16];
+    snprintf(pressureBuffer, sizeof(pressureBuffer), "%.1f", lastPressure);
+    networkManager->publish(TOPIC_SAFETY_PRESSURE_CURRENT, pressureBuffer);
+    
+    snprintf(pressureBuffer, sizeof(pressureBuffer), "%.1f", SAFETY_THRESHOLD_PSI);
+    networkManager->publish(TOPIC_SAFETY_PRESSURE_THRESHOLD, pressureBuffer);
+    
+    // Publish high pressure monitoring status
+    networkManager->publish(TOPIC_SAFETY_HIGH_PRESSURE_ACTIVE, highPressureActive ? "1" : "0");
+    
+    if (highPressureActive && highPressureStartTime > 0) {
+        unsigned long elapsed = millis() - highPressureStartTime;
+        char elapsedBuffer[16];
+        snprintf(elapsedBuffer, sizeof(elapsedBuffer), "%lu", elapsed);
+        networkManager->publish(TOPIC_SAFETY_HIGH_PRESSURE_ELAPSED, elapsedBuffer);
+    } else {
+        networkManager->publish(TOPIC_SAFETY_HIGH_PRESSURE_ELAPSED, "0");
+    }
+}

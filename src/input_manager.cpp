@@ -141,17 +141,19 @@ void InputManager::update() {
                     );
                 }
                 
-                // Publish to MQTT
+                // Publish to MQTT with individual values
                 if (g_networkManager && g_networkManager->isConnected()) {
-                    char topic[32];
+                    char topic[64];
                     char payload[16];
                     
-                    snprintf(topic, sizeof(topic), "r4/inputs/%d", pin);
-                    snprintf(payload, sizeof(payload), "%s %d", 
-                        pinStates[i] ? "ON" : "OFF",
-                        pinStates[i] ? 1 : 0
-                    );
+                    // Publish individual state value
+                    snprintf(topic, sizeof(topic), "controller/inputs/%d/state", pin);
+                    snprintf(payload, sizeof(payload), "%d", pinStates[i] ? 1 : 0);
+                    g_networkManager->publish(topic, payload);
                     
+                    // Publish human readable value  
+                    snprintf(topic, sizeof(topic), "controller/inputs/%d/active", pin);
+                    snprintf(payload, sizeof(payload), "%s", pinStates[i] ? "true" : "false");
                     g_networkManager->publish(topic, payload);
                 }
                 

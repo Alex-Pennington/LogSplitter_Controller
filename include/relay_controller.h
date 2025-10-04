@@ -66,6 +66,7 @@ public:
     
     // Status
     void getStatusString(char* buffer, size_t bufferSize);
+    void publishIndividualValues();  // Publish individual MQTT values
     
     // Direct command processing (for MQTT/Serial commands)
     bool processCommand(const char* relayToken, const char* stateToken);

@@ -375,9 +375,14 @@ void publishTelemetry() {
         // Pressure publishing now handled by PressureManager.publishPressures()
         // Individual pressures are automatically published via MQTT
         
-        // Publish sequence status
-        sequenceController.getStatusString(g_message_buffer, SHARED_BUFFER_SIZE);
-        networkManager.publish(TOPIC_SEQUENCE_STATUS, g_message_buffer);
+        // Publish individual sequence values instead of status string
+        sequenceController.publishIndividualData();
+        
+        // Publish individual safety values instead of status string
+        safetySystem.publishIndividualValues();
+        
+        // Publish individual relay values instead of status string
+        relayController.publishIndividualValues();
         
         // Publish heartbeat
         snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "Hello from LogSplitter at %lu", now);
