@@ -88,7 +88,7 @@ void SequenceController::abortSequence(const char* reason) {
     if (reason && strcmp(reason, "timeout") == 0 && errorManager) {
         errorManager->setError(ERROR_SEQUENCE_TIMEOUT, "Hydraulic sequence operation timed out");
         sequenceDisabled = true;
-        LOG_WARNING("SEQ: Sequence controller DISABLED due to timeout - requires safety clear to re-enable");
+        LOG_WARN("SEQ: Sequence controller DISABLED due to timeout - requires safety clear to re-enable");
     }
     
     // Publish abort event
@@ -285,7 +285,7 @@ bool SequenceController::processInputChange(uint8_t pin, bool state, const bool*
             // Check if sequence is disabled (timeout lockout)
             if (sequenceDisabled) {
                 if (startButtonsActive) {
-                    LOG_WARNING("SEQ: Sequence start blocked - controller disabled due to timeout");
+                    LOG_WARN("SEQ: Sequence start blocked - controller disabled due to timeout");
                     debugPrintf("[SEQ] Sequence start blocked - controller disabled (timeout lockout)\n");
                 }
                 return false; // Don't handle the input, allow normal processing
