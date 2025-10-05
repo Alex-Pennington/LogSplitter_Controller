@@ -156,14 +156,314 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Baud Rate**: 9600
 - **Function**: Relay controller communication
 - **Protocol**: Simple ASCII commands (R1 ON, R2 OFF, etc.)
-- **Relays**: Controls R1-R9 external relay board
-- **Safety**: Hardware relay control for hydraulic valves
+- **Relays**: Controls R1-R8 external relay board
+- **Safety**: Hardware relay control for hydraulic valves and engine systems
 
 #### WiFi (Built-in)
 - **Function**: MQTT communication and remote monitoring
 - **Topics**: Status publishing and command reception
 - **Failsafe**: Network issues cannot affect hydraulic control
 - **Security**: PIN commands restricted to Serial interface only
+
+## Relay Controller System
+
+The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (Hardware UART) for controlling high-power industrial equipment. All relays are optically isolated and capable of switching AC/DC loads.
+
+### Relay Output Assignments
+
+| Relay | Function | Load Type | Safety Critical | Default State |
+|-------|----------|-----------|-----------------|---------------|
+| R1 | Hydraulic Extend | 24V DC Solenoid | Yes | OFF |
+| R2 | Hydraulic Retract | 24V DC Solenoid | Yes | OFF |
+| R3 | Reserved | TBD | No | OFF |
+| R4 | Reserved | TBD | No | OFF |
+| R5 | Reserved | TBD | No | OFF |
+| R6 | Reserved | TBD | No | OFF |
+| R7 | Splitter Operator Signal Buzzer | 12V DC Control Signal | No | OFF |
+| R8 | Engine Enable/Disable | 12V DC Control Signal | Yes | OFF |
+
+### Detailed Relay Descriptions
+
+#### Relay 1 (R1) - Hydraulic Extend
+- **Function**: Controls hydraulic cylinder extension valve
+- **Load**: 24V DC hydraulic solenoid valve (extend direction)
+- **Current Rating**: Up to 10A continuous
+- **Safety Integration**: 
+  - Automatically disabled when extend limit switch (Pin 6) is reached
+  - Pressure monitoring integration prevents over-pressure operation
+  - Emergency stop (Pin 12) immediately disables
+- **Manual Control**: Via `relay R1 ON/OFF` commands or Pin 2 manual extend button
+- **Automatic Control**: Controlled during hydraulic sequences
+- **MQTT Topic**: `r4/relays/R1` (status publishing)
+
+#### Relay 2 (R2) - Hydraulic Retract  
+- **Function**: Controls hydraulic cylinder retraction valve
+- **Load**: 24V DC hydraulic solenoid valve (retract direction)
+- **Current Rating**: Up to 10A continuous
+- **Safety Integration**:
+  - Automatically disabled when retract limit switch (Pin 7) is reached
+  - Pressure monitoring integration prevents over-pressure operation
+  - Emergency stop (Pin 12) immediately disables
+- **Manual Control**: Via `relay R2 ON/OFF` commands or Pin 3 manual retract button
+- **Automatic Control**: Controlled during hydraulic sequences
+- **MQTT Topic**: `r4/relays/R2` (status publishing)
+
+#### Relay 8 (R8) - Engine Enable/Disable
+- **Function**: Controls engine enable/disable signal for log splitter engine
+- **Load**: 12V DC control signal to engine control module
+- **Current Rating**: Up to 5A continuous
+- **Safety Integration**:
+  - Emergency stop (Pin 12) immediately disables engine
+  - Automatic shutdown during system faults
+  - Integrated with hydraulic safety systems
+- **Control**: Via `relay R8 ON/OFF` commands for engine enable/disable
+- **Default State**: OFF (engine disabled) for safety
+- **MQTT Topic**: `r4/relays/R8` (status publishing)
+
+#### Relays 3-6 (R3-R6) - Reserved
+
+- **Function**: Available for future expansion
+- **Load**: Configurable based on application needs
+- **Current Rating**: Up to 10A per relay
+- **Control**: Via `relay R3-R6 ON/OFF` commands
+- **Default State**: OFF
+- **Applications**: Future auxiliary equipment, lighting, cooling systems, etc.
+
+#### Relay 7 (R7) - Splitter Operator Signal Buzzer
+
+- **Function**: Audio warning signal to splitter operator for high pressure conditions
+- **Load**: 12V DC buzzer or alarm horn (up to 5A)
+- **Current Rating**: Up to 10A continuous
+- **Safety Integration**:
+  - Activates when hydraulic pressure exceeds warning threshold
+  - Provides 10-second audible warning before automatic system shutdown
+  - Emergency stop (Pin 12) immediately disables buzzer
+  - Integrated with pressure monitoring system for predictive warnings
+- **Control**: 
+  - Automatic activation via pressure monitoring system
+  - Manual control via `relay R7 ON/OFF` commands for testing
+- **Warning Sequence**:
+  1. Pressure exceeds configurable warning threshold (default: 90% of max pressure)
+  2. R7 activates buzzer for 10-second warning period
+  3. After 10 seconds, if pressure still high, hydraulic system shuts down
+  4. Buzzer continues until pressure drops below threshold or manual reset
+- **Default State**: OFF
+- **MQTT Topic**: `r4/relays/R7` (status publishing)
+- **Configuration**: Warning pressure threshold configurable via `set pressure_warning_psi` command
+
+### Relay Board Specifications
+
+#### Electrical Specifications
+- **Control Voltage**: 5V DC (Arduino logic level)
+- **Control Current**: ~15mA per relay coil
+- **Contact Rating**: 10A @ 250V AC, 10A @ 30V DC
+- **Isolation**: 2500V optical isolation between control and load circuits
+- **Response Time**: ~10ms activation, ~5ms deactivation
+- **Operating Temperature**: -10°C to +70°C
+- **Humidity**: 5% to 85% RH (non-condensing)
+
+#### Communication Protocol
+- **Interface**: Serial1 (Hardware UART)
+- **Baud Rate**: 9600 bps, 8N1
+- **Commands**: ASCII text format
+  - `R1 ON` - Turn relay 1 ON
+  - `R1 OFF` - Turn relay 1 OFF
+  - `ALL OFF` - Turn all relays OFF (emergency)
+- **Response**: Echo confirmation or error message
+- **Timeout**: 100ms command timeout with retry logic
+
+### Relay Board Wiring
+
+#### Control Connection (Serial1)
+```
+Arduino Pin 0 (RX1)     → Relay Board TX
+Arduino Pin 1 (TX1)     → Relay Board RX  
+Arduino 5V              → Relay Board VCC
+Arduino GND             → Relay Board GND
+```
+
+#### Power Supply Requirements
+```
+Relay Board Power:
+24V DC Power Supply (+) → Relay Board VIN
+24V DC Power Supply (-) → Relay Board GND
+Arduino GND             → 24V Power Supply GND (common ground)
+
+Load Power (separate supplies recommended):
+Hydraulic Solenoids:    24V DC @ 10A supply
+Engine Control:         12V DC @ 5A supply
+```
+
+#### Hydraulic Solenoid Connections
+```
+Extend Solenoid Wiring:
+24V Supply (+)          → Solenoid Valve (+)
+Relay R1 Common (C)     → 24V Supply (+)
+Relay R1 NO Contact     → Solenoid Valve (-)
+Solenoid Ground         → 24V Supply (-)
+
+Retract Solenoid Wiring:
+24V Supply (+)          → Solenoid Valve (+)  
+Relay R2 Common (C)     → 24V Supply (+)
+Relay R2 NO Contact     → Solenoid Valve (-)
+Solenoid Ground         → 24V Supply (-)
+```
+
+#### Engine Control Connection
+```
+Engine Enable Wiring:
+12V Supply (+)          → Engine Control Module (+12V)
+Relay R8 Common (C)     → 12V Supply (+)
+Relay R8 NO Contact     → Engine Control Enable Input
+Engine Control Ground   → 12V Supply (-)
+```
+
+#### Splitter Operator Buzzer Connection (R7)
+```
+Buzzer Wiring:
+12V Supply (+)          → Buzzer/Alarm Horn (+12V)
+Relay R7 Common (C)     → 12V Supply (+)
+Relay R7 NO Contact     → Buzzer/Alarm Horn (-)
+Buzzer Ground           → 12V Supply (-)
+
+Recommended Buzzer Specifications:
+- Operating Voltage: 12V DC
+- Current Draw: 0.5-2A typical
+- Sound Level: 85-105 dB @ 1 meter
+- IP Rating: IP65 or higher for outdoor use
+- Mounting: Panel mount or enclosed housing
+```
+
+### Safety Systems Integration
+
+#### Emergency Stop Behavior
+When Emergency Stop (Pin 12) is activated:
+1. **Immediate Response**: Serial1 sends `ALL OFF` command to relay board
+2. **Hydraulic Safety**: R1 and R2 immediately turn OFF, stopping all hydraulic movement
+3. **Engine Safety**: R8 immediately turns OFF, disabling engine
+4. **Buzzer Safety**: R7 immediately turns OFF, silencing pressure warning buzzer
+5. **System Lock**: All relays remain OFF until manual system reset
+6. **Status Logging**: Emergency stop event logged with relay states
+
+#### Limit Switch Integration
+- **Extend Limit (Pin 6)**: Automatically sends `R1 OFF` when limit reached during extend operation
+- **Retract Limit (Pin 7)**: Automatically sends `R2 OFF` when limit reached during retract operation
+- **Override Protection**: Manual override flag prevents accidental relay activation during limit conditions
+
+#### Pressure Safety Integration
+- **Over-Pressure Warning**: R7 buzzer activates when pressure exceeds warning threshold (90% of max)
+- **10-Second Warning Period**: Buzzer provides 10-second warning before automatic system shutdown
+- **Over-Pressure Shutdown**: Automatically disables R1/R2 when pressure exceeds safety limits after warning period
+- **Under-Pressure**: Prevents hydraulic operation when insufficient pressure detected
+- **Pressure Monitoring**: Continuous monitoring with relay control integration
+- **Buzzer Reset**: R7 automatically turns OFF when pressure drops below warning threshold
+
+### Command Examples
+
+#### Manual Relay Control
+```bash
+# Manual hydraulic extend
+> relay R1 ON
+relay R1 ON
+
+# Manual hydraulic retract  
+> relay R2 ON
+relay R2 ON
+
+# Engine enable
+> relay R8 ON
+relay R8 ON
+
+# Buzzer test (manual activation)
+> relay R7 ON
+relay R7 ON
+
+# Buzzer off
+> relay R7 OFF
+relay R7 OFF
+
+# Emergency all off
+> relay ALL OFF
+ALL RELAYS OFF
+```
+
+#### Status Monitoring
+```bash
+# Check relay status
+> show
+Relays: R1=OFF(EXTEND) R2=OFF(RETRACT) R3=OFF R4=OFF R5=OFF R6=OFF R7=OFF(BUZZER) R8=OFF(ENGINE)
+
+# MQTT status topics
+r4/relays/R1 → 0 (OFF) or 1 (ON)
+r4/relays/R2 → 0 (OFF) or 1 (ON)
+r4/relays/R7 → 0 (OFF) or 1 (ON)
+r4/relays/R8 → 0 (OFF) or 1 (ON)
+
+# Pressure warning example
+> # When pressure exceeds warning threshold (automatic)
+PRESSURE WARNING: 4750 PSI exceeds threshold (4500 PSI)
+R7 BUZZER ON - 10 second warning before shutdown
+# [10 seconds later if pressure still high]
+PRESSURE SHUTDOWN: Hydraulic system disabled
+R1 OFF, R2 OFF (hydraulic valves closed)
+```
+
+### Troubleshooting
+
+#### Common Relay Issues
+
+##### Relay Not Responding
+- **Symptom**: Relay command sent but no physical relay activation
+- **Check**: 
+  - Serial1 wiring (TX/RX, power, ground)
+  - Relay board power supply (24V)
+  - Command syntax and relay number
+- **Debug**: Use `debug ON` to see Serial1 communication
+
+##### Hydraulic Solenoid Not Operating
+- **Symptom**: Relay activates but hydraulic valve doesn't operate
+- **Check**:
+  - 24V solenoid power supply
+  - Solenoid wiring to relay contacts
+  - Solenoid coil continuity
+  - Hydraulic system pressure
+- **Test**: Measure voltage across solenoid when relay is ON
+
+##### Engine Control Not Responding
+- **Symptom**: R8 relay activates but engine doesn't enable
+- **Check**:
+  - 12V control signal power supply
+  - Engine control module wiring
+  - Engine control module configuration
+  - Engine safety interlocks
+- **Test**: Measure 12V signal at engine control input when R8 is ON
+
+##### Buzzer Not Operating (R7)
+- **Symptom**: R7 relay activates but buzzer doesn't sound
+- **Check**:
+  - 12V buzzer power supply
+  - Buzzer wiring to relay contacts
+  - Buzzer continuity and polarity
+  - Buzzer current draw (should be < 5A)
+- **Test**: Measure 12V across buzzer when R7 is ON
+- **Manual Test**: Use `relay R7 ON` to test buzzer operation
+
+##### Pressure Warning Not Triggering
+- **Symptom**: High pressure but buzzer doesn't activate automatically
+- **Check**:
+  - Pressure sensor readings (`show` command)
+  - Warning threshold configuration (`set pressure_warning_psi`)
+  - Pressure monitoring system functionality
+  - R7 relay operation (manual test)
+- **Debug**: Monitor pressure values and threshold settings
+
+#### Debug Commands
+```bash
+> debug ON              # Enable detailed relay communication logging
+> show                  # Display all relay states
+> relay R1 ON           # Test individual relay
+> relay ALL OFF         # Emergency all relays off
+```
 
 ## Safety System Integration
 
