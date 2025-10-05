@@ -156,7 +156,7 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network, reset, error, test, loglevel [0-7]";
+    const char* helpText = "Commands: help, show, debug, network, reset, error, test, loglevel [0-7], bypass";
     if (!fromMqtt) {
         snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF", helpText);
     } else {
@@ -685,6 +685,35 @@ void CommandProcessor::handleNetwork(char* response, size_t responseSize) {
     }
 }
 
+void CommandProcessor::handleBypass(char* param, char* response, size_t responseSize) {
+    if (!networkManager) {
+        snprintf(response, responseSize, "network manager not available");
+        return;
+    }
+    
+    if (!param) {
+        // Show current bypass status
+        snprintf(response, responseSize, "Network bypass: %s, max update time: %lums", 
+                networkManager->isNetworkBypassed() ? "ENABLED" : "disabled",
+                networkManager->getMaxUpdateTime());
+        return;
+    }
+    
+    if (strcasecmp(param, "on") == 0 || strcasecmp(param, "enable") == 0) {
+        networkManager->enableNetworkBypass(true);
+        LOG_WARN("Network bypass ENABLED manually - system operating without network");
+        snprintf(response, responseSize, "Network bypass ENABLED - system will run without network");
+    }
+    else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "disable") == 0) {
+        networkManager->enableNetworkBypass(false);
+        LOG_INFO("Network bypass DISABLED - network operations resumed");
+        snprintf(response, responseSize, "Network bypass DISABLED - network operations resumed");
+    }
+    else {
+        snprintf(response, responseSize, "usage: bypass [on|off|enable|disable]");
+    }
+}
+
 void CommandProcessor::handleReset(char* param, char* response, size_t responseSize) {
     if (!param) {
         snprintf(response, responseSize, "usage: reset estop");
@@ -864,6 +893,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     }
     else if (strcasecmp(cmd, "network") == 0) {
         handleNetwork(response, responseSize);
+    }
+    else if (strcasecmp(cmd, "bypass") == 0) {
+        char* param = strtok(NULL, " ");
+        handleBypass(param, response, responseSize);
     }
     else if (strcasecmp(cmd, "reset") == 0) {
         char* param = strtok(NULL, " ");

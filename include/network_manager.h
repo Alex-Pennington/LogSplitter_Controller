@@ -48,6 +48,13 @@ private:
     char syslogServer[64];
     int syslogPort;
     
+    // Network bypass and timeout protection
+    bool networkBypassMode = false;
+    unsigned long lastUpdateTime = 0;
+    unsigned long maxUpdateTime = 0;
+    static const unsigned long MAX_UPDATE_TIMEOUT_MS = 100; // 100ms max for update()
+    static const unsigned long NETWORK_BYPASS_THRESHOLD_MS = 500; // Bypass if update() takes >500ms
+    
     // Connection helpers (now non-blocking)
     void updateWiFiConnection();
     void updateMQTTConnection();
@@ -67,10 +74,15 @@ public:
     
     // Connection management (completely non-blocking)
     void update();
-    bool isConnected() const { return (wifiState == WiFiState::CONNECTED && mqttState == MQTTState::CONNECTED); }
-    bool isWiFiConnected() const { return wifiState == WiFiState::CONNECTED; }
-    bool isMQTTConnected() const { return mqttState == MQTTState::CONNECTED; }
-    bool isConnectionStable() const { return connectionStable; }
+    bool isConnected() const { return !networkBypassMode && (wifiState == WiFiState::CONNECTED && mqttState == MQTTState::CONNECTED); }
+    bool isWiFiConnected() const { return !networkBypassMode && wifiState == WiFiState::CONNECTED; }
+    bool isMQTTConnected() const { return !networkBypassMode && mqttState == MQTTState::CONNECTED; }
+    bool isConnectionStable() const { return !networkBypassMode && connectionStable; }
+    
+    // Network bypass control
+    void enableNetworkBypass(bool enable = true);
+    bool isNetworkBypassed() const { return networkBypassMode; }
+    unsigned long getMaxUpdateTime() const { return maxUpdateTime; }
     
     // MQTT operations (with timeout protection)
     bool publish(const char* topic, const char* payload);

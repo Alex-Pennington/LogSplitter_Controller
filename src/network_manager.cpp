@@ -187,7 +187,13 @@ void NetworkManager::updateMQTTConnection() {
 }
 
 void NetworkManager::update() {
-    unsigned long now = millis();
+    // Network bypass mode - skip all network operations if enabled
+    if (networkBypassMode) {
+        return;
+    }
+    
+    unsigned long updateStart = millis();
+    unsigned long now = updateStart;
     
     // Update connection state machines (completely non-blocking)
     updateWiFiConnection();
@@ -253,9 +259,29 @@ void NetworkManager::update() {
         unsigned long pollStart = millis();
         mqttClient.poll();
         unsigned long pollDuration = millis() - pollStart;
-        if (pollDuration > 100) {
-            LOG_WARN("MQTT poll took %lums", pollDuration);
+        if (pollDuration > 50) {
+            LOG_WARN("MQTT poll took %lums (threshold: 50ms)", pollDuration);
+            if (pollDuration > 200) {
+                LOG_ERROR("MQTT poll excessive delay %lums - enabling network bypass", pollDuration);
+                networkBypassMode = true;
+                return;
+            }
         }
+    }
+    
+    // Monitor total update time and enable bypass if needed
+    unsigned long totalUpdateTime = millis() - updateStart;
+    if (totalUpdateTime > maxUpdateTime) {
+        maxUpdateTime = totalUpdateTime;
+    }
+    
+    if (totalUpdateTime > NETWORK_BYPASS_THRESHOLD_MS) {
+        LOG_ERROR("Network update took %lums (threshold: %lums) - enabling bypass mode", 
+                 totalUpdateTime, NETWORK_BYPASS_THRESHOLD_MS);
+        networkBypassMode = true;
+    } else if (totalUpdateTime > MAX_UPDATE_TIMEOUT_MS) {
+        LOG_WARN("Network update took %lums (exceeds %lums threshold)", 
+                totalUpdateTime, MAX_UPDATE_TIMEOUT_MS);
     }
 }
 
@@ -278,8 +304,11 @@ void NetworkManager::updateConnectionHealth() {
 }
 
 bool NetworkManager::publish(const char* topic, const char* payload) {
-    if (mqttState != MQTTState::CONNECTED) {
-        failedPublishCount++;
+    // Skip publishing if network is bypassed
+    if (networkBypassMode || mqttState != MQTTState::CONNECTED) {
+        if (!networkBypassMode) {
+            failedPublishCount++;
+        }
         return false;
     }
     
@@ -292,7 +321,12 @@ bool NetworkManager::publish(const char* topic, const char* payload) {
         
         unsigned long duration = millis() - startTime;
         if (duration > 100) { // Warn if publish takes >100ms
-            LOG_WARN("MQTT publish took %lums", duration);
+            LOG_WARN("MQTT publish took %lums (threshold: 100ms)", duration);
+            if (duration > 500) { // Enable bypass if publish takes >500ms
+                LOG_ERROR("MQTT publish excessive delay %lums - enabling network bypass", duration);
+                networkBypassMode = true;
+                return false;
+            }
         }
         
         if (!success) {
@@ -516,4 +550,15 @@ void NetworkManager::setSyslogServer(const char* server, int port) {
     strncpy(syslogServer, server, sizeof(syslogServer) - 1);
     syslogServer[sizeof(syslogServer) - 1] = '\0';
     syslogPort = port;
+}
+
+void NetworkManager::enableNetworkBypass(bool enable) {
+    if (networkBypassMode != enable) {
+        networkBypassMode = enable;
+        if (enable) {
+            LOG_WARN("Network bypass mode ENABLED - all network operations suspended");
+        } else {
+            LOG_INFO("Network bypass mode DISABLED - network operations restored");
+        }
+    }
 }

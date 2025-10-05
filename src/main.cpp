@@ -106,6 +106,15 @@ void checkSystemHealth() {
     // Check if main loop is running (simple watchdog)
     if (now - lastWatchdogReset > MAIN_LOOP_TIMEOUT_MS) {
         Serial.println("SYSTEM ERROR: Main loop timeout detected");
+        LOG_CRITICAL("Main loop timeout detected - system unresponsive");
+        
+        // Try to enable network bypass as emergency measure
+        if (!networkManager.isNetworkBypassed()) {
+            Serial.println("EMERGENCY: Enabling network bypass due to system timeout");
+            LOG_CRITICAL("Emergency network bypass enabled due to system timeout");
+            networkManager.enableNetworkBypass(true);
+        }
+        
         safetySystem.emergencyStop("main_loop_timeout");
         
         // Force system restart after emergency stop
@@ -141,9 +150,22 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     if (pin == LIMIT_EXTEND_PIN) {
         g_limitExtendActive = state;
         debugPrintf("Limit EXTEND: %s\n", state ? "ACTIVE" : "INACTIVE");
+        
+        // SAFETY: Turn off extend relay when limit switch activates
+        if (state) {  // Limit switch activated (cylinder fully extended)
+            relayController.setRelay(RELAY_EXTEND, false);
+            debugPrintf("SAFETY: Extend relay R%d turned OFF - cylinder at full extension\n", RELAY_EXTEND);
+        }
+        
     } else if (pin == LIMIT_RETRACT_PIN) {
         g_limitRetractActive = state;
         debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
+        
+        // SAFETY: Turn off retract relay when limit switch activates  
+        if (state) {  // Limit switch activated (cylinder fully retracted)
+            relayController.setRelay(RELAY_RETRACT, false);
+            debugPrintf("SAFETY: Retract relay R%d turned OFF - cylinder at full retraction\n", RELAY_RETRACT);
+        }
     }
     
     // PRIORITY: Handle E-Stop before any other processing
@@ -204,9 +226,19 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     if (!handledBySequence && !sequenceController.isActive()) {
         // Handle simple pin->relay mapping when no sequence active
         if (pin == 2) {
-            relayController.setRelay(RELAY_RETRACT, state);  // Pin 2 -> Retract
+            // SAFETY: Don't allow retract if already at retract limit
+            if (state && g_limitRetractActive) {
+                debugPrintf("SAFETY: Retract blocked - cylinder already at retract limit\n");
+            } else {
+                relayController.setRelay(RELAY_RETRACT, state);  // Pin 2 -> Retract
+            }
         } else if (pin == 3) {
-            relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
+            // SAFETY: Don't allow extend if already at extend limit
+            if (state && g_limitExtendActive) {
+                debugPrintf("SAFETY: Extend blocked - cylinder already at extend limit\n");
+            } else {
+                relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
+            }
         } 
     }
 }
@@ -328,6 +360,7 @@ bool initializeSystem() {
     lastPublishTime = millis();
     
     Serial.println("=== System Ready ===");
+    Serial.println("Network Failsafe: Use 'bypass on' command if network causes unresponsiveness");
     return true;
 }
 
