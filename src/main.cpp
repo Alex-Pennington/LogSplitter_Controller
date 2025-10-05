@@ -337,29 +337,26 @@ bool initializeSystem() {
     
     Serial.println("Core systems initialized");
     
-    // Initialize networking
+    // Initialize networking (non-blocking)
     currentSystemState = SYS_CONNECTING;
-    if (networkManager.begin()) {
-        networkManager.setMessageCallback(onMqttMessage);
-        Serial.println("Network initialization started");
-        
-        // Initialize logger after network manager is available
-        Logger::begin(&networkManager);
-        Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
-        LOG_INFO("Logger initialized with network manager");
-        
-        // Initialize telnet server after network is up
-        telnet.begin();
-        Serial.println("Telnet server initialized");
-    } else {
-        Serial.println("Network initialization failed");
-        return false;
-    }
+    networkManager.begin();  // Always succeeds - connection happens asynchronously
+    networkManager.setMessageCallback(onMqttMessage);
+    Serial.println("Network initialization started (non-blocking)");
+    
+    // Initialize logger after network manager is available
+    Logger::begin(&networkManager);
+    Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
+    LOG_INFO("Logger initialized with network manager");
+    
+    // Initialize telnet server (will work once WiFi connects)
+    telnet.begin();
+    Serial.println("Telnet server initialized");
     
     currentSystemState = SYS_RUNNING;
     lastPublishTime = millis();
     
     Serial.println("=== System Ready ===");
+    Serial.println("Network connection will start in 3 seconds to avoid boot delays");
     Serial.println("Network Failsafe: Use 'bypass on' command if network causes unresponsiveness");
     return true;
 }

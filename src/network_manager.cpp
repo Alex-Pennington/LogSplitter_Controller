@@ -39,9 +39,9 @@ bool NetworkManager::begin() {
     wifiRetries = 0;
     mqttRetries = 0;
     
-    // Start initial connection attempt (non-blocking)
-    debugPrintf("Starting initial network connection...\n");
-    startWiFiConnection();
+    // Don't start connection immediately - let system finish initializing first
+    // Connection will start on first update() call from main loop
+    debugPrintf("Network manager initialized, connection will start after system initialization\n");
     
     // Always return true - connection happens asynchronously
     return true;
@@ -69,7 +69,8 @@ bool NetworkManager::startWiFiConnection() {
     WiFi.setHostname(hostname);
     debugPrintf("Setting hostname: %s\n", hostname);
     
-    // Start connection attempt (non-blocking)
+    // Start connection attempt (unavoidably blocking in Arduino WiFi library)
+    debugPrintf("Note: WiFi.begin() may block for several seconds if network unavailable\n");
     WiFi.begin(SECRET_SSID, SECRET_PASS);
     wifiState = WiFiState::CONNECTING;
     connectStartTime = millis();
@@ -192,8 +193,20 @@ void NetworkManager::updateMQTTConnection() {
 }
 
 void NetworkManager::update() {
+    static bool initialStartupDelay = true;
+    static unsigned long startupTime = millis();
     unsigned long updateStart = millis();
     unsigned long now = updateStart;
+    
+    // Allow system to fully initialize before first WiFi connection attempt
+    // This prevents blocking during system startup when WiFi is unavailable
+    if (initialStartupDelay) {
+        if (now - startupTime < 3000) { // 3 second delay after system start
+            return; // Skip all network operations during startup
+        }
+        initialStartupDelay = false;
+        debugPrintf("Network startup delay complete, beginning connection attempts\n");
+    }
     
     // Check if we should retry network operations after bypass mode
     if (networkBypassMode) {
