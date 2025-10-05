@@ -48,6 +48,10 @@ private:
     char syslogServer[64];
     int syslogPort;
     
+    // MQTT broker configuration
+    char mqttBrokerHost[64];
+    int mqttBrokerPort;
+    
     // Network bypass and timeout protection
     bool networkBypassMode = false;
     unsigned long lastUpdateTime = 0;
@@ -94,6 +98,11 @@ public:
     // Syslog operations
     bool sendSyslog(const char* message, int severity = SYSLOG_SEVERITY);
     void setSyslogServer(const char* server, int port = SYSLOG_PORT);
+    
+    // MQTT broker configuration
+    void setMqttBroker(const char* host, int port = BROKER_PORT);
+    const char* getMqttBrokerHost() const { return mqttBrokerHost; }
+    int getMqttBrokerPort() const { return mqttBrokerPort; }
     
     // Access to underlying client for message reading
     MqttClient& getMqttClient() { return mqttClient; }

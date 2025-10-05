@@ -271,12 +271,12 @@ A5 offset set -10.500000
 
 ##### Syslog Configuration
 - **syslog** - Configure rsyslog server IP address and port for centralized logging
-  **Syntax**: `set syslog <ip>` or `set syslog <ip>:<port>`
+  **Syntax**: `config syslog <ip>` or `config syslog <ip>:<port>`
   ```
-  > set syslog 192.168.1.238
+  > config syslog 192.168.1.238
   syslog server set to 192.168.1.238:514
   
-  > set syslog 192.168.1.100:1514
+  > config syslog 192.168.1.100:1514
   syslog server set to 192.168.1.100:1514
   ```
   
@@ -285,6 +285,23 @@ A5 offset set -10.500000
   - All debug output is sent exclusively to syslog server
   - RFC 3164 compliant format with facility Local0 and severity Info
   - Use `syslog test` to verify connectivity
+
+##### MQTT Broker Configuration
+- **mqtt** - Configure MQTT broker host and port for real-time telemetry
+  **Syntax**: `config mqtt <host>` or `config mqtt <host>:<port>`
+  ```
+  > config mqtt 192.168.1.100
+  mqtt broker set to 192.168.1.100:1883
+  
+  > config mqtt broker.example.com:8883
+  mqtt broker set to broker.example.com:8883
+  ```
+  
+  **Notes**:
+  - Default port is 1883 (standard MQTT port)
+  - Change takes effect immediately (disconnects and reconnects)
+  - Use `mqtt test` to verify connectivity
+  - Use `mqtt status` to check current configuration
 
 ### 8. SYSLOG
 **Description**: Syslog server configuration and testing for centralized logging
@@ -330,7 +347,50 @@ syslog server: 192.168.1.238:514, wifi: connected, local IP: 192.168.1.100
 - Configure syslog server with `set syslog <ip>` or `set syslog <ip>:<port>`
 - Test connectivity with `syslog test` command
 
-### 9. ERROR
+### 9. MQTT
+**Description**: MQTT broker configuration and testing for real-time telemetry
+**Syntax**: `mqtt <command>`
+**Access**: Serial + MQTT
+
+#### MQTT Commands:
+
+##### Test MQTT Connection
+**Command**: `mqtt test`
+**Function**: Send a test message to the configured MQTT broker
+
+**Example**:
+```
+> mqtt test
+mqtt test message sent successfully to 159.203.138.46:1883
+
+> mqtt test
+MQTT not connected to broker 159.203.138.46:1883
+```
+
+##### Check MQTT Status
+**Command**: `mqtt status`
+**Function**: Display current MQTT broker configuration and connectivity
+
+**Example Output**:
+```
+> mqtt status
+mqtt broker: 159.203.138.46:1883, wifi: connected, mqtt: connected, local IP: 192.168.1.100
+```
+
+**MQTT Configuration**:
+- **Default Broker**: 159.203.138.46:1883 (configured in constants.h)
+- **Protocol**: MQTT v3.1.1 over TCP
+- **Client ID**: Automatically generated from MAC address (format: r4-XXXXXX)
+- **Topics**: Hierarchical structure under `/controller` namespace
+- **Authentication**: Optional username/password support (if configured)
+
+**Runtime Configuration**:
+- Configure MQTT broker with `config mqtt <host>` or `config mqtt <host>:<port>`
+- Changes take effect immediately (disconnects and reconnects to new broker)
+- Test connectivity with `mqtt test` command
+- Monitor status with `mqtt status` command
+
+### 10. ERROR
 **Description**: System error management for diagnostics and maintenance
 **Syntax**: `error <command> [parameter]`
 **Access**: Serial + MQTT

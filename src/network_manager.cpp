@@ -16,6 +16,11 @@ NetworkManager::NetworkManager() : mqttClient(wifiClient) {
     strncpy(syslogServer, SYSLOG_SERVER, sizeof(syslogServer) - 1);
     syslogServer[sizeof(syslogServer) - 1] = '\0';
     syslogPort = SYSLOG_PORT;
+    
+    // Initialize MQTT broker configuration
+    strncpy(mqttBrokerHost, BROKER_HOST, sizeof(mqttBrokerHost) - 1);
+    mqttBrokerHost[sizeof(mqttBrokerHost) - 1] = '\0';
+    mqttBrokerPort = BROKER_PORT;
 }
 
 bool NetworkManager::begin() {
@@ -127,7 +132,7 @@ bool NetworkManager::startMQTTConnection() {
         return true;
     }
     
-    debugPrintf("Starting MQTT connection to %s:%d\n", BROKER_HOST, BROKER_PORT);
+    debugPrintf("Starting MQTT connection to %s:%d\n", mqttBrokerHost, mqttBrokerPort);
     
     mqttClient.setId(clientId);
     
@@ -139,7 +144,7 @@ bool NetworkManager::startMQTTConnection() {
     
     // Attempt connection with timeout protection
     unsigned long connectStart = millis();
-    if (mqttClient.connect(BROKER_HOST, BROKER_PORT)) {
+    if (mqttClient.connect(mqttBrokerHost, mqttBrokerPort)) {
         unsigned long connectDuration = millis() - connectStart;
         if (connectDuration > 2000) {
             LOG_WARN("MQTT connect took %lums", connectDuration);
@@ -550,6 +555,19 @@ void NetworkManager::setSyslogServer(const char* server, int port) {
     strncpy(syslogServer, server, sizeof(syslogServer) - 1);
     syslogServer[sizeof(syslogServer) - 1] = '\0';
     syslogPort = port;
+}
+
+void NetworkManager::setMqttBroker(const char* host, int port) {
+    strncpy(mqttBrokerHost, host, sizeof(mqttBrokerHost) - 1);
+    mqttBrokerHost[sizeof(mqttBrokerHost) - 1] = '\0';
+    mqttBrokerPort = port;
+    
+    // If MQTT is currently connected, disconnect to force reconnection with new broker
+    if (mqttState == MQTTState::CONNECTED) {
+        mqttClient.stop();
+        mqttState = MQTTState::DISCONNECTED;
+        debugPrintf("MQTT disconnected to switch broker to %s:%d\n", host, port);
+    }
 }
 
 void NetworkManager::enableNetworkBypass(bool enable) {

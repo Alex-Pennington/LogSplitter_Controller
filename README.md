@@ -175,6 +175,14 @@ test network            # Test network connectivity
 test sensors            # Test sensor readings
 syslog test             # Send test message to syslog server
 syslog status           # Show syslog configuration
+mqtt test               # Send test message to MQTT broker
+mqtt status             # Show MQTT broker configuration
+```
+
+### Configuration Commands
+```bash
+config syslog <ip>      # Set syslog server IP
+config mqtt <host>      # Set MQTT broker host
 ```
 
 ## 📚 Documentation
@@ -190,7 +198,7 @@ syslog status           # Show syslog configuration
 - **[System Architecture](docs/SYSTEM_ARCHITECTURE.md)** - Technical system overview
 - **[Network Integration](docs/NETWORK_INTEGRATION.md)** - MQTT and syslog setup
 - **[Safety Systems](COMPREHENSIVE_REVIEW.md)** - Safety system details (root directory)
-- **[Command Reference](docs/COMMAND_REFERENCE.md)** - Complete command documentation
+- **[Command Reference](COMMANDS.md)** - Complete command documentation
 
 ## 🔧 Development
 
