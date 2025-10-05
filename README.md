@@ -59,8 +59,8 @@ See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for complete system dep
 ## 🏭 Industrial Applications
 
 ### Primary Use Case: Log Splitting Operations
-- **Hydraulic Control** - Precision relay management for log splitting machinery
-- **Safety Monitoring** - Pressure threshold enforcement and emergency stops
+- **Hydraulic Control** - Precision relay management for log splitting machinery with unified safety monitoring for both automatic sequences and manual operations
+- **Safety Monitoring** - Pressure threshold enforcement, limit switch protection, and emergency stops
 - **Remote Oversight** - Real-time monitoring and control via MQTT
 - **Operational Logging** - Complete audit trail of all operations
 

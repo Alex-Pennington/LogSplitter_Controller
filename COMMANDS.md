@@ -413,34 +413,63 @@ All errors cleared
 - Automatic error reporting on detection
 
 ### 10. RELAY
-**Description**: Control hydraulic system relays
+**Description**: Control hydraulic system relays with integrated safety monitoring
 **Syntax**: `relay R<number> <state>`
 **Access**: Serial + MQTT
 **Range**: R1-R9 (relays 1-9)
 **States**: ON, OFF (case-insensitive)
 
 #### Relay Assignments:
-- **R1**: Hydraulic Extend Control
-- **R2**: Hydraulic Retract Control
-- **R3-R9**: Additional relay outputs
+- **R1**: Hydraulic Extend Control (Safety-Monitored)
+- **R2**: Hydraulic Retract Control (Safety-Monitored)
+- **R3-R9**: Direct relay outputs
 
-#### Manual Operation Safety:
-- **R1 (Extend)**: Automatically turns OFF when extend limit switch (Pin 6) is reached
-- **R2 (Retract)**: Automatically turns OFF when retract limit switch (Pin 7) is reached
-- **Safety Message**: "SAFETY: [Extend/Retract] operation stopped - limit switch reached"
-- **Protection**: Prevents hydraulic cylinder over-travel damage during manual operation
+#### Enhanced Manual Operation Safety (R1/R2):
+**Unified Sequence-Based Control**: R1 and R2 commands now use the same intelligent safety system as automatic sequences, providing comprehensive protection against over-travel and pressure damage.
 
-**Examples**:
-```
+**Pre-Operation Safety Checks:**
+- **Limit Validation**: Commands blocked if already at target limit switch
+- **Pressure Validation**: Commands blocked if pressure already at safety limit
+- **System Status**: Commands blocked during active sequences or system faults
+
+**Real-Time Protection During Operation:**
+- **Automatic Limit Shutoff**: 
+  - R1 (Extend) stops when Pin 6 (extend limit) activates
+  - R2 (Retract) stops when Pin 7 (retract limit) activates
+- **Pressure Limit Protection**:
+  - R1 stops when pressure reaches `EXTEND_PRESSURE_LIMIT_PSI`
+  - R2 stops when pressure reaches `RETRACT_PRESSURE_LIMIT_PSI`
+- **Timeout Protection**: Operations abort if timeout exceeded (configurable)
+
+**Enhanced User Feedback:**
+```bash
+# Successful operation start
 > relay R1 ON
-relay R1 ON
+manual extend started (safety-monitored)
 
-> relay R2 OFF
-relay R2 OFF
+# Safety blocking examples
+> relay R1 ON
+manual extend blocked - check limits/pressure/status
 
-> relay r3 on
-relay r3 on
+# Manual stop
+> relay R1 OFF
+manual operation stopped
+
+# Non-hydraulic relay (direct control)
+> relay R3 ON
+relay R3 ON
 ```
+
+**Safety Messages and Logging:**
+- All operations logged with safety status
+- MQTT publishing for remote monitoring
+- Clear feedback on why operations are blocked
+- Integration with system error management
+
+**Backward Compatibility:**
+- Existing command syntax unchanged
+- R3-R9 relays operate as direct control
+- All monitoring and telemetry preserved
 
 ## MQTT Data Topics
 

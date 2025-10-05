@@ -319,6 +319,7 @@ Payload: 2
 ## Mill Lamp Logic Implementation
 
 ### Source Code Location
+
 ```cpp
 File: src/system_error_manager.cpp
 Line: ~95 - ErrorLedPattern SystemErrorManager::getLedPattern() const
@@ -332,6 +333,7 @@ Decision Logic:
 ```
 
 ### LED Update Frequency
+
 ```cpp
 File: src/main.cpp
 Line: ~160 - void updateSystem()
@@ -344,23 +346,27 @@ LED Timing: Hardware timer-based patterns
 ## Troubleshooting Quick Reference
 
 ### Fast Blinking Mill Lamp
+
 1. Check system memory: `show` → look for free memory
 2. Verify EEPROM: `error list` → look for 0x01
 3. Test hardware: Use built-in diagnostics
 4. **Immediate Action**: Consider system restart for critical errors
 
 ### Solid Mill Lamp  
+
 1. Single error present: `error list` → identify specific error
 2. Address root cause based on error type
 3. Acknowledge when fixed: `error ack 0x##`
 
 ### Slow Blinking Mill Lamp
+
 1. Multiple errors or acknowledged errors
 2. Review error list: `error list`
 3. Address each error systematically
 4. Clear resolved errors: `error clear 0x##`
 
 ### No Mill Lamp Activity
+
 - Normal operation (preferred state)
 - Use `error status` to confirm no active errors
 - Mill lamp should remain OFF during normal operation
@@ -368,6 +374,7 @@ LED Timing: Hardware timer-based patterns
 ## Error Prevention
 
 ### Regular Maintenance
+
 - Monitor memory usage trends
 - Check EEPROM health periodically  
 - Verify sensor calibration
@@ -375,12 +382,14 @@ LED Timing: Hardware timer-based patterns
 - Keep firmware updated
 
 ### Network Reliability
+
 - Ensure strong WiFi signal
 - Monitor MQTT broker health
 - Use uninterruptible power supply
 - Implement network redundancy if critical
 
 ### Hardware Health
+
 - Regular visual inspections
 - Cable and connection checks
 - Environmental monitoring (temperature, humidity)
