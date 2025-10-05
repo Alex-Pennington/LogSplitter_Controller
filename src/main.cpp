@@ -301,6 +301,7 @@ bool initializeSystem() {
     // Connect error manager to other components
     configManager.setSystemErrorManager(&systemErrorManager);
     sequenceController.setErrorManager(&systemErrorManager);
+    sequenceController.setInputManager(&inputManager);
     
     Serial.println("Core systems initialized");
     

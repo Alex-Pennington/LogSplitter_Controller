@@ -11,13 +11,24 @@ enum SequenceState {
     SEQ_STAGE2_ACTIVE, 
     SEQ_STAGE2_WAIT_LIMIT,
     SEQ_COMPLETE,
-    SEQ_ABORT
+    SEQ_ABORT,
+    
+    // Manual operation states
+    SEQ_MANUAL_EXTEND_ACTIVE,
+    SEQ_MANUAL_RETRACT_ACTIVE
+};
+
+enum SequenceType {
+    SEQ_TYPE_AUTOMATIC,      // Full extend->retract cycle
+    SEQ_TYPE_MANUAL_EXTEND,  // Manual extend with safety
+    SEQ_TYPE_MANUAL_RETRACT  // Manual retract with safety
 };
 
 class SequenceController {
 private:
     // State management
     SequenceState currentState = SEQ_IDLE;
+    SequenceType sequenceType = SEQ_TYPE_AUTOMATIC;
     unsigned long stateEntryTime = 0;
     unsigned long lastLimitChangeTime = 0;
     
@@ -40,6 +51,7 @@ private:
     
     // Error management integration
     class SystemErrorManager* errorManager = nullptr;
+    class InputManager* inputManager = nullptr;
     
     // Helper methods
     void enterState(SequenceState newState);
@@ -47,6 +59,11 @@ private:
     bool checkStableLimit(uint8_t pin, bool active);
     void abortSequence(const char* reason);
     bool areStartButtonsActive(const bool* pinStates);
+    
+    // Manual operation handlers
+    void handleManualExtend();
+    void handleManualRetract();
+    void checkManualStopConditions();
     
 public:
     SequenceController() = default;
@@ -56,6 +73,7 @@ public:
     void setStartStableTime(unsigned long ms) { startStableTimeMs = ms; }
     void setTimeout(unsigned long ms) { timeoutMs = ms; }
     void setErrorManager(class SystemErrorManager* em) { errorManager = em; }
+    void setInputManager(class InputManager* im) { inputManager = im; }
     
     unsigned long getStableTime() const { return stableTimeMs; }
     unsigned long getStartStableTime() const { return startStableTimeMs; }
@@ -63,8 +81,13 @@ public:
     
     // State access
     bool isActive() const { return currentState != SEQ_IDLE; }
+    bool isManualActive() const { 
+        return currentState == SEQ_MANUAL_EXTEND_ACTIVE || 
+               currentState == SEQ_MANUAL_RETRACT_ACTIVE; 
+    }
     uint8_t getStage() const;
     SequenceState getState() const { return currentState; }
+    SequenceType getType() const { return sequenceType; }
     unsigned long getElapsedTime() const;
     
     // Main processing
@@ -77,6 +100,11 @@ public:
     void enableSequence() { sequenceDisabled = false; }
     void disableSequence() { sequenceDisabled = true; }
     bool isSequenceEnabled() const { return !sequenceDisabled; }
+    
+    // Manual operation interface (called by command processor)
+    bool startManualExtend();
+    bool startManualRetract();
+    bool stopManualOperation();
     
     // Status for telemetry
     void getStatusString(char* buffer, size_t bufferSize);

@@ -3,6 +3,7 @@
 #include "network_manager.h"
 #include "pressure_manager.h"
 #include "system_error_manager.h"
+#include "input_manager.h"
 #include "logger.h"
 #include "constants.h"
 
@@ -18,8 +19,8 @@ extern PressureManager pressureManager;
 
 void SequenceController::enterState(SequenceState newState) {
     if (currentState != newState) {
-        LOG_INFO("SEQ: State change %d -> %d", (int)currentState, (int)newState);
-        debugPrintf("[SEQ] State change: %d -> %d\n", (int)currentState, (int)newState);
+        LOG_INFO("SEQ: State change %d -> %d (type: %d)", (int)currentState, (int)newState, (int)sequenceType);
+        debugPrintf("[SEQ] State change: %d -> %d (type: %d)\n", (int)currentState, (int)newState, (int)sequenceType);
         currentState = newState;
         stateEntryTime = millis();
         
@@ -66,11 +67,11 @@ bool SequenceController::checkStableLimit(uint8_t pin, bool active) {
 void SequenceController::abortSequence(const char* reason) {
     // Use appropriate log level based on reason
     if (reason && strcmp(reason, "timeout") == 0) {
-        LOG_CRITICAL("SEQ: Sequence TIMEOUT - aborting operation");
+        LOG_CRITICAL("SEQ: Sequence TIMEOUT - aborting operation (type: %d)", (int)sequenceType);
     } else {
-        LOG_INFO("SEQ: Aborting sequence: %s", reason ? reason : "unknown");
+        LOG_INFO("SEQ: Aborting sequence: %s (type: %d)", reason ? reason : "unknown", (int)sequenceType);
     }
-    debugPrintf("[SEQ] Aborting sequence: %s\n", reason ? reason : "unknown");
+    debugPrintf("[SEQ] Aborting sequence: %s (type: %d)\n", reason ? reason : "unknown", (int)sequenceType);
     
     // Turn off all hydraulic relays involved in sequence
     if (g_relayController) {
@@ -79,6 +80,7 @@ void SequenceController::abortSequence(const char* reason) {
     }
     
     // Reset state
+    sequenceType = SEQ_TYPE_AUTOMATIC;
     enterState(SEQ_IDLE);
     allowButtonRelease = false;
     pendingPressPin = 0;
@@ -178,6 +180,14 @@ void SequenceController::update() {
                     g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "started_R1");
                 }
             }
+            break;
+            
+        case SEQ_MANUAL_EXTEND_ACTIVE:
+            handleManualExtend();
+            break;
+            
+        case SEQ_MANUAL_RETRACT_ACTIVE:
+            handleManualRetract();
             break;
             
         case SEQ_STAGE1_ACTIVE:
@@ -409,4 +419,216 @@ void SequenceController::publishIndividualData() {
     
     snprintf(buffer, sizeof(buffer), "%lu", getElapsedTime());
     g_networkManager->publish(TOPIC_SEQUENCE_ELAPSED, buffer);
+}
+
+// Manual operation methods
+
+bool SequenceController::startManualExtend() {
+    if (currentState != SEQ_IDLE) {
+        LOG_WARN("SEQ: Cannot start manual extend - sequence active (state: %d)", (int)currentState);
+        return false;
+    }
+    
+    // Check if sequence is disabled (timeout lockout)
+    if (sequenceDisabled) {
+        LOG_WARN("SEQ: Manual extend blocked - controller disabled due to timeout");
+        return false;
+    }
+    
+    // Safety check: verify we're not already at extend limit
+    if (inputManager && inputManager->getPinState(LIMIT_EXTEND_PIN)) {
+        LOG_WARN("SEQ: Manual extend blocked - already at extend limit");
+        return false;
+    }
+    
+    // Check pressure limit before starting
+    if (pressureManager.isReady()) {
+        float currentPressure = pressureManager.getHydraulicPressure();
+        if (currentPressure >= EXTEND_PRESSURE_LIMIT_PSI) {
+            LOG_WARN("SEQ: Manual extend blocked - pressure limit reached (%.1f >= %.1f PSI)", 
+                     currentPressure, EXTEND_PRESSURE_LIMIT_PSI);
+            return false;
+        }
+    }
+    
+    // Start manual extend sequence
+    sequenceType = SEQ_TYPE_MANUAL_EXTEND;
+    enterState(SEQ_MANUAL_EXTEND_ACTIVE);
+    
+    if (g_relayController) {
+        g_relayController->setRelay(RELAY_EXTEND, true);
+    }
+    
+    LOG_INFO("SEQ: Manual extend sequence started");
+    
+    // Publish manual extend start
+    if (g_networkManager && g_networkManager->isConnected()) {
+        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "manual_extend");
+        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_extend_started");
+    }
+    
+    return true;
+}
+
+bool SequenceController::startManualRetract() {
+    if (currentState != SEQ_IDLE) {
+        LOG_WARN("SEQ: Cannot start manual retract - sequence active (state: %d)", (int)currentState);
+        return false;
+    }
+    
+    // Check if sequence is disabled (timeout lockout)
+    if (sequenceDisabled) {
+        LOG_WARN("SEQ: Manual retract blocked - controller disabled due to timeout");
+        return false;
+    }
+    
+    // Safety check: verify we're not already at retract limit
+    if (inputManager && inputManager->getPinState(LIMIT_RETRACT_PIN)) {
+        LOG_WARN("SEQ: Manual retract blocked - already at retract limit");
+        return false;
+    }
+    
+    // Check pressure limit before starting
+    if (pressureManager.isReady()) {
+        float currentPressure = pressureManager.getHydraulicPressure();
+        if (currentPressure >= RETRACT_PRESSURE_LIMIT_PSI) {
+            LOG_WARN("SEQ: Manual retract blocked - pressure limit reached (%.1f >= %.1f PSI)", 
+                     currentPressure, RETRACT_PRESSURE_LIMIT_PSI);
+            return false;
+        }
+    }
+    
+    // Start manual retract sequence
+    sequenceType = SEQ_TYPE_MANUAL_RETRACT;
+    enterState(SEQ_MANUAL_RETRACT_ACTIVE);
+    
+    if (g_relayController) {
+        g_relayController->setRelay(RELAY_RETRACT, true);
+    }
+    
+    LOG_INFO("SEQ: Manual retract sequence started");
+    
+    // Publish manual retract start
+    if (g_networkManager && g_networkManager->isConnected()) {
+        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "manual_retract");
+        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_retract_started");
+    }
+    
+    return true;
+}
+
+bool SequenceController::stopManualOperation() {
+    if (!isManualActive()) {
+        return false; // No manual operation to stop
+    }
+    
+    // Stop the appropriate relay
+    if (currentState == SEQ_MANUAL_EXTEND_ACTIVE && g_relayController) {
+        g_relayController->setRelay(RELAY_EXTEND, false);
+        LOG_INFO("SEQ: Manual extend stopped by user command");
+    } else if (currentState == SEQ_MANUAL_RETRACT_ACTIVE && g_relayController) {
+        g_relayController->setRelay(RELAY_RETRACT, false);
+        LOG_INFO("SEQ: Manual retract stopped by user command");
+    }
+    
+    // Return to idle
+    sequenceType = SEQ_TYPE_AUTOMATIC;
+    enterState(SEQ_IDLE);
+    
+    // Publish manual stop
+    if (g_networkManager && g_networkManager->isConnected()) {
+        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "stopped");
+        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_stopped");
+    }
+    
+    return true;
+}
+
+void SequenceController::handleManualExtend() {
+    // Check for extend limit (physical switch OR pressure-based limit)
+    bool extendLimitReached = false;
+    
+    if (inputManager) {
+        extendLimitReached = inputManager->getPinState(LIMIT_EXTEND_PIN);
+    }
+    
+    // Check pressure-based extend limit (parallel check)
+    if (pressureManager.isReady()) {
+        float currentPressure = pressureManager.getHydraulicPressure();
+        if (currentPressure >= EXTEND_PRESSURE_LIMIT_PSI) {
+            extendLimitReached = true;
+            debugPrintf("[SEQ] Manual extend pressure limit reached: %.1f PSI >= %.1f PSI\n", 
+                       currentPressure, EXTEND_PRESSURE_LIMIT_PSI);
+        }
+    }
+    
+    if (extendLimitReached) {
+        // Stop extend relay immediately
+        if (g_relayController) {
+            g_relayController->setRelay(RELAY_EXTEND, false);
+        }
+        
+        LOG_INFO("SEQ: Manual extend stopped - limit reached");
+        
+        // Return to idle
+        sequenceType = SEQ_TYPE_AUTOMATIC;
+        enterState(SEQ_IDLE);
+        
+        // Publish manual extend complete
+        if (g_networkManager && g_networkManager->isConnected()) {
+            g_networkManager->publish(TOPIC_SEQUENCE_STATE, "limit_reached");
+            g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_extend_limit_reached");
+        }
+        return;
+    }
+    
+    // Check for timeout
+    checkTimeout();
+}
+
+void SequenceController::handleManualRetract() {
+    // Check for retract limit (physical switch OR pressure-based limit)
+    bool retractLimitReached = false;
+    
+    if (inputManager) {
+        retractLimitReached = inputManager->getPinState(LIMIT_RETRACT_PIN);
+    }
+    
+    // Check pressure-based retract limit (parallel check)
+    if (pressureManager.isReady()) {
+        float currentPressure = pressureManager.getHydraulicPressure();
+        if (currentPressure >= RETRACT_PRESSURE_LIMIT_PSI) {
+            retractLimitReached = true;
+            debugPrintf("[SEQ] Manual retract pressure limit reached: %.1f PSI >= %.1f PSI\n", 
+                       currentPressure, RETRACT_PRESSURE_LIMIT_PSI);
+        }
+    }
+    
+    if (retractLimitReached) {
+        // Stop retract relay immediately
+        if (g_relayController) {
+            g_relayController->setRelay(RELAY_RETRACT, false);
+        }
+        
+        LOG_INFO("SEQ: Manual retract stopped - limit reached");
+        
+        // Return to idle
+        sequenceType = SEQ_TYPE_AUTOMATIC;
+        enterState(SEQ_IDLE);
+        
+        // Publish manual retract complete
+        if (g_networkManager && g_networkManager->isConnected()) {
+            g_networkManager->publish(TOPIC_SEQUENCE_STATE, "limit_reached");
+            g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_retract_limit_reached");
+        }
+        return;
+    }
+    
+    // Check for timeout
+    checkTimeout();
+}
+
+void SequenceController::checkManualStopConditions() {
+    // This method can be expanded later for additional stop conditions
+    // For now, limits and timeouts are handled in the individual handlers
 }

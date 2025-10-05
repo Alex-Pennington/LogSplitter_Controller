@@ -595,6 +595,61 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
 }
 
 void CommandProcessor::handleRelay(char* relayToken, char* stateToken, char* response, size_t responseSize) {
+    if (!relayToken || !stateToken) {
+        snprintf(response, responseSize, "relay command failed - invalid parameters");
+        return;
+    }
+    
+    // Parse relay number (expect format like "R1", "R2", etc.)
+    int relayNum = atoi(relayToken + 1); // Skip 'R' prefix
+    
+    // Parse state
+    bool on;
+    if (strcasecmp(stateToken, "ON") == 0 || strcasecmp(stateToken, "1") == 0) {
+        on = true;
+    } else if (strcasecmp(stateToken, "OFF") == 0 || strcasecmp(stateToken, "0") == 0) {
+        on = false;
+    } else {
+        snprintf(response, responseSize, "relay command failed - invalid state");
+        return;
+    }
+    
+    // Intercept hydraulic relay commands (R1 = extend, R2 = retract)
+    if (sequenceController && (relayNum == 1 || relayNum == 2)) {
+        if (relayNum == 1) { // R1 = Extend
+            if (on) {
+                if (sequenceController->startManualExtend()) {
+                    snprintf(response, responseSize, "manual extend started (safety-monitored)");
+                } else {
+                    snprintf(response, responseSize, "manual extend blocked - check limits/pressure/status");
+                }
+            } else {
+                if (sequenceController->stopManualOperation()) {
+                    snprintf(response, responseSize, "manual operation stopped");
+                } else {
+                    snprintf(response, responseSize, "no manual operation to stop");
+                }
+            }
+            return;
+        } else if (relayNum == 2) { // R2 = Retract
+            if (on) {
+                if (sequenceController->startManualRetract()) {
+                    snprintf(response, responseSize, "manual retract started (safety-monitored)");
+                } else {
+                    snprintf(response, responseSize, "manual retract blocked - check limits/pressure/status");
+                }
+            } else {
+                if (sequenceController->stopManualOperation()) {
+                    snprintf(response, responseSize, "manual operation stopped");
+                } else {
+                    snprintf(response, responseSize, "no manual operation to stop");
+                }
+            }
+            return;
+        }
+    }
+    
+    // For all other relays (R3-R9), use normal relay controller
     if (relayController && relayController->processCommand(relayToken, stateToken)) {
         snprintf(response, responseSize, "relay %s %s", relayToken, stateToken);
     } else {
