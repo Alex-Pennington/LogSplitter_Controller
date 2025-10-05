@@ -389,6 +389,6 @@ LED Timing: Hardware timer-based patterns
 ---
 
 **Mill Lamp Hardware**: Pin 9, Active HIGH, External LED recommended for visibility  
-**Error Storage**: Persistent across reboots until cleared  
+**Error Storage**: Volatile (cleared on reboot) - ongoing issues will be re-detected  
 **Safety Integration**: Independent of critical safety systems  
 **Update Frequency**: 100ms LED pattern updates, real-time error detection
