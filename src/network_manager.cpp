@@ -192,13 +192,21 @@ void NetworkManager::updateMQTTConnection() {
 }
 
 void NetworkManager::update() {
-    // Network bypass mode - skip all network operations if enabled
-    if (networkBypassMode) {
-        return;
-    }
-    
     unsigned long updateStart = millis();
     unsigned long now = updateStart;
+    
+    // Check if we should retry network operations after bypass mode
+    if (networkBypassMode) {
+        if (now - bypassModeStartTime >= BYPASS_RETRY_INTERVAL_MS) {
+            LOG_INFO("Attempting to restore network operations after %lums bypass", 
+                     now - bypassModeStartTime);
+            networkBypassMode = false;
+            bypassModeStartTime = 0;
+        } else {
+            // Still in bypass mode - skip all network operations
+            return;
+        }
+    }
     
     // Update connection state machines (completely non-blocking)
     updateWiFiConnection();
@@ -283,10 +291,13 @@ void NetworkManager::update() {
     if (totalUpdateTime > NETWORK_BYPASS_THRESHOLD_MS) {
         LOG_ERROR("Network update took %lums (threshold: %lums) - enabling bypass mode", 
                  totalUpdateTime, NETWORK_BYPASS_THRESHOLD_MS);
+        if (!networkBypassMode) {
+            bypassModeStartTime = millis();
+        }
         networkBypassMode = true;
-    } else if (totalUpdateTime > MAX_UPDATE_TIMEOUT_MS) {
-        LOG_WARN("Network update took %lums (exceeds %lums threshold)", 
-                totalUpdateTime, MAX_UPDATE_TIMEOUT_MS);
+    } else if (totalUpdateTime > NETWORK_WARNING_THRESHOLD_MS) {
+        LOG_WARN("Network update took %lums (warning threshold: %lums)", 
+                totalUpdateTime, NETWORK_WARNING_THRESHOLD_MS);
     }
 }
 
@@ -574,8 +585,10 @@ void NetworkManager::enableNetworkBypass(bool enable) {
     if (networkBypassMode != enable) {
         networkBypassMode = enable;
         if (enable) {
+            bypassModeStartTime = millis();
             LOG_WARN("Network bypass mode ENABLED - all network operations suspended");
         } else {
+            bypassModeStartTime = 0;
             LOG_INFO("Network bypass mode DISABLED - network operations restored");
         }
     }

@@ -54,10 +54,13 @@ private:
     
     // Network bypass and timeout protection
     bool networkBypassMode = false;
+    unsigned long bypassModeStartTime = 0;
     unsigned long lastUpdateTime = 0;
     unsigned long maxUpdateTime = 0;
     static const unsigned long MAX_UPDATE_TIMEOUT_MS = 100; // 100ms max for update()
-    static const unsigned long NETWORK_BYPASS_THRESHOLD_MS = 500; // Bypass if update() takes >500ms
+    static const unsigned long NETWORK_BYPASS_THRESHOLD_MS = 1500; // Bypass if update() takes >1.5s (was 500ms)
+    static const unsigned long NETWORK_WARNING_THRESHOLD_MS = 500; // Warn if update() takes >500ms
+    static const unsigned long BYPASS_RETRY_INTERVAL_MS = 30000; // Retry network after 30s in bypass mode
     
     // Connection helpers (now non-blocking)
     void updateWiFiConnection();
