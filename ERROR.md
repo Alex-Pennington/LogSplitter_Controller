@@ -65,7 +65,7 @@ These errors trigger immediate fast blinking and require urgent attention:
 - **Impact**: System instability, potential crashes, network failures
 - **Resolution**:
   - Restart system: `reset system`
-  - Monitor memory usage: `status` command
+  - Monitor memory usage: `show` command
   - If persistent: Firmware investigation required
 
 #### ERROR_HARDWARE_FAULT (0x40)
@@ -209,7 +209,7 @@ These errors trigger solid or slow blinking patterns:
   ```
 - **Impact**: System using default values, some features may be disabled
 - **Resolution**:
-  - Review configuration via `status` command
+  - Review configuration via `show` command
   - Reconfigure invalid parameters
   - Reset to defaults if necessary
 
@@ -254,8 +254,11 @@ These errors trigger solid or slow blinking patterns:
 Errors: 2 active (1 unacked), uptime: 1547s, LED: SLOW
 
 # Show complete system status
-> status
-System Status: RUNNING
+> show
+Pressure: Main=2450.5 PSI, Hydraulic=2340.2 PSI
+Sequence: IDLE, Safety: OK
+Relays: R1=OFF(RETRACT) R2=OFF(EXTEND)
+Safety: Manual Override=OFF, Pressure OK
 Active Errors: 2 (ERROR_SENSOR_FAULT, ERROR_NETWORK_PERSISTENT)
 Mill Lamp: SLOW_BLINK
 Uptime: 25m 47s
@@ -341,7 +344,7 @@ LED Timing: Hardware timer-based patterns
 ## Troubleshooting Quick Reference
 
 ### Fast Blinking Mill Lamp
-1. Check system memory: `status` → look for free memory
+1. Check system memory: `show` → look for free memory
 2. Verify EEPROM: `error list` → look for 0x01
 3. Test hardware: Use built-in diagnostics
 4. **Immediate Action**: Consider system restart for critical errors
