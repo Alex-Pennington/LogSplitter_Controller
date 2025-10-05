@@ -7,9 +7,17 @@
 extern void debugPrintf(const char* fmt, ...);
 
 void SafetySystem::begin() {
-    // Initialize engine to running state (turn OFF Relay 8 - engine runs when relay is OFF)
+    // Initialize engine to running state (turn ON Relay 8 - engine runs when relay is ON)
+    debugPrintf("SafetySystem: Initializing engine to running state...\n");
+    
+    // Small delay to ensure relay board is ready after power-on
+    delay(100);
+    
+    // Force engine initialization by setting it to stopped first, then starting
+    engineStopped = true;  // Force state change
     setEngineStop(false);  // Start engine on system startup
-    LOG_INFO("SafetySystem: Engine started - relay R8 initialized to OFF (running state)");
+    LOG_WARN("SafetySystem: Engine started - relay R8 initialized to ON (running state)");
+    debugPrintf("SafetySystem: Engine initialization complete\n");
 }
 
 void SafetySystem::setEngineStop(bool stop) {
@@ -17,16 +25,18 @@ void SafetySystem::setEngineStop(bool stop) {
         engineStopped = stop;
         
         // Control engine via Relay 8 through relay controller
+        // Engine ON = Relay R8 ON, Engine OFF = Relay R8 OFF
         if (relayController) {
-            relayController->setRelay(RELAY_ENGINE_STOP, stop, false); // false = automatic operation
-            debugPrintf("Engine %s via relay R%d\n", stop ? "STOPPED" : "STARTED", RELAY_ENGINE_STOP);
+            relayController->setRelay(RELAY_ENGINE_STOP, !stop, false); // Invert: !stop means ON when not stopping
+            debugPrintf("Engine %s via relay R%d %s\n", stop ? "STOPPED" : "STARTED", RELAY_ENGINE_STOP, stop ? "OFF" : "ON");
         } else {
             debugPrintf("Engine control failed - relay controller not available\n");
         }
         
-        // Publish engine state change
+        // Publish engine state change with new topic hierarchy
         if (networkManager && networkManager->isConnected()) {
-            networkManager->publish("r4/engine/stopped", stop ? "1" : "0");
+            networkManager->publish("controller/engine/stopped", stop ? "true" : "false");
+            networkManager->publish("controller/engine/running", stop ? "false" : "true");
         }
     }
 }

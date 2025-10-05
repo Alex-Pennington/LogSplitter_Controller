@@ -277,6 +277,7 @@ bool initializeSystem() {
     safetySystem.setRelayController(&relayController);
     safetySystem.setNetworkManager(&networkManager);
     safetySystem.setSequenceController(&sequenceController);
+    safetySystem.begin();  // Initialize engine relay to running state
     
     // Initialize system error manager
     systemErrorManager.begin();
