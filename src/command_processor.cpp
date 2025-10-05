@@ -12,6 +12,13 @@
 #include "logger.h"
 #include <ctype.h>
 
+// For system reset functionality on Arduino UNO R4 WiFi
+#ifdef ARDUINO_ARCH_RENESAS_UNO
+extern "C" {
+    void NVIC_SystemReset(void);
+}
+#endif
+
 extern void debugPrintf(const char* fmt, ...);
 
 // External debug flag
@@ -741,7 +748,7 @@ void CommandProcessor::handleBypass(char* param, char* response, size_t response
 
 void CommandProcessor::handleReset(char* param, char* response, size_t responseSize) {
     if (!param) {
-        snprintf(response, responseSize, "usage: reset estop");
+        snprintf(response, responseSize, "usage: reset estop|system");
         return;
     }
     
@@ -766,8 +773,24 @@ void CommandProcessor::handleReset(char* param, char* response, size_t responseS
         } else {
             snprintf(response, responseSize, "E-Stop not latched - no reset needed");
         }
-    } else {
-        snprintf(response, responseSize, "unknown reset parameter: %s", param);
+    }
+    else if (strcasecmp(param, "system") == 0) {
+        snprintf(response, responseSize, "System reset initiated - rebooting...");
+        Serial.println("SYSTEM RESET: Complete system reboot initiated via command");
+        Serial.flush(); // Ensure message is sent before reset
+        delay(100);     // Brief delay to send response
+        
+        // Perform system reset - equivalent to power cycle
+        #ifdef ARDUINO_ARCH_RENESAS_UNO
+        // For Arduino UNO R4 WiFi
+        NVIC_SystemReset();
+        #else
+        // Fallback for other Arduino architectures
+        asm volatile ("  jmp 0");
+        #endif
+    } 
+    else {
+        snprintf(response, responseSize, "unknown reset parameter: %s (try: estop, system)", param);
     }
 }
 

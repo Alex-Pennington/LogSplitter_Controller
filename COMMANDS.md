@@ -106,7 +106,7 @@ wifi=OK mqtt=OK stable=YES disconnects=2 fails=0 uptime=1247s
 - ✅ **Health metrics** for diagnostics and troubleshooting
 
 ### 5. RESET
-**Description**: Reset system components from fault states
+**Description**: Reset system components from fault states or perform complete system reboot
 **Syntax**: `reset <component>`
 **Access**: Serial + MQTT
 
@@ -138,6 +138,36 @@ E-Stop not latched - no reset needed
 - ⚠️ **CONFIRM**: All personnel are clear of hydraulic equipment before reset
 - ✅ Reset only clears the software latch - hardware E-Stop must be manually released
 - ✅ Safety system integration prevents unsafe operation
+
+##### Complete System Reset
+**Parameter**: `system`
+**Function**: Perform complete system reboot equivalent to power cycling
+
+**Examples**:
+```
+> reset system
+System reset initiated - rebooting...
+[System reboots immediately]
+```
+
+**Reset Effects**:
+- **Complete Hardware Reset**: Equivalent to power off/on cycle
+- **All Variables Reset**: All runtime variables return to default values
+- **Network Reconnection**: WiFi and MQTT connections will be re-established
+- **Configuration Preserved**: EEPROM settings remain intact
+- **Immediate Effect**: System reboots within ~100ms of command execution
+
+**Use Cases**:
+- Recovery from system lockup or unresponsive state
+- Clearing memory corruption or stack overflow issues
+- Full system refresh after configuration changes
+- Emergency recovery when other reset methods fail
+
+**Safety Notes**:
+- ⚠️ **WARNING**: All active hydraulic operations will stop immediately
+- ⚠️ **VERIFY**: Ensure hydraulic cylinders are in safe position before reset
+- ✅ Safety systems will reinitialize with full protection on reboot
+- ✅ E-Stop state will be re-evaluated on startup
 
 ### 6. PINS
 **Description**: Display current PIN mode configuration for all Arduino pins
