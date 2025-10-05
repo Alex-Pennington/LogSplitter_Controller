@@ -181,8 +181,8 @@ mqtt status             # Show MQTT broker configuration
 
 ### Configuration Commands
 ```bash
-config syslog <ip>      # Set syslog server IP
-config mqtt <host>      # Set MQTT broker host
+set syslog <ip>         # Set syslog server IP
+set mqtt <host>         # Set MQTT broker host
 ```
 
 ## 📚 Documentation

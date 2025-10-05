@@ -271,12 +271,12 @@ A5 offset set -10.500000
 
 ##### Syslog Configuration
 - **syslog** - Configure rsyslog server IP address and port for centralized logging
-  **Syntax**: `config syslog <ip>` or `config syslog <ip>:<port>`
+  **Syntax**: `set syslog <ip>` or `set syslog <ip>:<port>`
   ```
-  > config syslog 192.168.1.238
+  > set syslog 192.168.1.238
   syslog server set to 192.168.1.238:514
   
-  > config syslog 192.168.1.100:1514
+  > set syslog 192.168.1.100:1514
   syslog server set to 192.168.1.100:1514
   ```
   
@@ -288,12 +288,12 @@ A5 offset set -10.500000
 
 ##### MQTT Broker Configuration
 - **mqtt** - Configure MQTT broker host and port for real-time telemetry
-  **Syntax**: `config mqtt <host>` or `config mqtt <host>:<port>`
+  **Syntax**: `set mqtt <host>` or `set mqtt <host>:<port>`
   ```
-  > config mqtt 192.168.1.100
+  > set mqtt 192.168.1.100
   mqtt broker set to 192.168.1.100:1883
   
-  > config mqtt broker.example.com:8883
+  > set mqtt broker.example.com:8883
   mqtt broker set to broker.example.com:8883
   ```
   
@@ -385,7 +385,7 @@ mqtt broker: 159.203.138.46:1883, wifi: connected, mqtt: connected, local IP: 19
 - **Authentication**: Optional username/password support (if configured)
 
 **Runtime Configuration**:
-- Configure MQTT broker with `config mqtt <host>` or `config mqtt <host>:<port>`
+- Configure MQTT broker with `set mqtt <host>` or `set mqtt <host>:<port>`
 - Changes take effect immediately (disconnects and reconnects to new broker)
 - Test connectivity with `mqtt test` command
 - Monitor status with `mqtt status` command
