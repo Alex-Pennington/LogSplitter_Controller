@@ -9,7 +9,10 @@
 #include "system_error_manager.h"
 #include "system_test_suite.h"
 #include "input_manager.h"
+#include "command_processor.h"
+#include "arduino_secrets.h"
 #include "logger.h"
+#include "constants.h"
 #include <ctype.h>
 
 // For system reset functionality on Arduino UNO R4 WiFi
@@ -163,11 +166,11 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network, reset, error, test, loglevel [0-7], bypass, syslog, mqtt";
+    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], bypass, syslog, mqtt";
     if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF", helpText);
+        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi", helpText);
     } else {
-        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF", helpText);
+        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately", helpText);
     }
 }
 
@@ -585,11 +588,19 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
                 }
             }
             
-            networkManager->setSyslogServer(value, port);
-            if (portPtr) {
-                snprintf(response, responseSize, "syslog server set to %s:%d", value, port);
+            // Use live reconfiguration method
+            if (networkManager->reconfigureSyslog(value, port)) {
+                if (portPtr) {
+                    snprintf(response, responseSize, "syslog server set to %s:%d (applied immediately)", value, port);
+                } else {
+                    snprintf(response, responseSize, "syslog server set to %s:%d (applied immediately)", value, SYSLOG_PORT);
+                }
             } else {
-                snprintf(response, responseSize, "syslog server set to %s:%d", value, SYSLOG_PORT);
+                if (portPtr) {
+                    snprintf(response, responseSize, "syslog server set to %s:%d (connection test failed)", value, port);
+                } else {
+                    snprintf(response, responseSize, "syslog server set to %s:%d (connection test failed)", value, SYSLOG_PORT);
+                }
             }
         } else {
             snprintf(response, responseSize, "Network manager not available");
@@ -610,11 +621,19 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
                 }
             }
             
-            networkManager->setMqttBroker(value, port);
-            if (portPtr) {
-                snprintf(response, responseSize, "mqtt broker set to %s:%d", value, port);
+            // Use live reconfiguration method
+            if (networkManager->reconfigureMQTT(value, port)) {
+                if (portPtr) {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (applied immediately)", value, port);
+                } else {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (applied immediately)", value, BROKER_PORT);
+                }
             } else {
-                snprintf(response, responseSize, "mqtt broker set to %s:%d", value, BROKER_PORT);
+                if (portPtr) {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (will retry connection)", value, port);
+                } else {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (will retry connection)", value, BROKER_PORT);
+                }
             }
         } else {
             snprintf(response, responseSize, "Network manager not available");
@@ -709,11 +728,66 @@ void CommandProcessor::handleDebug(char* param, char* response, size_t responseS
     }
 }
 
-void CommandProcessor::handleNetwork(char* response, size_t responseSize) {
-    if (networkManager) {
-        networkManager->getHealthString(response, responseSize);
-    } else {
+void CommandProcessor::handleNetwork(char* param, char* response, size_t responseSize) {
+    if (!networkManager) {
         snprintf(response, responseSize, "network manager not available");
+        return;
+    }
+    
+    if (!param) {
+        // Default: show network status
+        networkManager->getHealthString(response, responseSize);
+        return;
+    }
+    
+    if (strcasecmp(param, "status") == 0) {
+        // Detailed network status
+        char wifiStatus[64];
+        if (networkManager->isWiFiConnected()) {
+            snprintf(wifiStatus, sizeof(wifiStatus), "Connected (IP: %s)", WiFi.localIP().toString().c_str());
+        } else {
+            snprintf(wifiStatus, sizeof(wifiStatus), "Disconnected");
+        }
+        
+        snprintf(response, responseSize, 
+                "Network Status:\n"
+                "WiFi: %s\n"
+                "MQTT: %s\n"
+                "Syslog: %s:%d\n"
+                "Broker: %s:%d\n"
+                "Bypass: %s",
+                wifiStatus,
+                networkManager->isMQTTConnected() ? "Connected" : "Disconnected",
+                networkManager->getSyslogServer(), networkManager->getSyslogPort(),
+                networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort(),
+                networkManager->isNetworkBypassed() ? "ENABLED" : "disabled");
+    }
+    else if (strcasecmp(param, "reconnect") == 0) {
+        // Force WiFi reconnection with current credentials
+        if (networkManager->reconfigureWiFi(SECRET_SSID, SECRET_PASS)) {
+            snprintf(response, responseSize, "WiFi reconnection initiated");
+        } else {
+            snprintf(response, responseSize, "WiFi reconnection failed to start");
+        }
+    }
+    else if (strcasecmp(param, "mqtt_reconnect") == 0) {
+        // Force MQTT reconnection with current broker settings
+        if (networkManager->reconfigureMQTT(networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort())) {
+            snprintf(response, responseSize, "MQTT reconnection initiated");
+        } else {
+            snprintf(response, responseSize, "MQTT reconnection failed");
+        }
+    }
+    else if (strcasecmp(param, "syslog_test") == 0) {
+        // Send test message to syslog server
+        if (networkManager->sendSyslog("NetworkManager: Syslog connectivity test message", 6)) {
+            snprintf(response, responseSize, "Syslog test message sent successfully");
+        } else {
+            snprintf(response, responseSize, "Syslog test message failed to send");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "Unknown network command: %s\nAvailable: status, reconnect, mqtt_reconnect, syslog_test", param);
     }
 }
 
@@ -940,7 +1014,8 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         handleDebug(param, response, responseSize);
     }
     else if (strcasecmp(cmd, "network") == 0) {
-        handleNetwork(response, responseSize);
+        char* param = strtok(NULL, " ");
+        handleNetwork(param, response, responseSize);
     }
     else if (strcasecmp(cmd, "bypass") == 0) {
         char* param = strtok(NULL, " ");

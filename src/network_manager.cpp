@@ -599,10 +599,97 @@ void NetworkManager::enableNetworkBypass(bool enable) {
         networkBypassMode = enable;
         if (enable) {
             bypassModeStartTime = millis();
-            LOG_WARN("Network bypass mode ENABLED - all network operations suspended");
+            debugPrintf("Network bypass mode ENABLED - network operations disabled for safety\n");
         } else {
-            bypassModeStartTime = 0;
-            LOG_INFO("Network bypass mode DISABLED - network operations restored");
+            debugPrintf("Network bypass mode DISABLED - resuming normal network operations\n");
+            // Reset connection states to allow fresh connections
+            wifiState = WiFiState::DISCONNECTED;
+            mqttState = MQTTState::DISCONNECTED;
+            lastConnectAttempt = 0;
+            wifiRetries = 0;
+            mqttRetries = 0;
         }
     }
+}
+
+bool NetworkManager::reconfigureMQTT(const char* server, int port) {
+    debugPrintf("NetworkManager: Reconfiguring MQTT to %s:%d\n", server, port);
+    
+    // Check if settings actually changed
+    if (strcmp(server, mqttBrokerHost) == 0 && port == mqttBrokerPort) {
+        debugPrintf("NetworkManager: MQTT settings unchanged\n");
+        return true;
+    }
+    
+    // Disconnect current MQTT connection gracefully
+    if (mqttState == MQTTState::CONNECTED) {
+        mqttClient.stop();
+        debugPrintf("NetworkManager: Disconnected from previous MQTT broker\n");
+    }
+    
+    // Update broker settings
+    setMqttBroker(server, port);
+    
+    // Reset MQTT state for reconnection
+    mqttState = MQTTState::DISCONNECTED;
+    mqttRetries = 0;
+    lastConnectAttempt = 0;
+    
+    debugPrintf("NetworkManager: MQTT reconfigured, will attempt connection on next update\n");
+    return true;
+}
+
+bool NetworkManager::reconfigureSyslog(const char* server, int port) {
+    debugPrintf("NetworkManager: Reconfiguring Syslog to %s:%d\n", server, port);
+    
+    // Check if settings actually changed
+    if (strcmp(server, syslogServer) == 0 && port == syslogPort) {
+        debugPrintf("NetworkManager: Syslog settings unchanged\n");
+        return true;
+    }
+    
+    // Update syslog settings
+    setSyslogServer(server, port);
+    
+    // Test new syslog server with a test message
+    bool testResult = sendSyslog("NetworkManager: Syslog reconfiguration test message", 6); // Info level
+    
+    if (testResult) {
+        debugPrintf("NetworkManager: Syslog reconfiguration successful\n");
+    } else {
+        debugPrintf("NetworkManager: Syslog reconfiguration test failed (server may be unreachable)\n");
+    }
+    
+    return testResult;
+}
+
+bool NetworkManager::reconfigureWiFi(const char* ssid, const char* password) {
+    debugPrintf("NetworkManager: Reconfiguring WiFi to SSID: %s\n", ssid);
+    
+    // Disconnect current WiFi and MQTT connections
+    if (wifiState == WiFiState::CONNECTED) {
+        if (mqttState == MQTTState::CONNECTED) {
+            mqttClient.stop();
+            mqttState = MQTTState::DISCONNECTED;
+        }
+        WiFi.disconnect();
+        debugPrintf("NetworkManager: Disconnected from previous WiFi network\n");
+    }
+    
+    // Update WiFi credentials (would need to store these in ConfigManager for persistence)
+    // For now, just attempt immediate connection with new credentials
+    WiFi.begin(ssid, password);
+    
+    // Reset connection states
+    wifiState = WiFiState::CONNECTING;
+    mqttState = MQTTState::DISCONNECTED;
+    connectStartTime = millis();
+    wifiRetries = 0;
+    mqttRetries = 0;
+    lastConnectAttempt = millis();
+    
+    debugPrintf("NetworkManager: WiFi reconfiguration initiated\n");
+    
+    // Return true immediately - actual connection status will be updated in update() loop
+    return true;
 }

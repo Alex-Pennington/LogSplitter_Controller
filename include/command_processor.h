@@ -48,7 +48,7 @@ private:
     void handleSet(char* param, char* value, char* response, size_t responseSize);
     void handleRelay(char* relayToken, char* stateToken, char* response, size_t responseSize);
     void handleDebug(char* param, char* response, size_t responseSize);
-    void handleNetwork(char* response, size_t responseSize);
+    void handleNetwork(char* param, char* response, size_t responseSize);
     void handleBypass(char* param, char* response, size_t responseSize);
     void handleReset(char* param, char* response, size_t responseSize);
     void handleError(char* param, char* value, char* response, size_t responseSize);

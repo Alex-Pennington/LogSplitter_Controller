@@ -101,11 +101,18 @@ public:
     // Syslog operations
     bool sendSyslog(const char* message, int severity = SYSLOG_SEVERITY);
     void setSyslogServer(const char* server, int port = SYSLOG_PORT);
+    const char* getSyslogServer() const { return syslogServer; }
+    int getSyslogPort() const { return syslogPort; }
     
     // MQTT broker configuration
     void setMqttBroker(const char* host, int port = BROKER_PORT);
     const char* getMqttBrokerHost() const { return mqttBrokerHost; }
     int getMqttBrokerPort() const { return mqttBrokerPort; }
+    
+    // Live reconfiguration methods
+    bool reconfigureMQTT(const char* server, int port);
+    bool reconfigureSyslog(const char* server, int port);
+    bool reconfigureWiFi(const char* ssid, const char* password);
     
     // Access to underlying client for message reading
     MqttClient& getMqttClient() { return mqttClient; }
