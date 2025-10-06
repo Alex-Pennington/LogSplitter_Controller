@@ -239,11 +239,11 @@ help, show, pins, set, relay, debug, network, reset, test, error
 - Health monitoring ensures stability
 
 **Enhanced MQTT Topics** (25+ topics for comprehensive telemetry):
-- Control: `controller/commands`, `controller/status`
-- Pressure: `controller/pressure/*` (hydraulic_system, hydraulic_filter)
-- Relays: `controller/relays/*` (R1, R2, R7, R8 status)
-- Inputs: `controller/inputs/*` (splitter_operator, limit switches)
-- Errors: `controller/errors/*` (status, warnings, critical alerts)
+- Control: `r4/commands`, `r4/status` 
+- Pressure: `r4/pressure/*` (hydraulic_system, hydraulic_filter)
+- Relays: `r4/relays/*` (R1, R2, R7, R8 status)
+- Data: `r4/data/*` (splitter_operator, limit switches, system data)
+- Errors: `r4/system/*` (error status, warnings, critical alerts)
 
 ### 7. Enhanced Safety System (`safety_system.cpp` - 220 lines)
 
