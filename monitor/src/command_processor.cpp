@@ -127,6 +127,16 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* value = strtok(NULL, " ");
         handleTemperature(param, value, response, responseSize);
     }
+    else if (strcasecmp(cmd, "power") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handlePower(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "adc") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleAdc(param, value, response, responseSize);
+    }
     else if (strcasecmp(cmd, "loglevel") == 0) {
         char* param = strtok(NULL, " ");
         handleLogLevel(param, response, responseSize);
@@ -181,6 +191,13 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "temp read      - Read temperature sensors (Fahrenheit)\r\n"
         "temp readc     - Read temperature sensors (Celsius)\r\n"
         "temp local|localc - Local temperature (F/C)\r\n"
+        "power read     - Read power sensor (voltage, current, power)\r\n"
+        "power voltage  - Read bus voltage only\r\n"
+        "power current  - Read current only\r\n"
+        "adc read       - Read ADC sensor voltage and raw value\r\n"
+        "adc voltage    - Read ADC voltage only\r\n"
+        "adc raw        - Read ADC raw value only\r\n"
+        "adc status     - Show ADC sensor status and configuration\r\n"
         "temp remote|remotec - Remote temperature (F/C)\r\n"
         "temp status    - Show temperature sensor status\r\n"
         "temp debug on|off - Toggle temperature sensor debug output\r\n"
@@ -908,6 +925,153 @@ void CommandProcessor::handleTemperature(char* param, char* value, char* respons
     }
     else {
         snprintf(response, responseSize, "unknown temperature command: %s", param);
+    }
+}
+
+void CommandProcessor::handlePower(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "power commands: read, voltage, current, watts, status");
+        return;
+    }
+    
+    if (strcasecmp(param, "read") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getBusVoltage();
+            float current = monitorSystem->getCurrent();
+            float power = monitorSystem->getPower();
+            snprintf(response, responseSize, "%.3fV, %.2fmA, %.2fmW", voltage, current, power);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "voltage") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getBusVoltage();
+            snprintf(response, responseSize, "bus voltage: %.3fV", voltage);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "current") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float current = monitorSystem->getCurrent();
+            snprintf(response, responseSize, "current: %.2fmA", current);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "watts") == 0 || strcasecmp(param, "power") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float power = monitorSystem->getPower();
+            snprintf(response, responseSize, "power: %.2fmW", power);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        float voltage = monitorSystem->getBusVoltage();
+        float current = monitorSystem->getCurrent();
+        float power = monitorSystem->getPower();
+        snprintf(response, responseSize, "INA219: %s, %.3fV, %.2fmA, %.2fmW", 
+                ready ? "READY" : "NOT READY", voltage, current, power);
+    }
+    else {
+        snprintf(response, responseSize, "unknown power command: %s", param);
+    }
+}
+
+void CommandProcessor::handleAdc(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "adc commands: read, voltage, raw, status, config");
+        return;
+    }
+    
+    if (strcasecmp(param, "read") == 0) {
+        bool ready = monitorSystem->isAdcSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getAdcVoltage();
+            int32_t raw = monitorSystem->getAdcRawValue();
+            snprintf(response, responseSize, "%.6fV, raw: %ld", voltage, raw);
+        } else {
+            snprintf(response, responseSize, "ADC sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "voltage") == 0) {
+        bool ready = monitorSystem->isAdcSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getAdcVoltage();
+            snprintf(response, responseSize, "ADC voltage: %.6fV", voltage);
+        } else {
+            snprintf(response, responseSize, "ADC sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "raw") == 0) {
+        bool ready = monitorSystem->isAdcSensorReady();
+        if (ready) {
+            int32_t raw = monitorSystem->getAdcRawValue();
+            snprintf(response, responseSize, "ADC raw: %ld", raw);
+        } else {
+            snprintf(response, responseSize, "ADC sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        char statusBuffer[256];
+        monitorSystem->getAdcSensorStatus(statusBuffer, sizeof(statusBuffer));
+        snprintf(response, responseSize, "%s", statusBuffer);
+    }
+    else if (strcasecmp(param, "config") == 0) {
+        if (!value) {
+            // Show current configuration
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            int resolution = adcSensor->getResolution();
+            int gain = 1 << adcSensor->getGain();
+            snprintf(response, responseSize, "MCP3421: %d-bit, Gain=%dx, Vref=%.3fV", 
+                    resolution, gain, adcSensor->getReferenceVoltage());
+            return;
+        }
+        
+        // Handle configuration changes
+        if (strcasecmp(value, "12bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_12_BIT_240_SPS);
+            snprintf(response, responseSize, "ADC set to 12-bit, 240 SPS");
+        }
+        else if (strcasecmp(value, "14bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_14_BIT_60_SPS);
+            snprintf(response, responseSize, "ADC set to 14-bit, 60 SPS");
+        }
+        else if (strcasecmp(value, "16bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_16_BIT_15_SPS);
+            snprintf(response, responseSize, "ADC set to 16-bit, 15 SPS");
+        }
+        else if (strcasecmp(value, "18bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_18_BIT_3_75_SPS);
+            snprintf(response, responseSize, "ADC set to 18-bit, 3.75 SPS");
+        }
+        else {
+            snprintf(response, responseSize, "usage: adc config [12bit|14bit|16bit|18bit]");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "unknown adc command: %s", param);
     }
 }
 

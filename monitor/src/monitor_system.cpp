@@ -21,6 +21,13 @@ MonitorSystem::MonitorSystem() :
     currentWeight(0.0),
     currentRawWeight(0),
     lastWeightRead(0),
+    currentVoltage(0.0),
+    currentCurrent(0.0),
+    currentPower(0.0),
+    lastPowerRead(0),
+    currentAdcVoltage(0.0),
+    currentAdcRaw(0),
+    lastAdcRead(0),
     publishInterval(STATUS_PUBLISH_INTERVAL_MS),
     heartbeatInterval(HEARTBEAT_INTERVAL_MS),
     lastStatusPublish(0),
@@ -71,6 +78,27 @@ void MonitorSystem::begin() {
             weightSensor.getStatusString());
     }
     
+    // Initialize INA219 power sensor
+    debugPrintf("MonitorSystem: Initializing INA219 power sensor...\n");
+    if (powerSensor.begin(INA219_Range::RANGE_16V_400MA)) {
+        debugPrintf("MonitorSystem: INA219 power sensor initialized successfully (16V/400mA range)\n");
+    } else {
+        debugPrintf("MonitorSystem: INA219 power sensor initialization failed or not present\n");
+    }
+    
+    // Initialize MCP3421 ADC sensor
+    debugPrintf("MonitorSystem: Initializing MCP3421 ADC sensor...\n");
+    if (adcSensor.begin()) {
+        // Set default configuration: 16-bit, 15 SPS, Gain 1x, Continuous mode
+        if (adcSensor.setConfiguration(MCP3421_16_BIT_15_SPS, MCP3421_GAIN_1X, MCP3421_CONTINUOUS)) {
+            debugPrintf("MonitorSystem: MCP3421 ADC sensor initialized successfully (16-bit, 15 SPS, 1x gain)\n");
+        } else {
+            debugPrintf("MonitorSystem: MCP3421 ADC sensor configuration failed\n");
+        }
+    } else {
+        debugPrintf("MonitorSystem: MCP3421 ADC sensor initialization failed or not present\n");
+    }
+    
     setSystemState(SYS_CONNECTING);
     debugPrintf("MonitorSystem: Initialized\n");
 }
@@ -113,6 +141,18 @@ void MonitorSystem::update() {
     if (now - lastWeightRead >= NAU7802_READ_INTERVAL_MS) {
         readWeightSensor();
         lastWeightRead = now;
+    }
+    
+    // Read power sensor periodically
+    if (now - lastPowerRead >= POWER_READ_INTERVAL_MS) {
+        readPowerSensor();
+        lastPowerRead = now;
+    }
+    
+    // Read ADC sensor periodically
+    if (now - lastAdcRead >= ADC_READ_INTERVAL_MS) {
+        readAdcSensor();
+        lastAdcRead = now;
     }
     
     // Update LCD display periodically
@@ -320,6 +360,79 @@ void MonitorSystem::readWeightSensor() {
     }
 }
 
+void MonitorSystem::readPowerSensor() {
+    if (!powerSensor.isConnected()) {
+        return;
+    }
+    
+    // Read power sensor values
+    currentVoltage = powerSensor.getBusVoltage();
+    currentCurrent = powerSensor.getCurrent();
+    currentPower = powerSensor.getPower();
+    
+    // Publish power data to MQTT
+    if (g_networkManager && g_networkManager->isMQTTConnected()) {
+        char valueBuffer[16];
+        
+        // Publish bus voltage
+        snprintf(valueBuffer, sizeof(valueBuffer), "%.3f", currentVoltage);
+        g_networkManager->publish(TOPIC_INA219_VOLTAGE, valueBuffer);
+        
+        // Publish current in mA
+        snprintf(valueBuffer, sizeof(valueBuffer), "%.2f", currentCurrent);
+        g_networkManager->publish(TOPIC_INA219_CURRENT, valueBuffer);
+        
+        // Publish power in mW
+        snprintf(valueBuffer, sizeof(valueBuffer), "%.2f", currentPower);
+        g_networkManager->publish(TOPIC_INA219_POWER, valueBuffer);
+        
+        // Publish comprehensive power sensor status
+        char statusBuffer[128];
+        snprintf(statusBuffer, sizeof(statusBuffer), 
+            "ready: %s, voltage: %.3fV, current: %.2fmA, power: %.2fmW",
+            powerSensor.isConnected() ? "YES" : "NO",
+            currentVoltage,
+            currentCurrent,
+            currentPower);
+        g_networkManager->publish(TOPIC_INA219_STATUS, statusBuffer);
+    }
+}
+
+void MonitorSystem::readAdcSensor() {
+    if (!adcSensor.isConnected()) {
+        return;
+    }
+    
+    // Take ADC reading
+    if (adcSensor.takeReading()) {
+        currentAdcVoltage = adcSensor.getVoltage();
+        currentAdcRaw = adcSensor.getRawValue();
+        
+        // Publish ADC data to MQTT
+        if (g_networkManager && g_networkManager->isMQTTConnected()) {
+            char valueBuffer[16];
+            
+            // Publish voltage reading
+            snprintf(valueBuffer, sizeof(valueBuffer), "%.6f", currentAdcVoltage);
+            g_networkManager->publish(TOPIC_MCP3421_VOLTAGE, valueBuffer);
+            
+            // Publish raw ADC value
+            snprintf(valueBuffer, sizeof(valueBuffer), "%ld", currentAdcRaw);
+            g_networkManager->publish(TOPIC_MCP3421_RAW, valueBuffer);
+            
+            // Publish comprehensive ADC sensor status
+            char statusBuffer[128];
+            snprintf(statusBuffer, sizeof(statusBuffer), 
+                "ready: %s, voltage: %.6fV, raw: %ld, resolution: %d-bit",
+                adcSensor.isConnected() ? "YES" : "NO",
+                currentAdcVoltage,
+                currentAdcRaw,
+                adcSensor.getResolution());
+            g_networkManager->publish(TOPIC_MCP3421_STATUS, statusBuffer);
+        }
+    }
+}
+
 void MonitorSystem::publishStatus() {
     if (!g_networkManager || !g_networkManager->isMQTTConnected()) {
         return;
@@ -496,6 +609,48 @@ bool MonitorSystem::isWeightSensorReady() {
 
 NAU7802Status MonitorSystem::getWeightSensorStatus() const {
     return weightSensor.getLastError();
+}
+
+// INA219 Power Sensor Functions
+float MonitorSystem::getBusVoltage() {
+    return currentVoltage;
+}
+
+float MonitorSystem::getCurrent() {
+    return currentCurrent;
+}
+
+float MonitorSystem::getPower() {
+    return currentPower;
+}
+
+bool MonitorSystem::isPowerSensorReady() {
+    return powerSensor.isConnected();
+}
+
+// MCP3421 ADC Sensor Functions
+float MonitorSystem::getAdcVoltage() {
+    return currentAdcVoltage;
+}
+
+int32_t MonitorSystem::getAdcRawValue() {
+    return currentAdcRaw;
+}
+
+float MonitorSystem::getFilteredAdcVoltage(uint8_t samples) {
+    return adcSensor.getFilteredVoltage(samples);
+}
+
+bool MonitorSystem::isAdcSensorReady() {
+    return adcSensor.isConnected();
+}
+
+void MonitorSystem::getAdcSensorStatus(char* buffer, size_t bufferSize) {
+    adcSensor.getStatusString(buffer, bufferSize);
+}
+
+MCP3421_Sensor* MonitorSystem::getAdcSensor() {
+    return &adcSensor;
 }
 
 bool MonitorSystem::calibrateWeightSensorZero() {

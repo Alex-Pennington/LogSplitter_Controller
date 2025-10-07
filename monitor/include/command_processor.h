@@ -30,6 +30,8 @@ private:
     void handleMonitor(char* param, char* value, char* response, size_t responseSize);
     void handleWeight(char* param, char* value, char* response, size_t responseSize);
     void handleTemperature(char* param, char* value, char* response, size_t responseSize);
+    void handlePower(char* param, char* value, char* response, size_t responseSize);
+    void handleAdc(char* param, char* value, char* response, size_t responseSize);
     void handleLCD(char* param, char* value, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
     void handleHeartbeat(char* param, char* response, size_t responseSize);

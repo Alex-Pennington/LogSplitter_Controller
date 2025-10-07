@@ -3,6 +3,8 @@
 #include "constants.h"
 #include "nau7802_sensor.h"
 #include "mcp9600_sensor.h"
+#include "ina219_sensor.h"
+#include "mcp3421_sensor.h"
 
 class MonitorSystem {
 public:
@@ -38,6 +40,23 @@ public:
     void tareWeightSensor();
     bool saveWeightCalibration();
     bool loadWeightCalibration();
+    
+    // INA219 Power Monitor functions
+    float getBusVoltage();
+    float getShuntVoltage();
+    float getCurrent();
+    float getPower();
+    bool isPowerSensorReady();
+    void getPowerSensorStatus(char* buffer, size_t bufferSize);
+    INA219_Sensor* getPowerSensor(); // Access to sensor for debug control
+    
+    // MCP3421 ADC functions
+    float getAdcVoltage();
+    int32_t getAdcRawValue();
+    float getFilteredAdcVoltage(uint8_t samples = 5);
+    bool isAdcSensorReady();
+    void getAdcSensorStatus(char* buffer, size_t bufferSize);
+    MCP3421_Sensor* getAdcSensor(); // Access to sensor for configuration
     
     // System monitoring
     unsigned long getUptime() const;
@@ -82,6 +101,19 @@ private:
     long currentRawWeight;
     unsigned long lastWeightRead;
     
+    // INA219 Power Monitor Sensor
+    mutable INA219_Sensor powerSensor;
+    float currentVoltage;
+    float currentCurrent;
+    float currentPower;
+    unsigned long lastPowerRead;
+    
+    // MCP3421 ADC Sensor
+    mutable MCP3421_Sensor adcSensor;
+    float currentAdcVoltage;
+    int32_t currentAdcRaw;
+    unsigned long lastAdcRead;
+    
     // Publishing intervals
     unsigned long publishInterval;
     unsigned long heartbeatInterval;
@@ -98,5 +130,7 @@ private:
     void readDigitalInputs();
     void readTemperatureSensor();
     void readWeightSensor();
+    void readPowerSensor();
+    void readAdcSensor();
     void updateLCDDisplay();
 };

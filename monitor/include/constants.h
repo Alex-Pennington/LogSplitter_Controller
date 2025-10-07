@@ -46,6 +46,17 @@ const char TOPIC_NAU7802_RAW[] PROGMEM = "r4/monitor/weight/raw";
 const char TOPIC_NAU7802_STATUS[] PROGMEM = "r4/monitor/weight/status";
 const char TOPIC_NAU7802_CALIBRATION[] PROGMEM = "r4/monitor/weight/calibration";
 
+// INA219 Power Sensor Topics
+const char TOPIC_INA219_VOLTAGE[] PROGMEM = "r4/monitor/power/voltage";
+const char TOPIC_INA219_CURRENT[] PROGMEM = "r4/monitor/power/current";
+const char TOPIC_INA219_POWER[] PROGMEM = "r4/monitor/power/watts";
+const char TOPIC_INA219_STATUS[] PROGMEM = "r4/monitor/power/status";
+
+// MCP3421 ADC Sensor Topics
+const char TOPIC_MCP3421_VOLTAGE[] PROGMEM = "r4/monitor/adc/voltage";
+const char TOPIC_MCP3421_RAW[] PROGMEM = "r4/monitor/adc/raw";
+const char TOPIC_MCP3421_STATUS[] PROGMEM = "r4/monitor/adc/status";
+
 // Pin Configuration (Monitor-specific)
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
@@ -64,6 +75,12 @@ const uint8_t NAU7802_SDA_PIN = SDA;     // I2C Data pin (A4 on Uno R4)
 const uint8_t NAU7802_SCL_PIN = SCL;     // I2C Clock pin (A5 on Uno R4)
 const uint8_t NAU7802_I2C_ADDRESS = 0x2A; // Default NAU7802 I2C address
 const unsigned long NAU7802_READ_INTERVAL_MS = 1000;  // Read every 1 second
+
+// INA219 Power Sensor (I2C)
+const unsigned long POWER_READ_INTERVAL_MS = 2000;    // Read every 2 seconds
+
+// MCP3421 ADC Sensor (I2C)
+const unsigned long ADC_READ_INTERVAL_MS = 1500;      // Read every 1.5 seconds
 
 // Digital I/O
 const uint8_t DIGITAL_INPUT_1 = 2;       // Configurable digital input
