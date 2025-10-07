@@ -25,14 +25,17 @@ MonitorSystem::MonitorSystem() :
     currentCurrent(0.0),
     currentPower(0.0),
     lastPowerRead(0),
+    powerSensorAvailable(false),
     currentAdcVoltage(0.0),
     currentAdcRaw(0),
     lastAdcRead(0),
+    adcSensorAvailable(false),
     publishInterval(STATUS_PUBLISH_INTERVAL_MS),
     heartbeatInterval(HEARTBEAT_INTERVAL_MS),
     lastStatusPublish(0),
     lastHeartbeat(0),
-    lastSensorAvailable(false) {
+    lastSensorAvailable(false),
+    i2cMux(0x70) {  // TCA9548A at address 0x70
     
     // Initialize digital I/O states
     for (int i = 0; i < 8; i++) {
@@ -48,8 +51,19 @@ void MonitorSystem::begin() {
     // Set global pointer for external access
     g_mcp9600Sensor = &temperatureSensor;
     
-    // Initialize MCP9600 temperature sensor first
-    debugPrintf("MonitorSystem: Initializing MCP9600 temperature sensor...");
+    // Initialize I2C multiplexer first
+    debugPrintf("MonitorSystem: Initializing TCA9548A I2C multiplexer...\n");
+    if (i2cMux.begin()) {
+        LOG_INFO("MonitorSystem: TCA9548A multiplexer initialized successfully");
+        debugPrintf("MonitorSystem: I2C multiplexer ready\n");
+    } else {
+        LOG_ERROR("MonitorSystem: TCA9548A multiplexer initialization failed");
+        debugPrintf("MonitorSystem: I2C multiplexer NOT found - sensors may not work!\n");
+    }
+    
+    // Initialize MCP9600 temperature sensor
+    debugPrintf("MonitorSystem: Initializing MCP9600 temperature sensor on channel %d...\n", MCP9600_CHANNEL);
+    i2cMux.selectChannel(MCP9600_CHANNEL);
     if (temperatureSensor.begin()) {
         LOG_INFO("MonitorSystem: MCP9600 temperature sensor initialized successfully");
         
@@ -67,7 +81,8 @@ void MonitorSystem::begin() {
     lastSensorAvailable = temperatureSensor.isAvailable();
     
     // Initialize NAU7802 weight sensor
-    debugPrintf("MonitorSystem: Initializing NAU7802 weight sensor...\n");
+    debugPrintf("MonitorSystem: Initializing NAU7802 weight sensor on channel %d...\n", NAU7802_CHANNEL);
+    i2cMux.selectChannel(NAU7802_CHANNEL);
     NAU7802Status status = weightSensor.begin();
     if (status == NAU7802_OK) {
         debugPrintf("MonitorSystem: NAU7802 weight sensor initialized successfully\n");
@@ -79,28 +94,34 @@ void MonitorSystem::begin() {
     }
     
     // Initialize INA219 power sensor
-    debugPrintf("MonitorSystem: Initializing INA219 power sensor...\n");
-    if (powerSensor.begin(INA219_Range::RANGE_16V_400MA)) {
-        debugPrintf("MonitorSystem: INA219 power sensor initialized successfully (16V/400mA range)\n");
+    debugPrintf("MonitorSystem: Initializing INA219 power sensor on channel %d...\n", INA219_CHANNEL);
+    i2cMux.selectChannel(INA219_CHANNEL);
+    if (powerSensor.begin()) {
+        LOG_INFO("MonitorSystem: INA219 power sensor initialized successfully");
+        powerSensorAvailable = true;
+        debugPrintf("MonitorSystem: INA219 power sensor ready\n");
     } else {
-        debugPrintf("MonitorSystem: INA219 power sensor initialization failed or not present\n");
+        LOG_WARN("MonitorSystem: INA219 power sensor initialization failed or not present");
+        powerSensorAvailable = false;
     }
     
     // Initialize MCP3421 ADC sensor
-    debugPrintf("MonitorSystem: Initializing MCP3421 ADC sensor...\n");
+    debugPrintf("MonitorSystem: Initializing MCP3421 ADC sensor on channel %d...\n", MCP3421_CHANNEL);
+    i2cMux.selectChannel(MCP3421_CHANNEL);
     if (adcSensor.begin()) {
-        // Set default configuration: 16-bit, 15 SPS, Gain 1x, Continuous mode
-        if (adcSensor.setConfiguration(MCP3421_16_BIT_15_SPS, MCP3421_GAIN_1X, MCP3421_CONTINUOUS)) {
-            debugPrintf("MonitorSystem: MCP3421 ADC sensor initialized successfully (16-bit, 15 SPS, 1x gain)\n");
-        } else {
-            debugPrintf("MonitorSystem: MCP3421 ADC sensor configuration failed\n");
-        }
+        LOG_INFO("MonitorSystem: MCP3421 ADC sensor initialized successfully");
+        adcSensorAvailable = true;
+        debugPrintf("MonitorSystem: MCP3421 ADC sensor ready\n");
     } else {
-        debugPrintf("MonitorSystem: MCP3421 ADC sensor initialization failed or not present\n");
+        LOG_WARN("MonitorSystem: MCP3421 ADC sensor initialization failed or not present");
+        adcSensorAvailable = false;
     }
     
+    // Disable all multiplexer channels when done with initialization
+    i2cMux.disableAllChannels();
+    
     setSystemState(SYS_CONNECTING);
-    debugPrintf("MonitorSystem: Initialized\n");
+    debugPrintf("MonitorSystem: All sensors initialized\n");
 }
 
 void MonitorSystem::initializePins() {
@@ -144,16 +165,17 @@ void MonitorSystem::update() {
     }
     
     // Read power sensor periodically
-    if (now - lastPowerRead >= POWER_READ_INTERVAL_MS) {
+    if (now - lastPowerRead >= 2000) { // Read every 2 seconds
         readPowerSensor();
         lastPowerRead = now;
     }
     
-    // Read ADC sensor periodically
-    if (now - lastAdcRead >= ADC_READ_INTERVAL_MS) {
+    // Read ADC sensor periodically  
+    if (now - lastAdcRead >= 1500) { // Read every 1.5 seconds
         readAdcSensor();
         lastAdcRead = now;
     }
+    
     
     // Update LCD display periodically
     static unsigned long lastLCDUpdate = 0;
@@ -215,6 +237,9 @@ void MonitorSystem::readAnalogSensors() {
 void MonitorSystem::readTemperatureSensor() {
     unsigned long now = millis();
     if (now - lastTemperatureRead >= 1000) { // Read every second
+        // Select MCP9600 multiplexer channel
+        i2cMux.selectChannel(MCP9600_CHANNEL);
+        
         bool currentAvailable = temperatureSensor.isAvailable();
         
         // Check for sensor availability state changes
@@ -326,6 +351,9 @@ void MonitorSystem::readDigitalInputs() {
 }
 
 void MonitorSystem::readWeightSensor() {
+    // Select NAU7802 multiplexer channel
+    i2cMux.selectChannel(NAU7802_CHANNEL);
+    
     if (!weightSensor.isConnected()) {
         return;
     }
@@ -361,49 +389,73 @@ void MonitorSystem::readWeightSensor() {
 }
 
 void MonitorSystem::readPowerSensor() {
-    if (!powerSensor.isConnected()) {
+    debugPrintf("MonitorSystem: readPowerSensor() called, available=%s\n", powerSensorAvailable ? "YES" : "NO");
+    
+    // Only attempt to read if sensor was successfully initialized
+    if (!powerSensorAvailable) {
+        debugPrintf("MonitorSystem: Power sensor not available, skipping read\n");
         return;
     }
     
-    // Read power sensor values
-    currentVoltage = powerSensor.getBusVoltage();
-    currentCurrent = powerSensor.getCurrent();
-    currentPower = powerSensor.getPower();
+    // Select INA219 multiplexer channel
+    i2cMux.selectChannel(INA219_CHANNEL);
     
-    // Publish power data to MQTT
-    if (g_networkManager && g_networkManager->isMQTTConnected()) {
-        char valueBuffer[16];
+    debugPrintf("MonitorSystem: Attempting power sensor reading...\n");
+    
+    // Read power sensor values with error checking
+    if (powerSensor.takereading()) {
+        currentVoltage = powerSensor.getBusVoltage();
+        currentCurrent = powerSensor.getCurrent();
+        currentPower = powerSensor.getPower();
         
-        // Publish bus voltage
-        snprintf(valueBuffer, sizeof(valueBuffer), "%.3f", currentVoltage);
-        g_networkManager->publish(TOPIC_INA219_VOLTAGE, valueBuffer);
+        debugPrintf("MonitorSystem: Power reading successful: %.3fV, %.2fmA, %.2fmW\n", 
+                   currentVoltage, currentCurrent, currentPower);
         
-        // Publish current in mA
-        snprintf(valueBuffer, sizeof(valueBuffer), "%.2f", currentCurrent);
-        g_networkManager->publish(TOPIC_INA219_CURRENT, valueBuffer);
-        
-        // Publish power in mW
-        snprintf(valueBuffer, sizeof(valueBuffer), "%.2f", currentPower);
-        g_networkManager->publish(TOPIC_INA219_POWER, valueBuffer);
-        
-        // Publish comprehensive power sensor status
-        char statusBuffer[128];
-        snprintf(statusBuffer, sizeof(statusBuffer), 
-            "ready: %s, voltage: %.3fV, current: %.2fmA, power: %.2fmW",
-            powerSensor.isConnected() ? "YES" : "NO",
-            currentVoltage,
-            currentCurrent,
-            currentPower);
-        g_networkManager->publish(TOPIC_INA219_STATUS, statusBuffer);
+        // Publish power data to MQTT
+        if (g_networkManager && g_networkManager->isMQTTConnected()) {
+            debugPrintf("MonitorSystem: Publishing power data to MQTT\n");
+            char valueBuffer[16];
+            
+            // Publish bus voltage
+            snprintf(valueBuffer, sizeof(valueBuffer), "%.3f", currentVoltage);
+            g_networkManager->publish(TOPIC_INA219_VOLTAGE, valueBuffer);
+            
+            // Publish current in mA
+            snprintf(valueBuffer, sizeof(valueBuffer), "%.2f", currentCurrent);
+            g_networkManager->publish(TOPIC_INA219_CURRENT, valueBuffer);
+            
+            // Publish power in mW
+            snprintf(valueBuffer, sizeof(valueBuffer), "%.2f", currentPower);
+            g_networkManager->publish(TOPIC_INA219_POWER, valueBuffer);
+            
+            // Publish comprehensive power sensor status
+            char statusBuffer[128];
+            snprintf(statusBuffer, sizeof(statusBuffer), 
+                "ready: %s, voltage: %.3fV, current: %.2fmA, power: %.2fmW",
+                powerSensorAvailable ? "YES" : "NO",
+                currentVoltage,
+                currentCurrent,
+                currentPower);
+            g_networkManager->publish(TOPIC_INA219_STATUS, statusBuffer);
+            debugPrintf("MonitorSystem: Power data published to MQTT successfully\n");
+        } else {
+            debugPrintf("MonitorSystem: MQTT not connected, cannot publish power data\n");
+        }
+    } else {
+        debugPrintf("MonitorSystem: Power sensor reading failed\n");
     }
 }
 
 void MonitorSystem::readAdcSensor() {
-    if (!adcSensor.isConnected()) {
+    // Only attempt to read if sensor was successfully initialized
+    if (!adcSensorAvailable) {
         return;
     }
     
-    // Take ADC reading
+    // Select MCP3421 multiplexer channel
+    i2cMux.selectChannel(MCP3421_CHANNEL);
+    
+    // Take ADC reading with error checking
     if (adcSensor.takeReading()) {
         currentAdcVoltage = adcSensor.getVoltage();
         currentAdcRaw = adcSensor.getRawValue();
@@ -424,7 +476,7 @@ void MonitorSystem::readAdcSensor() {
             char statusBuffer[128];
             snprintf(statusBuffer, sizeof(statusBuffer), 
                 "ready: %s, voltage: %.6fV, raw: %ld, resolution: %d-bit",
-                adcSensor.isConnected() ? "YES" : "NO",
+                adcSensorAvailable ? "YES" : "NO",
                 currentAdcVoltage,
                 currentAdcRaw,
                 adcSensor.getResolution());
@@ -510,6 +562,8 @@ float MonitorSystem::getHumidity() const {
 }
 
 bool MonitorSystem::isTemperatureSensorReady() {
+    // Select MCP9600 multiplexer channel before checking availability
+    i2cMux.selectChannel(MCP9600_CHANNEL);
     return temperatureSensor.isAvailable();
 }
 
@@ -625,7 +679,7 @@ float MonitorSystem::getPower() {
 }
 
 bool MonitorSystem::isPowerSensorReady() {
-    return powerSensor.isConnected();
+    return powerSensorAvailable;
 }
 
 // MCP3421 ADC Sensor Functions
@@ -642,7 +696,7 @@ float MonitorSystem::getFilteredAdcVoltage(uint8_t samples) {
 }
 
 bool MonitorSystem::isAdcSensorReady() {
-    return adcSensor.isConnected();
+    return adcSensorAvailable;
 }
 
 void MonitorSystem::getAdcSensorStatus(char* buffer, size_t bufferSize) {
@@ -696,23 +750,32 @@ void MonitorSystem::updateLCDDisplay() {
     // Only update LCD if it's available
     if (!g_lcdDisplay) return;
     
+    // Select LCD multiplexer channel
+    i2cMux.selectChannel(LCD_CHANNEL);
+    
     // Get network status for combined display
     bool wifiConnected = false;
     bool mqttConnected = false;
+    bool syslogWorking = false;
     
     if (g_networkManager) {
         wifiConnected = g_networkManager->isWiFiConnected();
         mqttConnected = g_networkManager->isMQTTConnected();
+        syslogWorking = g_networkManager->isSyslogWorking();
     }
     
     // Update system status with network status and runtime (line 1)
     unsigned long uptime = getUptime();
-    g_lcdDisplay->updateSystemStatus(currentState, uptime, wifiConnected, mqttConnected);
+    g_lcdDisplay->updateSystemStatus(currentState, uptime, wifiConnected, mqttConnected, syslogWorking);
     
     // Update sensor readings (lines 2-3) - Show MCP9600 temperatures in Fahrenheit and weight
-    float displayLocalTempF = (temperatureSensor.isAvailable() && localTemperature > -100.0) ? 
+    // Use temperature values directly - sensor availability checked during sensor reads
+    float displayLocalTempF = (localTemperature > -100.0) ? 
                                (localTemperature * 9.0 / 5.0) + 32.0 : -999.0;
-    float displayRemoteTempF = (temperatureSensor.isAvailable() && remoteTemperature > -100.0) ? 
+    float displayRemoteTempF = (remoteTemperature > -100.0) ? 
                                (remoteTemperature * 9.0 / 5.0) + 32.0 : -999.0;
     g_lcdDisplay->updateSensorReadings(displayLocalTempF, currentWeight, displayRemoteTempF);
+    
+    // Update additional sensor data (line 4) - Power and ADC sensors
+    g_lcdDisplay->updateAdditionalSensors(currentVoltage, currentCurrent, currentAdcVoltage);
 }

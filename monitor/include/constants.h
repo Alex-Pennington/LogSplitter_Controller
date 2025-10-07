@@ -26,36 +26,36 @@ const int SYSLOG_FACILITY = 16;                     // Local use facility (local
 const int SYSLOG_SEVERITY = 6;                      // Info level (0=emergency, 6=info, 7=debug)
 
 // MQTT Topics - Monitor specific
-const char TOPIC_MONITOR_STATUS[] PROGMEM = "r4/monitor/status";
-const char TOPIC_MONITOR_DATA[] PROGMEM = "r4/monitor/data";
-const char TOPIC_MONITOR_CONTROL[] PROGMEM = "r4/monitor/control";
-const char TOPIC_MONITOR_CONTROL_RESP[] PROGMEM = "r4/monitor/control/resp";
-const char TOPIC_MONITOR_HEARTBEAT[] PROGMEM = "r4/monitor/heartbeat";
-const char TOPIC_MONITOR_ERROR[] PROGMEM = "r4/monitor/error";
+const char TOPIC_MONITOR_STATUS[] PROGMEM = "monitor/status";
+const char TOPIC_MONITOR_DATA[] PROGMEM = "monitor/data";
+const char TOPIC_MONITOR_CONTROL[] PROGMEM = "monitor/control";
+const char TOPIC_MONITOR_CONTROL_RESP[] PROGMEM = "monitor/control/resp";
+const char TOPIC_MONITOR_HEARTBEAT[] PROGMEM = "monitor/heartbeat";
+const char TOPIC_MONITOR_ERROR[] PROGMEM = "monitor/error";
 
 // Monitor-specific Topics
-const char TOPIC_SENSOR_TEMPERATURE[] PROGMEM = "r4/monitor/temperature";
-const char TOPIC_SENSOR_HUMIDITY[] PROGMEM = "r4/monitor/humidity";
-const char TOPIC_SENSOR_VOLTAGE[] PROGMEM = "r4/monitor/voltage";
-const char TOPIC_SYSTEM_UPTIME[] PROGMEM = "r4/monitor/uptime";
-const char TOPIC_SYSTEM_MEMORY[] PROGMEM = "r4/monitor/memory";
+const char TOPIC_SENSOR_TEMPERATURE[] PROGMEM = "monitor/temperature";
+const char TOPIC_SENSOR_HUMIDITY[] PROGMEM = "monitor/humidity";
+const char TOPIC_SENSOR_VOLTAGE[] PROGMEM = "monitor/voltage";
+const char TOPIC_SYSTEM_UPTIME[] PROGMEM = "monitor/uptime";
+const char TOPIC_SYSTEM_MEMORY[] PROGMEM = "monitor/memory";
 
 // NAU7802 Load Cell Topics
-const char TOPIC_NAU7802_WEIGHT[] PROGMEM = "r4/monitor/weight";
-const char TOPIC_NAU7802_RAW[] PROGMEM = "r4/monitor/weight/raw";
-const char TOPIC_NAU7802_STATUS[] PROGMEM = "r4/monitor/weight/status";
-const char TOPIC_NAU7802_CALIBRATION[] PROGMEM = "r4/monitor/weight/calibration";
+const char TOPIC_NAU7802_WEIGHT[] PROGMEM = "monitor/weight";
+const char TOPIC_NAU7802_RAW[] PROGMEM = "monitor/weight/raw";
+const char TOPIC_NAU7802_STATUS[] PROGMEM = "monitor/weight/status";
+const char TOPIC_NAU7802_CALIBRATION[] PROGMEM = "monitor/weight/calibration";
 
 // INA219 Power Sensor Topics
-const char TOPIC_INA219_VOLTAGE[] PROGMEM = "r4/monitor/power/voltage";
-const char TOPIC_INA219_CURRENT[] PROGMEM = "r4/monitor/power/current";
-const char TOPIC_INA219_POWER[] PROGMEM = "r4/monitor/power/watts";
-const char TOPIC_INA219_STATUS[] PROGMEM = "r4/monitor/power/status";
+const char TOPIC_INA219_VOLTAGE[] PROGMEM = "monitor/power/voltage";
+const char TOPIC_INA219_CURRENT[] PROGMEM = "monitor/power/current";
+const char TOPIC_INA219_POWER[] PROGMEM = "monitor/power/watts";
+const char TOPIC_INA219_STATUS[] PROGMEM = "monitor/power/status";
 
 // MCP3421 ADC Sensor Topics
-const char TOPIC_MCP3421_VOLTAGE[] PROGMEM = "r4/monitor/adc/voltage";
-const char TOPIC_MCP3421_RAW[] PROGMEM = "r4/monitor/adc/raw";
-const char TOPIC_MCP3421_STATUS[] PROGMEM = "r4/monitor/adc/status";
+const char TOPIC_MCP3421_VOLTAGE[] PROGMEM = "monitor/adc/voltage";
+const char TOPIC_MCP3421_RAW[] PROGMEM = "monitor/adc/raw";
+const char TOPIC_MCP3421_STATUS[] PROGMEM = "monitor/adc/status";
 
 // Pin Configuration (Monitor-specific)
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9};
@@ -64,11 +64,6 @@ const unsigned long DEBOUNCE_DELAY_MS = 50;  // Standard debounce for buttons/sw
 
 // Status LED
 const uint8_t STATUS_LED_PIN = 13;  // Built-in LED
-
-// Analog Sensors
-const uint8_t TEMP_SENSOR_PIN = A0;      // Temperature sensor (optional)
-const uint8_t VOLTAGE_SENSOR_PIN = A1;   // Voltage monitoring
-const uint8_t SPARE_ANALOG_PIN = A2;     // Spare analog input
 
 // NAU7802 Load Cell Sensor (I2C)
 const uint8_t NAU7802_SDA_PIN = SDA;     // I2C Data pin (A4 on Uno R4)

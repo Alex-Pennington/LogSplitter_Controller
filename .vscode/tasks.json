@@ -2,51 +2,133 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "PlatformIO Build",
+			"label": "🔧 Build Controller Program",
 			"type": "shell",
 			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": [
-				"run"
-			],
-			"group": "build"
+			"args": ["run"],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": ["$platformio"]
 		},
 		{
-			"label": "PlatformIO Build",
+			"label": "📤 Upload Controller Program",
 			"type": "shell",
 			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": [
-				"run"
-			],
-			"group": "build"
+			"args": ["run", "--target", "upload"],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": ["$platformio"]
 		},
 		{
-			"label": "PlatformIO Build",
+			"label": "🔧 Build Monitor Program",
 			"type": "shell",
 			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": [
-				"run"
-			],
-			"group": "build"
+			"args": ["run"],
+			"options": {
+				"cwd": "${workspaceFolder}/monitor"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": ["$platformio"]
 		},
 		{
-			"label": "PlatformIO Build",
+			"label": "📤 Upload Monitor Program",
 			"type": "shell",
 			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": [
-				"run"
-			],
-			"group": "build"
+			"args": ["run", "--target", "upload"],
+			"options": {
+				"cwd": "${workspaceFolder}/monitor"
+			},
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": ["$platformio"]
 		},
 		{
-			"label": "PlatformIO Upload",
+			"label": "🔍 Monitor Controller Serial",
 			"type": "shell",
-			"command": "pio",
-			"args": [
-				"run",
-				"--target",
-				"upload"
+			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": ["device", "monitor"],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "dedicated",
+				"showReuseMessage": false,
+				"clear": true
+			},
+			"isBackground": true
+		},
+		{
+			"label": "🔍 Monitor Program Serial",
+			"type": "shell",
+			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": ["device", "monitor"],
+			"options": {
+				"cwd": "${workspaceFolder}/monitor"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "dedicated",
+				"showReuseMessage": false,
+				"clear": true
+			},
+			"isBackground": true
+		},
+		{
+			"label": "🏗️ Build Both Programs",
+			"dependsOrder": "parallel",
+			"dependsOn": [
+				"🔧 Build Controller Program",
+				"🔧 Build Monitor Program"
 			],
-			"group": "build"
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
 		}
 	]
 }

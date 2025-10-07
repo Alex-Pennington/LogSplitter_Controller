@@ -108,13 +108,14 @@ void LCDDisplay::sendData(uint8_t data) {
     write4bits(lownib);
 }
 
-void LCDDisplay::updateSystemStatus(uint8_t state, unsigned long uptime, bool wifiConnected, bool mqttConnected) {
+void LCDDisplay::updateSystemStatus(uint8_t state, unsigned long uptime, bool wifiConnected, bool mqttConnected, bool syslogWorking) {
     if (!initialized || !displayEnabled) return;
     
-    // Format: "ST:RUN [WM] 123.4h" (20 chars max)
+    // Format: "ST:RUN [WMS] 123.4h" (20 chars max)
     String content = "ST:" + formatSystemState(state) + " [";
-    content += wifiConnected ? "W" : "-";
-    content += mqttConnected ? "M" : "-";
+    content += wifiConnected ? "W" : "w";
+    content += mqttConnected ? "M" : "m";
+    content += syslogWorking ? "S" : "s";
     content += "] ";
     content += formatUptimeDecimal(uptime);
     
@@ -164,6 +165,45 @@ void LCDDisplay::updateSensorReadings(float localTemp, float weight, float remot
     if (weightContent.length() > 20) weightContent = weightContent.substring(0, 20);
     
     updateLineIfChanged(2, weightContent, line3Content);
+}
+
+void LCDDisplay::updateAdditionalSensors(float voltage, float current, float adcVoltage) {
+    if (!initialized || !displayEnabled) return;
+    
+    // Line 4: Power and ADC data - "12.3V 45mA ADC:1.23"
+    String content = "";
+    
+    // Bus voltage
+    if (voltage >= 0) {
+        content += String(voltage, 1) + "V ";
+    } else {
+        content += "---V ";
+    }
+    
+    // Current (show in mA, limit to 2 digits)
+    if (current >= 0) {
+        if (current < 100) {
+            content += String(current, 0) + "mA ";
+        } else {
+            content += String(current, 0) + "mA ";
+        }
+    } else {
+        content += "---mA ";
+    }
+    
+    // ADC voltage
+    content += "ADC:";
+    if (adcVoltage != -999.0) {
+        content += String(adcVoltage, 2);
+    } else {
+        content += "---";
+    }
+    
+    // Pad or truncate to exactly 20 characters
+    while (content.length() < 20) content += " ";
+    if (content.length() > 20) content = content.substring(0, 20);
+    
+    updateLineIfChanged(3, content, line4Content);
 }
 
 void LCDDisplay::showError(const char* error) {

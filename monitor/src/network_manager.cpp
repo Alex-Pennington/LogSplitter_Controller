@@ -25,7 +25,9 @@ NetworkManager::NetworkManager() :
     disconnectCount(0),
     failedPublishCount(0),
     connectionStable(false),
-    syslogPort(SYSLOG_PORT) {
+    syslogPort(SYSLOG_PORT),
+    lastSyslogSuccess(false),
+    lastSyslogAttempt(0) {
     
     // Set default syslog server
     strncpy(syslogServer, SYSLOG_SERVER, sizeof(syslogServer) - 1);
@@ -255,7 +257,10 @@ bool NetworkManager::publishWithRetain(const char* topic, const char* payload) {
 }
 
 bool NetworkManager::sendSyslog(const char* message, int level) {
+    lastSyslogAttempt = millis();
+    
     if (!isWiFiConnected() || strlen(syslogServer) == 0) {
+        lastSyslogSuccess = false;
         return false;
     }
     
@@ -277,9 +282,11 @@ bool NetworkManager::sendSyslog(const char* message, int level) {
     if (udpClient.beginPacket(syslogServer, syslogPort)) {
         udpClient.print(syslogMessage);
         bool success = udpClient.endPacket();
+        lastSyslogSuccess = success;
         return success;
     }
     
+    lastSyslogSuccess = false;
     return false;
 }
 
@@ -434,6 +441,23 @@ bool NetworkManager::isWiFiConnected() const {
 
 bool NetworkManager::isMQTTConnected() const {
     return mqttState == MQTTState::CONNECTED;
+}
+
+bool NetworkManager::isSyslogWorking() const {
+    // Consider syslog working if:
+    // 1. WiFi is connected
+    // 2. Syslog server is configured
+    // 3. Recent syslog attempt was successful (within last 30 seconds)
+    if (!isWiFiConnected() || strlen(syslogServer) == 0) {
+        return false;
+    }
+    
+    // If we haven't tried syslog recently, assume it's working
+    if (lastSyslogAttempt == 0 || (millis() - lastSyslogAttempt) > 30000) {
+        return true;
+    }
+    
+    return lastSyslogSuccess;
 }
 
 bool NetworkManager::isConnected() const {

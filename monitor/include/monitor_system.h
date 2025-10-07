@@ -5,6 +5,7 @@
 #include "mcp9600_sensor.h"
 #include "ina219_sensor.h"
 #include "mcp3421_sensor.h"
+#include "tca9548a_multiplexer.h"
 
 class MonitorSystem {
 public:
@@ -107,12 +108,14 @@ private:
     float currentCurrent;
     float currentPower;
     unsigned long lastPowerRead;
+    bool powerSensorAvailable;
     
     // MCP3421 ADC Sensor
     mutable MCP3421_Sensor adcSensor;
     float currentAdcVoltage;
     int32_t currentAdcRaw;
     unsigned long lastAdcRead;
+    bool adcSensorAvailable;
     
     // Publishing intervals
     unsigned long publishInterval;
@@ -123,6 +126,16 @@ private:
     // Digital I/O states
     bool digitalInputStates[8];
     bool digitalOutputStates[8];
+    
+    // I2C Multiplexer
+    mutable TCA9548A_Multiplexer i2cMux;
+    
+    // Multiplexer channel assignments
+    static const uint8_t MCP9600_CHANNEL = 0;    // Temperature sensor
+    static const uint8_t NAU7802_CHANNEL = 1;    // Weight sensor  
+    static const uint8_t LCD_CHANNEL = 7;        // LCD display
+    static const uint8_t INA219_CHANNEL = 2;     // Power monitor
+    static const uint8_t MCP3421_CHANNEL = 3;    // ADC sensor
     
     // Helper functions
     void initializePins();

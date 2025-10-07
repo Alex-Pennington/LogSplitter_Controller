@@ -150,7 +150,7 @@ float MCP9600Sensor::getAmbientTemperature() {
     if (rawTemp == 0xFFFF) {
         // If ambient temperature register isn't available, estimate from thermocouple
         // This is a fallback for devices with limited register support
-        LOG_WARN("MCP9600: Ambient register not available, using estimated room temperature");
+        LOG_DEBUG("MCP9600: Ambient register not available, using estimated room temperature");
         return 23.0 + ambientTempOffset; // Return estimated room temperature
     }
     

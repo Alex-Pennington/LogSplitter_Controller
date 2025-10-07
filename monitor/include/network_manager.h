@@ -30,6 +30,7 @@ public:
     // Connection status
     bool isWiFiConnected() const;
     bool isMQTTConnected() const;
+    bool isSyslogWorking() const;
     bool isConnected() const;
     bool isStable() const;
     
@@ -90,6 +91,8 @@ private:
     // Syslog configuration
     char syslogServer[64];  // Increased size for longer hostnames
     int syslogPort;
+    bool lastSyslogSuccess;
+    unsigned long lastSyslogAttempt;
     
     // Hostname
     char hostname[32];
