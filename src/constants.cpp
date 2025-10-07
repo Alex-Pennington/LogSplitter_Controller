@@ -2,7 +2,7 @@
 
 // Command validation arrays
 const char* const ALLOWED_COMMANDS[] = {
-    "help", "show", "pins", "pin", "set", "relay", "debug", "network", "reset", "test", "syslog", "mqtt", "loglevel", "heartbeat", "error", "bypass", nullptr
+    "help", "show", "pins", "pin", "set", "relay", "debug", "network", "reset", "test", "syslog", "mqtt", "loglevel", "heartbeat", "error", "bypass", "timing", nullptr
 };
 
 const char* const ALLOWED_SET_PARAMS[] = {

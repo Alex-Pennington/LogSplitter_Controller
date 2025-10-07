@@ -1,4 +1,5 @@
 #include "command_processor.h"
+#include "subsystem_timing_monitor.h"
 #include "config_manager.h"
 #include "pressure_sensor.h"
 #include "pressure_manager.h"
@@ -166,11 +167,11 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], bypass, syslog, mqtt";
+    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, syslog, mqtt";
     if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi", helpText);
+        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
     } else {
-        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately", helpText);
+        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\n\nTiming: timing report|status|slowest", helpText);
     }
 }
 
@@ -1046,6 +1047,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleLogLevel(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "timing") == 0) {
+        char* param = strtok(NULL, " ");
+        handleTiming(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
@@ -1238,5 +1243,59 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
         } else {
             snprintf(response, responseSize, "usage: loglevel [get|list|<0-7>]");
         }
+    }
+}
+
+void CommandProcessor::handleTiming(char* param, char* response, size_t responseSize) {
+    if (!timingMonitor) {
+        snprintf(response, responseSize, "timing monitor not available");
+        return;
+    }
+    
+    if (!param || strcasecmp(param, "report") == 0) {
+        // Generate timing report
+        timingMonitor->getTimingReport(response, responseSize);
+    }
+    else if (strcasecmp(param, "reset") == 0) {
+        timingMonitor->resetStatistics();
+        snprintf(response, responseSize, "timing statistics reset");
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        // Show health status
+        bool hasWarnings = timingMonitor->hasAnyWarnings();
+        bool hasCritical = timingMonitor->hasAnyCriticalIssues();
+        
+        if (hasCritical) {
+            snprintf(response, responseSize, "timing status: CRITICAL - performance issues detected");
+        } else if (hasWarnings) {
+            snprintf(response, responseSize, "timing status: WARNING - minor performance issues");
+        } else {
+            snprintf(response, responseSize, "timing status: OK - all subsystems performing normally");
+        }
+    }
+    else if (strcasecmp(param, "slowest") == 0) {
+        // Show slowest subsystem
+        SubsystemID slowest = timingMonitor->getSlowestSubsystem();
+        char subsystemStatus[256];
+        timingMonitor->getSubsystemStatus(slowest, subsystemStatus, sizeof(subsystemStatus));
+        snprintf(response, responseSize, "slowest subsystem: %s", subsystemStatus);
+    }
+    else if (strcasecmp(param, "log") == 0) {
+        // Force timing report to logs
+        timingMonitor->logTimingReport();
+        snprintf(response, responseSize, "timing report logged to syslog/MQTT");
+    }
+    else if (strcasecmp(param, "detailed") == 0) {
+        char* enableParam = strtok(NULL, " ");
+        if (enableParam) {
+            bool enable = (strcasecmp(enableParam, "on") == 0 || strcasecmp(enableParam, "1") == 0);
+            timingMonitor->enableDetailedLogging(enable);
+            snprintf(response, responseSize, "detailed timing logging %s", enable ? "enabled" : "disabled");
+        } else {
+            snprintf(response, responseSize, "usage: timing detailed <on|off>");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "timing commands: report, reset, status, slowest, log, detailed");
     }
 }
