@@ -6,5 +6,5 @@ const char* const ALLOWED_COMMANDS[] = {
 };
 
 const char* const ALLOWED_SET_PARAMS[] = {
-    "debug", "syslog", "interval", "heartbeat", "threshold", "calibration", nullptr
+    "debug", "syslog", "mqtt_broker", "wifi_ssid", "loglevel", "interval", "heartbeat", "threshold", "calibration", nullptr
 };

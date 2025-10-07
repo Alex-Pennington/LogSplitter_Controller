@@ -41,6 +41,15 @@ public:
     bool sendSyslog(const char* message, int level = 6);  // Default to INFO level
     void setSyslogServer(const char* server, int port = 514);  // Standard syslog port
     
+    // Live reconfiguration methods
+    bool reconfigureMQTT(const char* brokerHost, int brokerPort, const char* username, const char* password);
+    bool reconfigureSyslog(const char* server, int port);
+    bool reconfigureWiFi(const char* ssid, const char* password);
+    
+    // Configuration getters
+    const char* getSyslogServer() const { return syslogServer; }
+    int getSyslogPort() const { return syslogPort; }
+    
     // Status reporting
     void getHealthString(char* buffer, size_t bufferSize);
     unsigned long getConnectionUptime() const;
