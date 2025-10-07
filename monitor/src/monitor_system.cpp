@@ -279,15 +279,15 @@ void MonitorSystem::readTemperatureSensor() {
                     debugPrintf("MonitorSystem: Remote change: %.3fC (%.1f -> %.1f)\n", remoteChange, lastRemoteTemp, newRemoteTemp);
                 }
                 
-                // Rate limiting: reject readings with unreasonable changes (>5C/second)
-                if (abs(localChange) > 5.0 && newLocalTemp > -990.0) {
+                // Rate limiting: reject readings with unreasonable changes (>20C/second for thermocouple)
+                if (abs(localChange) > 20.0 && newLocalTemp > -990.0) {
                     if (tempDebugEnabled) {
                         debugPrintf("MonitorSystem: *** REJECTED local temp jump: %.1fC ***\n", localChange);
                     }
                     newLocalTemp = lastLocalTemp; // Keep previous value
                 }
                 
-                if (abs(remoteChange) > 5.0 && newRemoteTemp > -990.0) {
+                if (abs(remoteChange) > 20.0 && newRemoteTemp > -990.0) {
                     if (tempDebugEnabled) {
                         debugPrintf("MonitorSystem: *** REJECTED remote temp jump: %.1fC ***\n", remoteChange);
                     }
