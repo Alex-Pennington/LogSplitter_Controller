@@ -2,12 +2,17 @@
 
 #include <Arduino.h>
 
+// Version Information
+const char* const FIRMWARE_VERSION = "2.3.1";
+const char* const BUILD_DATE = __DATE__;
+const char* const FEATURES = "Streaming,Weight-Calibration,USB-Updates";
+
 // System Constants
 const unsigned long WATCHDOG_TIMEOUT_MS = 15000;
 const unsigned long MAIN_LOOP_TIMEOUT_MS = 10000;
 
 // Network Constants
-const char* const BROKER_HOST = "159.203.138.46";
+const char* const BROKER_HOST = "192.168.1.155";  // From arduino_secrets.h
 const int BROKER_PORT = 1883;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 const unsigned long WIFI_CONNECT_CHECK_INTERVAL_MS = 500;
@@ -17,176 +22,95 @@ const uint8_t MAX_CONNECT_RETRIES = 3;
 const uint8_t MAX_WIFI_RETRIES = 3;
 const uint8_t MAX_MQTT_RETRIES = 3;
 
-// Syslog Constants
-const char* const SYSLOG_SERVER = "192.168.1.113";  // Default rsyslog server IP
-const int SYSLOG_PORT = 514;                        // Standard syslog UDP port
-const char* const SYSLOG_HOSTNAME = "LogSplitter";  // Hostname for syslog messages
-const char* const SYSLOG_TAG = "logsplitter";       // Application tag for syslog
+// Syslog Constants  
+const char* const SYSLOG_SERVER = "192.168.1.155";  // From arduino_secrets.h
+const int SYSLOG_PORT = 514;                        // From arduino_secrets.h
+const char* const SYSLOG_HOSTNAME = "LogMonitor";   // Hostname for syslog messages
+const char* const SYSLOG_TAG = "logmonitor";        // Application tag for syslog
 const int SYSLOG_FACILITY = 16;                     // Local use facility (local0 = 16)
 const int SYSLOG_SEVERITY = 6;                      // Info level (0=emergency, 6=info, 7=debug)
 
-// MQTT Topics - Hierarchical structure starting with /controller
-const char TOPIC_PUBLISH[] PROGMEM = "r4/example/pub";  // Legacy - kept for compatibility
-const char TOPIC_SUBSCRIBE[] PROGMEM = "r4/example/sub";  // Legacy - kept for compatibility
-const char TOPIC_CONTROL[] PROGMEM = "r4/control";  // Command input - kept as is
-const char TOPIC_CONTROL_RESP[] PROGMEM = "r4/control/resp";  // Command responses - kept as is
+// MQTT Topics - Monitor specific
+const char TOPIC_MONITOR_STATUS[] PROGMEM = "monitor/status";
+const char TOPIC_MONITOR_DATA[] PROGMEM = "monitor/data";
+const char TOPIC_MONITOR_CONTROL[] PROGMEM = "monitor/control";
+const char TOPIC_MONITOR_CONTROL_RESP[] PROGMEM = "monitor/control/resp";
+const char TOPIC_MONITOR_HEARTBEAT[] PROGMEM = "monitor/heartbeat";
+const char TOPIC_MONITOR_ERROR[] PROGMEM = "monitor/error";
 
-// New hierarchical topic structure under /controller
-const char TOPIC_PRESSURE[] PROGMEM = "controller/pressure";
-const char TOPIC_HYDRAULIC_SYSTEM_PRESSURE[] PROGMEM = "controller/pressure/hydraulic_system";
-const char TOPIC_HYDRAULIC_FILTER_PRESSURE[] PROGMEM = "controller/pressure/hydraulic_filter";
-const char TOPIC_HYDRAULIC_SYSTEM_VOLTAGE[] PROGMEM = "controller/pressure/hydraulic_system_voltage";
-const char TOPIC_HYDRAULIC_FILTER_VOLTAGE[] PROGMEM = "controller/pressure/hydraulic_filter_voltage";
+// Monitor-specific Topics
+const char TOPIC_SENSOR_TEMPERATURE[] PROGMEM = "monitor/temperature";
+const char TOPIC_SENSOR_HUMIDITY[] PROGMEM = "monitor/humidity";
+const char TOPIC_SENSOR_VOLTAGE[] PROGMEM = "monitor/voltage";
+const char TOPIC_SYSTEM_UPTIME[] PROGMEM = "monitor/uptime";
+const char TOPIC_SYSTEM_MEMORY[] PROGMEM = "monitor/memory";
 
-// Safety system individual values
-const char TOPIC_SAFETY_ACTIVE[] PROGMEM = "controller/safety/active";
-const char TOPIC_SAFETY_ESTOP[] PROGMEM = "controller/safety/estop";
-const char TOPIC_SAFETY_ENGINE[] PROGMEM = "controller/safety/engine";
-const char TOPIC_SAFETY_PRESSURE_CURRENT[] PROGMEM = "controller/safety/pressure_current";
-const char TOPIC_SAFETY_PRESSURE_THRESHOLD[] PROGMEM = "controller/safety/pressure_threshold";
-const char TOPIC_SAFETY_HIGH_PRESSURE_ACTIVE[] PROGMEM = "controller/safety/high_pressure_active";
-const char TOPIC_SAFETY_HIGH_PRESSURE_ELAPSED[] PROGMEM = "controller/safety/high_pressure_elapsed";
+// NAU7802 Load Cell Topics
+const char TOPIC_NAU7802_WEIGHT[] PROGMEM = "monitor/weight";
+const char TOPIC_NAU7802_RAW[] PROGMEM = "monitor/weight/raw";
+const char TOPIC_NAU7802_STATUS[] PROGMEM = "monitor/weight/status";
+const char TOPIC_NAU7802_CALIBRATION[] PROGMEM = "monitor/weight/calibration";
 
-// Sequence controller individual values
-const char TOPIC_SEQUENCE_ACTIVE[] PROGMEM = "controller/sequence/active";
-const char TOPIC_SEQUENCE_STAGE[] PROGMEM = "controller/sequence/stage";
-const char TOPIC_SEQUENCE_ELAPSED[] PROGMEM = "controller/sequence/elapsed";
-const char TOPIC_SEQUENCE_DISABLED[] PROGMEM = "controller/sequence/disabled";
-const char TOPIC_SEQUENCE_EVENT[] PROGMEM = "controller/sequence/event";
-const char TOPIC_SEQUENCE_STATE[] PROGMEM = "controller/sequence/state";
+// INA219 Power Sensor Topics
+const char TOPIC_INA219_VOLTAGE[] PROGMEM = "monitor/power/voltage";
+const char TOPIC_INA219_CURRENT[] PROGMEM = "monitor/power/current";
+const char TOPIC_INA219_POWER[] PROGMEM = "monitor/power/watts";
+const char TOPIC_INA219_STATUS[] PROGMEM = "monitor/power/status";
 
-// System status individual values
-const char TOPIC_SYSTEM_UPTIME[] PROGMEM = "controller/system/uptime";
-const char TOPIC_SYSTEM_MEMORY_FREE[] PROGMEM = "controller/system/memory_free";
-const char TOPIC_SYSTEM_NETWORK_CONNECTED[] PROGMEM = "controller/system/network_connected";
+// MCP3421 ADC Sensor Topics
+const char TOPIC_MCP3421_VOLTAGE[] PROGMEM = "monitor/adc/voltage";
+const char TOPIC_MCP3421_RAW[] PROGMEM = "monitor/adc/raw";
+const char TOPIC_MCP3421_STATUS[] PROGMEM = "monitor/adc/status";
 
-// Input monitoring individual values
-const char TOPIC_INPUTS_PIN2[] PROGMEM = "controller/inputs/pin2";
-const char TOPIC_INPUTS_PIN3[] PROGMEM = "controller/inputs/pin3";
-const char TOPIC_INPUTS_PIN4[] PROGMEM = "controller/inputs/pin4";
-const char TOPIC_INPUTS_PIN5[] PROGMEM = "controller/inputs/pin5";
-const char TOPIC_INPUTS_PIN6[] PROGMEM = "controller/inputs/pin6";
-const char TOPIC_INPUTS_PIN7[] PROGMEM = "controller/inputs/pin7";
-const char TOPIC_INPUTS_PIN12[] PROGMEM = "controller/inputs/pin12";
-
-// Relay status individual values
-const char TOPIC_RELAYS_R1[] PROGMEM = "controller/relays/r1";
-const char TOPIC_RELAYS_R2[] PROGMEM = "controller/relays/r2";
-const char TOPIC_RELAYS_R8[] PROGMEM = "controller/relays/r8";
-const char TOPIC_RELAYS_R9[] PROGMEM = "controller/relays/r9";
-
-// Legacy topics for backward compatibility (remove these later)
-const char TOPIC_PRESSURE_STATUS[] PROGMEM = "r4/pressure/status";
-const char TOPIC_SEQUENCE_STATUS[] PROGMEM = "r4/sequence/status";
-
-// Pin Configuration
-const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
+// Pin Configuration (Monitor-specific)
+const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 8, 9};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
-const unsigned long DEBOUNCE_DELAY_MS = 5;  // Reduced for fast-moving hydraulic cylinder limit switches
+const unsigned long DEBOUNCE_DELAY_MS = 50;  // Standard debounce for buttons/switches
 
-// Specific Pin Definitions
-const uint8_t E_STOP_PIN = 12;
-const uint8_t SAFETY_CLEAR_PIN = 4;
-const uint8_t LIMIT_EXTEND_PIN = 6;
-const uint8_t LIMIT_RETRACT_PIN = 7;
+// Status LED
+const uint8_t STATUS_LED_PIN = 13;  // Built-in LED
 
-// Pin-specific debounce delays (milliseconds)
-const unsigned long LIMIT_SWITCH_DEBOUNCE_MS = 10;  // Pins 6,7 - Balanced for moving cylinder with switch bounce filtering
-const unsigned long BUTTON_DEBOUNCE_MS = 15;        // Pins 2,3,4,5 - Normal for manual buttons
+// NAU7802 Load Cell Sensor (I2C)
+const uint8_t NAU7802_SDA_PIN = SDA;     // I2C Data pin (A4 on Uno R4)
+const uint8_t NAU7802_SCL_PIN = SCL;     // I2C Clock pin (A5 on Uno R4)
+const uint8_t NAU7802_I2C_ADDRESS = 0x2A; // Default NAU7802 I2C address
+const unsigned long NAU7802_READ_INTERVAL_MS = 1000;  // Read every 1 second
 
-// Relay Configuration Labels
-const uint8_t RELAY_EXTEND = 1;       // Relay 1 - Cylinder extend (hydraulic valve)
-const uint8_t RELAY_RETRACT = 2;      // Relay 2 - Cylinder retract (hydraulic valve)
-const uint8_t RELAY_ENGINE_STOP = 8;  // Relay 8 - Engine stop relay (safety)
-// Note: RELAY_POWER_PIN = 9 (relay board power control)
+// INA219 Power Sensor (I2C)
+const unsigned long POWER_READ_INTERVAL_MS = 2000;    // Read every 2 seconds
 
-// Safety System Pin Configuration
-const uint8_t SYSTEM_ERROR_LED_PIN = 9; // Pin 9 - System Error LED (from PINS.md)
+// MCP3421 ADC Sensor (I2C)
+const unsigned long ADC_READ_INTERVAL_MS = 1500;      // Read every 1.5 seconds
 
-// Relay Configuration
-const unsigned long RELAY_BAUD = 115200;
-const uint8_t RELAY_POWER_PIN = 9;
-const uint8_t MAX_RELAYS = 9;
-
-// Pressure Sensor Configuration
-const unsigned long SAMPLE_INTERVAL_MS = 100;
-const unsigned long SAMPLE_WINDOW_MS = 1000;
-const size_t SAMPLE_WINDOW_COUNT = SAMPLE_WINDOW_MS / SAMPLE_INTERVAL_MS;
-const uint8_t ADC_RESOLUTION_BITS = 10;  // Arduino UNO R4 WiFi has 10-bit ADC (1024 counts)
-const float DEFAULT_ADC_VREF = 5.0f;     // Arduino UNO R4 WiFi uses 5V reference voltage
-const float DEFAULT_MAX_PRESSURE_PSI = 3000.0f;
-const float DEFAULT_SENSOR_GAIN = 1.0f;
-const float DEFAULT_SENSOR_OFFSET = 0.0f;
-
-// Dual Pressure Sensor Pins
-const uint8_t HYDRAULIC_PRESSURE_PIN = A1;      // Main hydraulic pressure (A1)
-const uint8_t HYDRAULIC_OIL_PRESSURE_PIN = A5;  // Hydraulic oil pressure (A5)
-
-// Pressure Sensor Specifications (0-4.5V sensors)
-const float SENSOR_MIN_VOLTAGE = 0.0f;    // 0V = 0 PSI
-const float SENSOR_MAX_VOLTAGE = 4.5f;    // 4.5V = max PSI
-const float HYDRAULIC_MAX_PRESSURE_PSI = 3000.0f; // Hydraulic system pressure range
-
-// Individual sensor defaults (A1 - Main Hydraulic)  
-const float DEFAULT_A1_MAX_PRESSURE_PSI = 5000.0f;  // Change this to your sensor's max range
-const float DEFAULT_A1_ADC_VREF = 5.0f;  // Corrected to 5V reference
-const float DEFAULT_A1_SENSOR_GAIN = 1.0f;
-const float DEFAULT_A1_SENSOR_OFFSET = 0.0f;
-
-// Individual sensor defaults (A5 - Hydraulic Oil)
-const float DEFAULT_A5_MAX_PRESSURE_PSI = 30.0f;
-const float DEFAULT_A5_ADC_VREF = 5.0f;  // Corrected to 5V reference
-const float DEFAULT_A5_SENSOR_GAIN = 1.0f;
-const float DEFAULT_A5_SENSOR_OFFSET = 0.0f;
-
-// Current loop sensor constants (4-20mA)
-const float CURRENT_LOOP_MIN_VOLTAGE = 1.0f;  // 4mA × 250Ω = 1V
-const float CURRENT_LOOP_MAX_VOLTAGE = 5.0f;  // 20mA × 250Ω = 5V
-
-// Pressure sensor extension constants
-const float MAIN_PRESSURE_EXT_NEG_FRAC = 0.2f;
-const float MAIN_PRESSURE_EXT_POS_FRAC = 0.3f;
-const float MAIN_PRESSURE_EXT_FSV = 5.0f;
-
-// Safety Constants
-const float SAFETY_THRESHOLD_PSI = 2500.0f;
-const float SAFETY_HYSTERESIS_PSI = 10.0f;
-
-// Pressure-based sequence control
-const float EXTEND_PRESSURE_LIMIT_PSI = 2300.0f;  // Pressure that triggers extend limit reached
-const float RETRACT_PRESSURE_LIMIT_PSI = 2300.0f; // Pressure that triggers retract limit reached
-
-// Sequence Control Constants
-const unsigned long DEFAULT_SEQUENCE_STABLE_MS = 15;  // Reduced for fast limit switch detection on moving cylinder
-const unsigned long DEFAULT_SEQUENCE_START_STABLE_MS = 100;
-const unsigned long DEFAULT_SEQUENCE_TIMEOUT_MS = 30000;
-const unsigned long SEQUENCE_STAGE_TIMEOUT_MS = 30000;
+// Digital I/O
+const uint8_t DIGITAL_INPUT_1 = 2;       // Configurable digital input
+const uint8_t DIGITAL_INPUT_2 = 3;       // Configurable digital input
+const uint8_t DIGITAL_OUTPUT_1 = 4;      // Configurable digital output
+const uint8_t DIGITAL_OUTPUT_2 = 5;      // Configurable digital output
 
 // Memory Management
-const size_t SHARED_BUFFER_SIZE = 256;  // Increased for comprehensive status output
+const size_t SHARED_BUFFER_SIZE = 256;
 const size_t TOPIC_BUFFER_SIZE = 64;
 const size_t COMMAND_BUFFER_SIZE = 80;
 const size_t MAX_CMD_LENGTH = 16;
 
 // EEPROM Configuration
-const uint32_t CALIB_MAGIC = 0x43414C49; // 'CALI'
-const int CALIB_EEPROM_ADDR = 0;
-
-// Filter Types
-enum FilterMode { 
-    FILTER_NONE = 0, 
-    FILTER_MEDIAN3 = 1, 
-    FILTER_EMA = 2 
-};
+const uint32_t CONFIG_MAGIC = 0x4D4F4E49; // 'MONI'
+const int CONFIG_EEPROM_ADDR = 0;
 
 // System States
 enum SystemState {
     SYS_INITIALIZING,
     SYS_CONNECTING,
-    SYS_RUNNING,
+    SYS_MONITORING,
     SYS_ERROR,
-    SYS_SAFE_MODE
+    SYS_MAINTENANCE
 };
+
+// Monitoring intervals
+const unsigned long STATUS_PUBLISH_INTERVAL_MS = 10000;  // 10 seconds
+const unsigned long HEARTBEAT_INTERVAL_MS = 30000;       // 30 seconds
+const unsigned long SENSOR_READ_INTERVAL_MS = 5000;      // 5 seconds
 
 // Command validation
 extern const char* const ALLOWED_COMMANDS[];

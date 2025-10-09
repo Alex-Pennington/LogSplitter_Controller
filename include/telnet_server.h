@@ -1,46 +1,42 @@
 #pragma once
 
-#include <Arduino.h>
 #include <WiFiS3.h>
+#include "constants.h"
 
 class TelnetServer {
+public:
+    TelnetServer();
+    
+    void begin(int port = 23);
+    void update();
+    void stop();
+    
+    bool isConnected();
+    bool hasData();
+    
+    // Output functions
+    void print(const char* str);
+    void println(const char* str);
+    void printf(const char* fmt, ...);
+    
+    // Input functions
+    String readLine();
+    void flushInput();
+    
+    // Connection info
+    void setConnectionInfo(const char* hostname, const char* version);
+    void showWelcomeMessage();
+
 private:
     WiFiServer server;
     WiFiClient client;
     bool clientConnected;
-    uint16_t port;
-    char connectionInfo[128];  // Store hostname and IP info for welcome message
+    String inputBuffer;
     
-public:
-    TelnetServer(uint16_t telnetPort = 23);
+    // Connection info
+    char hostname[32];
+    char version[16];
     
-    void begin();
-    void update();
-    void stop();
-    void setConnectionInfo(const char* hostname, const char* ipAddress);
-    
-    bool isClientConnected();
-    size_t print(const char* str);
-    size_t print(const String& str);
-    size_t println(const char* str);
-    size_t println(const String& str);
-    size_t println();
-    size_t printf(const char* fmt, ...);
-    
-    bool available();
-    int read();
-    String readString();
-    void flush();
-    
-private:
-    void checkClientConnection();
-    void handleNewClient();
+    void handleNewConnection();
+    void handleClientDisconnection();
 };
-
-// Global telnet instance
-extern TelnetServer telnet;
-
-// Helper macros for easy migration
-#define TELNET_PRINT(x) telnet.print(x)
-#define TELNET_PRINTLN(x) telnet.println(x)
-#define TELNET_PRINTF(...) telnet.printf(__VA_ARGS__)

@@ -20,6 +20,9 @@ MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
 LCDDisplay lcdDisplay;
 
+// External TFTP server instance (defined in tftp_server.cpp)
+extern TFTPServer tftpServer;
+
 // Global pointer for external access
 NetworkManager* g_networkManager = &networkManager;
 LCDDisplay* g_lcdDisplay = &lcdDisplay;
@@ -260,21 +263,21 @@ void loop() {
     // Start telnet server once network is connected
     if (networkManager.isWiFiConnected() && currentSystemState == SYS_CONNECTING) {
         telnetServer.begin(23);
+        tftpServer.begin(69);  // Start TFTP server on port 69
         currentSystemState = SYS_MONITORING;
         monitorSystem.setSystemState(SYS_MONITORING);
         
-        debugPrintf("System: Network connected, telnet server started\n");
+        debugPrintf("System: Network connected, telnet and TFTP servers started\n");
         Serial.println("Network connected! Telnet server running on port 23");
+        Serial.println("TFTP server running on port 69 for firmware updates");
         Serial.print("IP Address: ");
         Serial.println(WiFi.localIP());
-        Serial.println("For firmware updates, use USB connection or Arduino Cloud");
+        Serial.println("Use TFTP or USB for firmware updates");
     }
     
-    // Update telnet server
+    // Update telnet and TFTP servers
     if (networkManager.isWiFiConnected()) {
         telnetServer.update();
-        
-        // Update TFTP server
         tftpServer.update();
         
         // Process telnet commands

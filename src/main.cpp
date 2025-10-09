@@ -1,633 +1,378 @@
-/**
- * LogSplitter Controller - Refactored Arduino UNO R4 WiFi Implementation
- * 
- * A modular, robust industrial control system featuring:
- * - WiFi/MQTT connectivity with auto-reconnection
- * - Pressure monitoring with safety systems
- * - Complex sequence control with state machine
- * - Input debouncing and relay control
- * - EEPROM configuration management
- * - Command validation and security
- * 
- * Author: Refactored from original monolithic design
- * Date: 2025
- */
-
 #include <Arduino.h>
-#include <WiFiS3.h>
-#include <ArduinoMqttClient.h>
-#include <EEPROM.h>
-
-// Include telnet server
-#include "telnet_server.h"
-
-// Module includes
+#include <Wire.h>
 #include "constants.h"
-#include "logger.h"
-#include "network_manager.h"
-#include "pressure_manager.h"
-#include "sequence_controller.h"
-#include "relay_controller.h"
 #include "config_manager.h"
-#include "input_manager.h"
-#include "safety_system.h"
-#include "system_error_manager.h"
+#include "network_manager.h"
+#include "telnet_server.h"
+#include "monitor_system.h"
 #include "command_processor.h"
-#include "system_test_suite.h"
-#include "subsystem_timing_monitor.h"
-#include "ota_server.h"
-#include "arduino_secrets.h"
+#include "lcd_display.h"
+#include "mcp9600_sensor.h"
+#include "logger.h"
+#include "tca9548a_multiplexer.h"
 
-// ============================================================================
-// Global Shared Buffers (Memory Optimization)
-// ============================================================================
-
-char g_message_buffer[SHARED_BUFFER_SIZE];
-char g_topic_buffer[TOPIC_BUFFER_SIZE];
-char g_command_buffer[COMMAND_BUFFER_SIZE];
-char g_response_buffer[SHARED_BUFFER_SIZE];
-
-// ============================================================================
-// System Components
-// ============================================================================
-
-NetworkManager networkManager;
-PressureManager pressureManager;
-SequenceController sequenceController;
-RelayController relayController;
+// Global instances
 ConfigManager configManager;
-InputManager inputManager;
-SafetySystem safetySystem;
-SystemErrorManager systemErrorManager;
+NetworkManager networkManager(&configManager);
+TelnetServer telnetServer;
+MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
-SubsystemTimingMonitor timingMonitor;
+LCDDisplay lcdDisplay;
 
-// Use the global SystemTestSuite defined in system_test_suite.cpp
-extern SystemTestSuite systemTestSuite;
 
-// Global pointers for cross-module access
+
+// Global pointer for external access
 NetworkManager* g_networkManager = &networkManager;
-RelayController* g_relayController = &relayController;
+LCDDisplay* g_lcdDisplay = &lcdDisplay;
+MCP9600Sensor* g_mcp9600Sensor = nullptr; // Will be set by monitor system
 
-// Global limit switch states for safety system
-bool g_limitExtendActive = false;   // Pin 6 - Cylinder fully extended
-bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
+// Global debug flag
+bool g_debugEnabled = true; // Enable debug by default for troubleshooting
 
-// Global debug and safety state variables
-bool g_debugEnabled = false;        // Debug output control
-bool g_emergencyStopActive = false; // Emergency stop current state
-bool g_emergencyStopLatched = false; // Emergency stop latched state
-
-// ============================================================================
-// System State
-// ============================================================================
-
+// System state
 SystemState currentSystemState = SYS_INITIALIZING;
-unsigned long lastPublishTime = 0;
-unsigned long lastWatchdogReset = 0;
-unsigned long systemStartTime = 0;
-const unsigned long publishInterval = 5000; // 5 seconds
+unsigned long lastWatchdog = 0;
 
-// Track if telnet connection info has been set
-static bool telnetInfoSet = false;
-
-// Serial command line buffer
-static uint8_t serialLinePos = 0;
-
-// ============================================================================
-// Watchdog and Safety
-// ============================================================================
-
-void resetWatchdog() {
-    // Simple watchdog implementation (you may need to adapt for your specific board)
-    lastWatchdogReset = millis();
-}
-
-void checkSystemHealth() {
-    unsigned long now = millis();
-    
-    // Check if main loop is running (simple watchdog)
-    if (now - lastWatchdogReset > MAIN_LOOP_TIMEOUT_MS) {
-        Serial.println("SYSTEM ERROR: Main loop timeout detected");
-        LOG_CRITICAL("Main loop timeout detected - system unresponsive");
-        
-        // Generate detailed timing analysis for the timeout
-        char timingAnalysis[512];
-        timingMonitor.analyzeTimeout(timingAnalysis, sizeof(timingAnalysis));
-        LOG_CRITICAL("TIMEOUT ANALYSIS: %s", timingAnalysis);
-        
-        // Log detailed timing report to identify bottleneck
-        LOG_CRITICAL("=== TIMEOUT TIMING REPORT ===");
-        timingMonitor.logTimingReport();
-        
-        // Try to enable network bypass as emergency measure
-        if (!networkManager.isNetworkBypassed()) {
-            Serial.println("EMERGENCY: Enabling network bypass due to system timeout");
-            LOG_CRITICAL("Emergency network bypass enabled due to system timeout");
-            networkManager.enableNetworkBypass(true);
-        }
-        
-        safetySystem.emergencyStop("main_loop_timeout");
-        
-        // Force system restart after emergency stop
-        delay(1000);
-        // You might want to add a proper system restart mechanism here
-    }
-}
-
-// ============================================================================
-// Debug Utilities
-// ============================================================================
-
-// Legacy debugPrintf function - now uses new Logger system
-// This maintains compatibility with existing code
+// Debug printf function that sends to syslog
 void debugPrintf(const char* fmt, ...) {
+    if (!g_debugEnabled) return;
+    
+    char buffer[256];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
     
-    // Route to new logging system as DEBUG level
-    Logger::log(LOG_DEBUG, "%s", g_message_buffer);
-}
-
-// ============================================================================
-// Callbacks
-// ============================================================================
-
-void onInputChange(uint8_t pin, bool state, const bool* allStates) {
-    debugPrintf("Input change: pin %d -> %s\n", pin, state ? "ACTIVE" : "INACTIVE");
+    // Send to Serial for local debugging
+    Serial.print("DEBUG: ");
+    Serial.print(buffer);
     
-    // Update limit switch states for safety system
-    if (pin == LIMIT_EXTEND_PIN) {
-        g_limitExtendActive = state;
-        debugPrintf("Limit EXTEND: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // SAFETY: Turn off extend relay when limit switch activates
-        if (state) {  // Limit switch activated (cylinder fully extended)
-            relayController.setRelay(RELAY_EXTEND, false);
-            debugPrintf("SAFETY: Extend relay R%d turned OFF - cylinder at full extension\n", RELAY_EXTEND);
+    // Send to syslog server if network is available
+    if (networkManager.isWiFiConnected()) {
+        // Remove newlines for syslog
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len-1] == '\n') {
+            buffer[len-1] = '\0';
         }
-        
-    } else if (pin == LIMIT_RETRACT_PIN) {
-        g_limitRetractActive = state;
-        debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // SAFETY: Turn off retract relay when limit switch activates  
-        if (state) {  // Limit switch activated (cylinder fully retracted)
-            relayController.setRelay(RELAY_RETRACT, false);
-            debugPrintf("SAFETY: Retract relay R%d turned OFF - cylinder at full retraction\n", RELAY_RETRACT);
-        }
-    }
-    
-    // PRIORITY: Handle E-Stop before any other processing
-    if (pin == E_STOP_PIN) {
-        if (!state) {  // E-stop pressed (NC switch goes LOW)
-            LOG_CRITICAL("E-STOP ACTIVATED - Emergency shutdown initiated");
-            safetySystem.activateEStop();
-            sequenceController.abort(); // Immediate sequence abort
-            sequenceController.disableSequence(); // Disable until E-stop cleared
-            return; // Skip all other processing
-        } else {
-            // E-stop released - but system should remain in safe state
-            LOG_INFO("E-STOP: Physical button released - system remains in safe state");
-            return; // Don't process as normal input
-        }
-    }
-    
-    // Let sequence controller handle input first
-    bool handledBySequence = sequenceController.processInputChange(pin, state, allStates);
-    //debugPrintf("handledBySequence: %s\n", handledBySequence ? "ACTIVE" : "INACTIVE");
-    //debugPrintf("sequenceController: %s\n", sequenceController.isActive() ? "ACTIVE" : "INACTIVE");
-    
-    // Handle safety clear button (Pin 4) - allows operational recovery without clearing error history
-    if (pin == SAFETY_CLEAR_PIN && state) {  // Safety clear button pressed
-        bool systemCleared = false;
-        
-        // Clear E-stop state if active
-        if (safetySystem.isEStopActive()) {
-            LOG_INFO("SAFETY: Manager override - clearing E-stop state, preserving error history");
-            safetySystem.clearEStop();
-            systemCleared = true;
-        }
-        
-        // Clear general safety system if active
-        if (safetySystem.isActive()) {
-            LOG_INFO("SAFETY: Manager override - clearing safety system, preserving error history");
-            safetySystem.clearEmergencyStop();  // Clear safety state to allow operation
-            systemCleared = true;
-            // Note: Error list is NOT cleared - manager must clear errors separately via commands
-        }
-        
-        // Re-enable sequence controller if it was disabled due to timeout or E-stop
-        if (!sequenceController.isSequenceEnabled()) {
-            LOG_INFO("SEQ: Re-enabling sequence controller after safety clear");
-            sequenceController.enableSequence();
-            systemCleared = true;
-        }
-        
-        if (systemCleared) {
-            LOG_INFO("SAFETY: System fully restored to operational state");
-        } else {
-            LOG_INFO("SAFETY: Clear button pressed - system already operational");
-        }
-        
-        return;  // Safety clear handled, don't process as normal input
-    }
-    
-    if (!handledBySequence && !sequenceController.isActive()) {
-        // Handle simple pin->relay mapping when no sequence active
-        if (pin == 2) {
-            // SAFETY: Don't allow retract if already at retract limit
-            if (state && g_limitRetractActive) {
-                debugPrintf("SAFETY: Retract blocked - cylinder already at retract limit\n");
-            } else {
-                relayController.setRelay(RELAY_RETRACT, state);  // Pin 2 -> Retract
-            }
-        } else if (pin == 3) {
-            // SAFETY: Don't allow extend if already at extend limit
-            if (state && g_limitExtendActive) {
-                debugPrintf("SAFETY: Extend blocked - cylinder already at extend limit\n");
-            } else {
-                relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
-            }
-        } 
+        networkManager.sendSyslog(buffer);
     }
 }
-
-void onMqttMessage(int messageSize) {
-    // Read message into global buffer
-    int idx = 0;
-    while (networkManager.getMqttClient().available() && idx < SHARED_BUFFER_SIZE - 1) {
-        g_message_buffer[idx++] = (char)networkManager.getMqttClient().read();
-    }
-    g_message_buffer[idx] = '\0';
-    
-    debugPrintf("MQTT message received: %s\n", g_message_buffer);
-    
-    // Process command
-    bool success = commandProcessor.processCommand(g_message_buffer, true, g_response_buffer, SHARED_BUFFER_SIZE);
-    
-    // Send response if we have one
-    if (strlen(g_response_buffer) > 0) {
-        networkManager.publish(TOPIC_CONTROL_RESP, g_response_buffer);
-    }
-    
-    if (!success) {
-        debugPrintf("Command processing failed\n");
-    }
-}
-
-// ============================================================================
-// System Initialization
-// ============================================================================
-
-bool initializeSystem() {
-    Serial.begin(115200);
-    while (!Serial && millis() < 3000) { 
-        delay(10); 
-    }
-    
-    Serial.println();
-    Serial.println("=== LogSplitter Controller v2.0 ===");
-    Serial.println("Initializing system...");
-    
-    systemStartTime = millis();
-    currentSystemState = SYS_INITIALIZING;
-    
-    // Initialize configuration first
-    configManager.begin();
-    if (!configManager.isConfigValid()) {
-        Serial.println("WARNING: Using default configuration");
-    }
-    
-    // Initialize pressure sensor
-    pressureManager.begin();
-    pressureManager.setNetworkManager(&networkManager);
-    // Note: Individual sensor configuration can be added via pressureManager.getSensor() if needed
-    
-    // Initialize relay controller
-    relayController.begin();
-    configManager.applyToRelayController(relayController);
-    
-    // Initialize sequence controller
-    configManager.applyToSequenceController(sequenceController);
-    
-    // Initialize input manager
-    inputManager.begin(&configManager);
-    inputManager.setChangeCallback(onInputChange);
-    
-    // Initialize safety system
-    safetySystem.setRelayController(&relayController);
-    safetySystem.setNetworkManager(&networkManager);
-    safetySystem.setSequenceController(&sequenceController);
-    safetySystem.begin();  // Initialize engine relay to running state
-    
-    // Initialize system error manager
-    systemErrorManager.begin();
-    systemErrorManager.setNetworkManager(&networkManager);
-    
-    // Initialize system test suite
-    systemTestSuite.begin(&safetySystem, &relayController, &inputManager, 
-                          &pressureManager, &sequenceController, &networkManager);
-    
-    // Initialize command processor
-    commandProcessor.setConfigManager(&configManager);
-    commandProcessor.setPressureManager(&pressureManager);  // FIXED: Connect pressure manager
-    commandProcessor.setSequenceController(&sequenceController);
-    commandProcessor.setRelayController(&relayController);
-    commandProcessor.setNetworkManager(&networkManager);
-    commandProcessor.setSafetySystem(&safetySystem);
-    commandProcessor.setSystemTestSuite(&systemTestSuite);
-    commandProcessor.setInputManager(&inputManager);
-    commandProcessor.setSystemErrorManager(&systemErrorManager);
-    commandProcessor.setTimingMonitor(&timingMonitor);
-    
-    // Connect error manager to other components
-    configManager.setSystemErrorManager(&systemErrorManager);
-    sequenceController.setErrorManager(&systemErrorManager);
-    sequenceController.setInputManager(&inputManager);
-    
-    Serial.println("Core systems initialized");
-    
-    // Initialize networking (non-blocking)
-    currentSystemState = SYS_CONNECTING;
-    networkManager.begin();  // Always succeeds - connection happens asynchronously
-    networkManager.setMessageCallback(onMqttMessage);
-    Serial.println("Network initialization started (non-blocking)");
-    
-    // Initialize logger after network manager is available
-    Logger::begin(&networkManager);
-    Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
-    LOG_INFO("Logger initialized with network manager");
-    
-    // Initialize timing monitor
-    timingMonitor.begin();
-    LOG_INFO("Subsystem timing monitor initialized");
-    
-    // Initialize telnet server (will work once WiFi connects)
-    telnet.begin();
-    Serial.println("Telnet server initialized");
-    
-    currentSystemState = SYS_RUNNING;
-    lastPublishTime = millis();
-    
-    Serial.println("=== System Ready ===");
-    Serial.println("Network connection will start in 3 seconds to avoid boot delays");
-    Serial.println("Network Failsafe: Use 'bypass on' command if network causes unresponsiveness");
-    return true;
-}
-
-// ============================================================================
-// Main System Loop
-// ============================================================================
-
-void updateSystem() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::MAIN_LOOP_TOTAL);
-    resetWatchdog();
-    
-    // Update all subsystems with timing monitoring
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::NETWORK_MANAGER);
-        networkManager.update();
-    }
-    
-    // Set telnet connection info when network first connects
-    if (!telnetInfoSet && networkManager.isWiFiConnected()) {
-        String ipStr = WiFi.localIP().toString();
-        telnet.setConnectionInfo(networkManager.getHostname(), ipStr.c_str());
-        telnetInfoSet = true;
-        debugPrintf("Telnet connection info set: %s @ %s\n", 
-                   networkManager.getHostname(), ipStr.c_str());
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::TELNET_SERVER);
-        telnet.update(); // Update telnet server
-    }
-    resetWatchdog(); // Reset after network operations (potential blocking)
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::PRESSURE_MANAGER);
-        pressureManager.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SEQUENCE_CONTROLLER);
-        sequenceController.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::RELAY_CONTROLLER);
-        relayController.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::INPUT_MANAGER);
-        inputManager.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SYSTEM_ERROR_MANAGER);
-        systemErrorManager.update();
-    }
-    
-    // Update safety system with current pressure
-    if (pressureManager.isReady()) {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SAFETY_SYSTEM);
-        safetySystem.update(pressureManager.getPressure());
-    }
-    
-    // Check timing monitor health
-    timingMonitor.checkHealthStatus();
-    
-    checkSystemHealth();
-}
-
-void publishTelemetry() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::TELEMETRY_PUBLISHING);
-    unsigned long now = millis();
-    
-    if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
-        lastPublishTime = now;
-        
-        // Publish pressure
-        // Pressure publishing now handled by PressureManager.publishPressures()
-        // Individual pressures are automatically published via MQTT
-        
-        // Publish individual sequence values instead of status string
-        sequenceController.publishIndividualData();
-        
-        // Publish individual safety values instead of status string
-        safetySystem.publishIndividualValues();
-        
-        // Publish individual relay values instead of status string
-        relayController.publishIndividualValues();
-        
-        // Publish heartbeat
-        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "Hello from LogSplitter at %lu", now);
-        networkManager.publish(TOPIC_PUBLISH, g_message_buffer);
-    }
-}
-
-void processSerialCommands() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_SERIAL);
-    while (Serial.available()) {
-        char c = Serial.read();
-        if (c == '\r') continue; // Ignore CR
-        
-        if (c == '\n') {
-            g_command_buffer[serialLinePos] = '\0';
-            serialLinePos = 0;
-            
-            if (strlen(g_command_buffer) > 0) {
-                // Process command
-                bool success = commandProcessor.processCommand(g_command_buffer, false, g_response_buffer, SHARED_BUFFER_SIZE);
-                
-                if (strlen(g_response_buffer) > 0) {
-                    Serial.print("Response: ");
-                    Serial.println(g_response_buffer);
-                }
-                
-                if (!success) {
-                    Serial.println("Command failed. Type 'help' for available commands.");
-                }
-                
-                // Also send response via MQTT if connected
-                if (strlen(g_response_buffer) > 0 && networkManager.isConnected()) {
-                    snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "cli: %s", g_response_buffer);
-                    networkManager.publish(TOPIC_CONTROL_RESP, g_message_buffer);
-                }
-            }
-        } else {
-            if (serialLinePos < COMMAND_BUFFER_SIZE - 1) {
-                g_command_buffer[serialLinePos++] = c;
-            }
-        }
-    }
-}
-
-void processTelnetCommands() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_TELNET);
-    static char telnetCommandBuffer[COMMAND_BUFFER_SIZE];
-    static size_t telnetLinePos = 0;
-    static bool inTelnetCommand = false;
-    
-    while (telnet.available()) {
-        int c = telnet.read();
-        if (c == -1) break; // No more data
-        
-        // Handle telnet protocol commands (IAC = 255)
-        if (c == 255) { // IAC (Interpret As Command)
-            inTelnetCommand = true;
-            continue;
-        }
-        
-        if (inTelnetCommand) {
-            // Skip telnet command bytes (WILL, WONT, DO, DONT, etc.)
-            if (c >= 240 && c <= 254) {
-                // Multi-byte command, need to read one more byte
-                if (telnet.available()) {
-                    telnet.read(); // consume the option byte
-                }
-            }
-            inTelnetCommand = false;
-            continue;
-        }
-        
-        if (c == '\r') continue; // Ignore CR
-        
-        if (c == '\n') {
-            telnetCommandBuffer[telnetLinePos] = '\0';
-            telnetLinePos = 0;
-            
-            if (strlen(telnetCommandBuffer) > 0) {
-                // Trim whitespace from beginning and end
-                char* start = telnetCommandBuffer;
-                while (*start && (*start == ' ' || *start == '\t')) start++;
-                
-                char* end = start + strlen(start) - 1;
-                while (end > start && (*end == ' ' || *end == '\t' || *end == '\'' || *end == '"')) end--;
-                *(end + 1) = '\0';
-                
-                if (strlen(start) > 0) {
-                    // Process command (allow all commands via telnet including pins)
-                    bool success = commandProcessor.processCommand(start, false, g_response_buffer, SHARED_BUFFER_SIZE);
-                    
-                    if (strlen(g_response_buffer) > 0) {
-                        telnet.print("Response: ");
-                        telnet.println(g_response_buffer);
-                    }
-                    
-                    if (!success) {
-                        telnet.println("Command failed. Type 'help' for available commands.");
-                    }
-                    
-                    // Also send response via MQTT if connected
-                    if (strlen(g_response_buffer) > 0 && networkManager.isConnected()) {
-                        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "telnet: %s", g_response_buffer);
-                        networkManager.publish(TOPIC_CONTROL_RESP, g_message_buffer);
-                    }
-                }
-            }
-        } else if (c >= 32 && c <= 126 && c != '\'' && c != '"') { // Only accept printable ASCII, exclude quotes
-            if (telnetLinePos < COMMAND_BUFFER_SIZE - 1) {
-                telnetCommandBuffer[telnetLinePos++] = (char)c;
-            }
-        }
-        // Ignore all other characters (control characters, escape sequences, quotes, etc.)
-    }
-}
-
-// ============================================================================
-// Arduino Main Functions
-// ============================================================================
 
 void setup() {
-    if (!initializeSystem()) {
-        Serial.println("CRITICAL ERROR: System initialization failed");
-        currentSystemState = SYS_ERROR;
-        while (true) {
-            delay(1000);
-            Serial.println("System halted - check connections and restart");
+    // Initialize Serial FIRST
+    Serial.begin(115200);
+    delay(1000); // Give time for serial monitor to connect
+    
+    Serial.println("MONITOR STARTING...");
+    Serial.println("===============================================");
+    Serial.println("   LogSplitter Monitor - Starting Up");
+    Serial.println("   Version: 1.0.0");
+    Serial.println("===============================================");
+    
+    // Initialize I2C bus BEFORE any sensors with retry logic
+    Serial.println("DEBUG: Initializing I2C bus (Wire1)...");
+    bool i2cInitialized = false;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        Wire1.begin();
+        delay(100); // Allow I2C bus to stabilize
+        
+        // Test I2C bus by scanning for any device
+        bool busWorking = false;
+        for (byte testAddr = 8; testAddr < 120 && !busWorking; testAddr++) {
+            Wire1.beginTransmission(testAddr);
+            if (Wire1.endTransmission() != 2) { // 2 = NACK on address (no device), anything else means bus is working
+                busWorking = true;
+            }
+        }
+        
+        if (busWorking) {
+            i2cInitialized = true;
+            Serial.println("DEBUG: I2C bus initialized successfully");
+            break;
+        } else {
+            Serial.print("DEBUG: I2C initialization attempt ");
+            Serial.print(attempt);
+            Serial.println(" failed, retrying...");
+            delay(500);
         }
     }
+    
+    if (!i2cInitialized) {
+        Serial.println("ERROR: I2C bus initialization failed after 3 attempts!");
+        Serial.println("ERROR: Check wiring: SDA to A4/SDA1, SCL to A5/SCL1");
+    }
+    
+    // Comprehensive I2C device scan with device identification
+    Serial.println("DEBUG: Scanning I2C bus for devices...");
+    int deviceCount = 0;
+    bool foundTCA9548A = false;
+    bool foundMCP9600 = false;
+    bool foundNAU7802 = false;
+    bool foundINA219 = false;
+    bool foundMCP3421 = false;
+    bool foundLCD = false;
+    
+    for (byte address = 1; address < 127; address++) {
+        Wire1.beginTransmission(address);
+        byte error = Wire1.endTransmission();
+        
+        if (error == 0) {
+            Serial.print("DEBUG: I2C device found at address 0x");
+            if (address < 16) Serial.print("0");
+            Serial.print(address, HEX);
+            
+            // Identify known devices
+            switch (address) {
+                case 0x70:
+                    Serial.print(" (TCA9548A I2C Multiplexer)");
+                    foundTCA9548A = true;
+                    break;
+                case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
+                    Serial.print(" (MCP9600 Temperature Sensor)");
+                    foundMCP9600 = true;
+                    break;
+                case 0x2A:
+                    Serial.print(" (NAU7802 Load Cell ADC)");
+                    foundNAU7802 = true;
+                    break;
+                case 0x40: case 0x41: case 0x44: case 0x45:
+                    Serial.print(" (INA219 Power Monitor)");
+                    foundINA219 = true;
+                    break;
+                case 0x68:
+                    Serial.print(" (MCP3421 18-bit ADC)");
+                    foundMCP3421 = true;
+                    break;
+                case 0x3C: case 0x3D:
+                    Serial.print(" (OLED Display)");
+                    foundLCD = true;
+                    break;
+                default:
+                    Serial.print(" (Unknown device)");
+                    break;
+            }
+            Serial.println();
+            deviceCount++;
+        }
+    }
+    
+    if (deviceCount == 0) {
+        Serial.println("ERROR: No I2C devices found on the bus!");
+        Serial.println("ERROR: Check wiring: SDA to A4/SDA1, SCL to A5/SCL1");
+    } else {
+        Serial.print("DEBUG: Found ");
+        Serial.print(deviceCount);
+        Serial.println(" I2C device(s)");
+        
+        // Report missing critical devices
+        if (!foundTCA9548A) {
+            Serial.println("WARNING: TCA9548A I2C multiplexer not found - sensor access will be limited");
+        }
+        if (!foundMCP9600) {
+            Serial.println("WARNING: MCP9600 temperature sensor not detected");
+        }
+        if (!foundNAU7802) {
+            Serial.println("WARNING: NAU7802 load cell ADC not detected");
+        }
+        if (!foundINA219) {
+            Serial.println("WARNING: INA219 power monitor not detected");
+        }
+        if (!foundMCP3421) {
+            Serial.println("WARNING: MCP3421 18-bit ADC not detected");
+        }
+        if (!foundLCD) {
+            Serial.println("WARNING: LCD/OLED display not detected");
+        }
+    }
+    Serial.println("DEBUG: I2C scan complete");
+    
+    // Initialize system components one by one with debug output
+    Serial.println("DEBUG: About to initialize components");
+    
+    // Initialize ConfigManager first to load settings from EEPROM
+    Serial.println("DEBUG: Initializing configuration manager...");
+    if (configManager.loadFromEEPROM()) {
+        Serial.println("DEBUG: Configuration loaded from EEPROM successfully");
+    } else {
+        Serial.println("DEBUG: Using default configuration (EEPROM invalid or empty)");
+    }
+    
+    Serial.println("DEBUG: Initializing monitor system...");
+    monitorSystem.begin();
+    Serial.println("DEBUG: Monitor system initialized");
+    
+    Serial.println("DEBUG: Initializing LCD display...");
+    // Create temporary multiplexer instance for LCD initialization
+    TCA9548A_Multiplexer tempMux(0x70);
+    if (tempMux.begin()) {
+        tempMux.selectChannel(7); // LCD_CHANNEL = 7
+        if (lcdDisplay.begin()) {
+            Serial.println("DEBUG: LCD display initialized successfully");
+        } else {
+            Serial.println("DEBUG: LCD display initialization failed or not present");
+        }
+        tempMux.disableAllChannels();
+    } else {
+        Serial.println("DEBUG: Could not access multiplexer for LCD initialization");
+    }
+    
+    monitorSystem.setSystemState(SYS_INITIALIZING);
+    Serial.println("DEBUG: System state set to initializing");
+    
+    Serial.println("DEBUG: Initializing command processor...");
+    commandProcessor.begin(&networkManager, &monitorSystem);
+    Serial.println("DEBUG: Command processor initialized");
+    
+    Serial.println("DEBUG: About to initialize network manager...");
+    networkManager.begin();
+    Serial.println("DEBUG: Network manager initialized");
+    
+    // Initialize Logger system with NetworkManager
+    Serial.println("DEBUG: Initializing Logger system...");
+    Logger::begin(&networkManager);
+    Logger::setLogLevel(LOG_INFO);  // Default to INFO level
+    Serial.println("DEBUG: Logger initialized");
+    
+    // Show connecting message on LCD
+    lcdDisplay.showConnectingMessage();
+    
+    Serial.println("DEBUG: Setting telnet server connection info...");
+    telnetServer.setConnectionInfo("LogMonitor", FIRMWARE_VERSION);
+    Serial.println("DEBUG: Telnet connection info set");
+    
+    debugPrintf("System: All components initialized\n");
+    currentSystemState = SYS_CONNECTING;
+    monitorSystem.setSystemState(SYS_CONNECTING);
+    
+    Serial.println("System initialization complete");
+    Serial.println("Waiting for network connection...");
 }
 
 void loop() {
-    // Handle system states
-    switch (currentSystemState) {
-        case SYS_RUNNING:
-            updateSystem();
-            publishTelemetry();
-            processSerialCommands();
-            processTelnetCommands();
-            // Handle OTA server updates
-            otaServer.update();
-            break;
-            
-        case SYS_ERROR:
-            // In error state, only do basic safety monitoring
-            safetySystem.emergencyStop("system_error");
-            delay(1000);
-            break;
-            
-        case SYS_SAFE_MODE:
-            // Safe mode: minimal operations, safety monitoring only
-            relayController.update();
-            safetySystem.update(pressureManager.getPressure());
-            processSerialCommands();
-            processTelnetCommands();
-            // OTA still available in safe mode for recovery
-            otaServer.update();
-            delay(100);
-            break;
-            
-        default:
-            currentSystemState = SYS_ERROR;
-            break;
+    unsigned long now = millis();
+    
+    // Update watchdog
+    lastWatchdog = now;
+    
+    // Update all system components
+    networkManager.update();
+    monitorSystem.update();
+    
+    // Start telnet server once network is connected
+    if (networkManager.isWiFiConnected() && currentSystemState == SYS_CONNECTING) {
+        telnetServer.begin(23);
+        currentSystemState = SYS_MONITORING;
+        monitorSystem.setSystemState(SYS_MONITORING);
+        
+        debugPrintf("System: Network connected, telnet server started\n");
+        Serial.println("Network connected! Telnet server running on port 23");
+        Serial.print("IP Address: ");
+        Serial.println(WiFi.localIP());
+        Serial.println("Use USB for firmware updates");
     }
     
-    // Small delay to prevent overwhelming the system
-    delay(1);
+    // Update telnet server
+    if (networkManager.isWiFiConnected()) {
+        telnetServer.update();
+        
+        // Process telnet commands
+        if (telnetServer.isConnected()) {
+            String command = telnetServer.readLine();
+            if (command.length() > 0) {
+                char commandBuffer[COMMAND_BUFFER_SIZE];
+                command.toCharArray(commandBuffer, sizeof(commandBuffer));
+                
+                char response[SHARED_BUFFER_SIZE];
+                bool success = commandProcessor.processCommand(commandBuffer, false, response, sizeof(response));
+                
+                if (strlen(response) > 0) {
+                    telnetServer.print(response);
+                    telnetServer.print("\r\n");
+                }
+                
+                // Show prompt
+                telnetServer.print("\r\n> ");
+                
+                debugPrintf("Telnet command: %s, response: %s\n", 
+                    commandBuffer, strlen(response) > 0 ? response : "none");
+            }
+        }
+    }
+    
+    // Handle serial commands for local debugging
+    if (Serial.available()) {
+        String command = Serial.readStringUntil('\n');
+        command.trim();
+        
+        if (command.length() > 0) {
+            char commandBuffer[COMMAND_BUFFER_SIZE];
+            command.toCharArray(commandBuffer, sizeof(commandBuffer));
+            
+            char response[SHARED_BUFFER_SIZE];
+            bool success = commandProcessor.processCommand(commandBuffer, false, response, sizeof(response));
+            
+            if (strlen(response) > 0) {
+                Serial.print("Response: ");
+                Serial.println(response);
+            }
+            
+            Serial.print("> ");
+        }
+    }
+    
+    // Check for system errors
+    if (!networkManager.isWiFiConnected() && currentSystemState == SYS_MONITORING) {
+        currentSystemState = SYS_CONNECTING;
+        monitorSystem.setSystemState(SYS_CONNECTING);
+        debugPrintf("System: Network disconnected, entering connecting state\n");
+    }
+    
+    // System health check
+    static unsigned long lastHealthCheck = 0;
+    if (now - lastHealthCheck >= 60000) { // Every minute
+        lastHealthCheck = now;
+        
+        char healthStatus[256];
+        monitorSystem.getStatusString(healthStatus, sizeof(healthStatus));
+        debugPrintf("Health check: %s\n", healthStatus);
+        
+        // Check memory and system health
+        unsigned long freeMemory = monitorSystem.getFreeMemory();
+        if (freeMemory < 5000) { // Less than 5KB free
+            debugPrintf("WARNING: Low memory detected: %lu bytes free\n", freeMemory);
+        }
+    }
+    
+    // Prevent watchdog timeout with a small delay
+    delay(10);
+}
+
+// Handle system interrupts and errors
+void systemErrorHandler(const char* error) {
+    debugPrintf("SYSTEM ERROR: %s\n", error);
+    Serial.print("SYSTEM ERROR: ");
+    Serial.println(error);
+    
+    // Set system to error state
+    currentSystemState = SYS_ERROR;
+    monitorSystem.setSystemState(SYS_ERROR);
+    
+    // Try to send error to MQTT if possible
+    if (networkManager.isMQTTConnected()) {
+        char errorTopic[64];
+        snprintf(errorTopic, sizeof(errorTopic), "%s", TOPIC_MONITOR_ERROR);
+        networkManager.publish(errorTopic, error);
+    }
+}
+
+// System status helper
+const char* getSystemStateString(SystemState state) {
+    switch (state) {
+        case SYS_INITIALIZING: return "INITIALIZING";
+        case SYS_CONNECTING: return "CONNECTING";
+        case SYS_MONITORING: return "MONITORING";
+        case SYS_ERROR: return "ERROR";
+        case SYS_MAINTENANCE: return "MAINTENANCE";
+        default: return "UNKNOWN";
+    }
 }

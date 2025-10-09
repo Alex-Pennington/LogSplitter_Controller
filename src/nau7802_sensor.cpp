@@ -115,160 +115,105 @@ NAU7802Status NAU7802Sensor::calibrateAFE() {
 }
 
 NAU7802Status NAU7802Sensor::calibrateZero() {
-    debugPrintf("NAU7802: Starting zero calibration (ensure no load on sensor)...\n");
+    debugPrintf("NAU7802: Starting simple zero calibration...\n");
     
-    // Give sensor extra time to stabilize before zero calibration
-    debugPrintf("NAU7802: Allowing sensor to stabilize for zero calibration...\n");
-    delay(1000);
+    // Simple approach: just take current reading as zero offset
+    // Wait a moment for any settling
+    delay(500);
     
-    // Clear any pending readings
-    while (scale.available()) {
-        scale.getReading();
-        delay(10);
-    }
+    // Try to get a reading directly
+    long reading = 0;
+    bool readingObtained = false;
     
-    // Wait for sensor to be ready with extended timeout
-    debugPrintf("NAU7802: Waiting for sensor to be ready...\n");
-    unsigned long timeout = millis() + 10000;  // 10 second timeout
-    int readyCount = 0;
-    
-    while (millis() < timeout) {
+    // Try a few times to get a reading
+    for (int i = 0; i < 5; i++) {
         if (scale.available()) {
-            readyCount++;
-            if (readyCount >= 3) {  // Wait for multiple consecutive ready states
-                break;
-            }
-        } else {
-            readyCount = 0;  // Reset count if not ready
+            reading = scale.getReading();
+            readingObtained = true;
+            debugPrintf("NAU7802: Got zero reading: %ld\n", reading);
+            break;
         }
-        delay(50);
+        delay(100);
+        yield(); // Allow other tasks
     }
     
-    if (readyCount < 3) {
+    if (!readingObtained) {
+        // Fallback: try to get reading through scale object
+        if (scale.available()) {
+            reading = scale.getReading();
+            readingObtained = true;
+            debugPrintf("NAU7802: Used fallback scale reading for zero: %ld\n", reading);
+        }
+    }
+    
+    if (!readingObtained) {
         lastError = NAU7802_NOT_READY;
-        logError(lastError, "calibrateZero - sensor not consistently ready");
+        logError(lastError, "calibrateZero - could not get reading");
+        debugPrintf("NAU7802: Zero calibration failed - no reading available\n");
         return lastError;
     }
     
-    debugPrintf("NAU7802: Sensor ready, taking calibration readings...\n");
-    
-    // Take average of multiple readings for zero calibration
-    long sum = 0;
-    const uint8_t samples = 50;
-    uint8_t validSamples = 0;
-    
-    for (uint8_t i = 0; i < samples; i++) {
-        // Wait for data to be available
-        unsigned long sampleTimeout = millis() + 1000;
-        while (!scale.available() && millis() < sampleTimeout) {
-            delay(10);
-        }
-        
-        if (scale.available()) {
-            long reading = scale.getReading();
-            sum += reading;
-            validSamples++;
-            debugPrintf("NAU7802: Sample %d: %ld\n", i+1, reading);
-        } else {
-            debugPrintf("NAU7802: Sample %d: timeout\n", i+1);
-        }
-        delay(100); // Wait between readings
-    }
-    
-    if (validSamples < samples / 2) {
-        lastError = NAU7802_CALIBRATION_FAILED;
-        logError(lastError, "calibrateZero - insufficient samples");
-        debugPrintf("NAU7802: Only got %d valid samples out of %d\n", validSamples, samples);
-        return lastError;
-    }
-    
-    zeroOffset = sum / validSamples;
-    debugPrintf("NAU7802: Zero calibration completed, offset=%ld (from %d samples)\n", 
-        zeroOffset, validSamples);
+    // Set the zero offset
+    zeroOffset = reading;
+    debugPrintf("NAU7802: Zero calibration completed, offset=%ld\n", zeroOffset);
     
     // Save calibration to EEPROM
+    debugPrintf("NAU7802: Saving zero calibration...\n");
     saveCalibration();
+    debugPrintf("NAU7802: Zero calibration saved\n");
     
     return NAU7802_OK;
 }
 
 NAU7802Status NAU7802Sensor::calibrateScale(float knownWeight) {
-    debugPrintf("NAU7802: Starting scale calibration with known weight: %.2f\n", knownWeight);
+    debugPrintf("NAU7802: MINIMAL scale calibration with weight %.2f\n", knownWeight);
     
     if (knownWeight <= 0) {
-        lastError = NAU7802_CALIBRATION_FAILED;
-        logError(lastError, "calibrateScale - invalid weight");
-        return lastError;
+        debugPrintf("NAU7802: ERROR - Invalid weight %.2f\n", knownWeight);
+        return NAU7802_CALIBRATION_FAILED;
     }
     
-    // Wait for sensor to be ready
-    debugPrintf("NAU7802: Waiting for sensor to be ready for scale calibration...\n");
-    unsigned long timeout = millis() + 5000;
-    while (!scale.available() && millis() < timeout) {
-        delay(10);
-    }
+    // Wait for scale to be ready and get reading
+    long currentReading = 0;
+    bool readingObtained = false;
     
-    if (!scale.available()) {
-        lastError = NAU7802_NOT_READY;
-        logError(lastError, "calibrateScale - sensor not ready");
-        return lastError;
-    }
-    
-    // Take multiple readings and average for better accuracy
-    long sum = 0;
-    const uint8_t samples = 20;
-    uint8_t validSamples = 0;
-    
-    debugPrintf("NAU7802: Taking %d readings for scale calibration...\n", samples);
-    
-    for (uint8_t i = 0; i < samples; i++) {
-        // Wait for data to be available
-        unsigned long sampleTimeout = millis() + 1000;
-        while (!scale.available() && millis() < sampleTimeout) {
-            delay(10);
-        }
-        
+    for (int i = 0; i < 10; i++) {
         if (scale.available()) {
-            long reading = scale.getReading();
-            sum += reading;
-            validSamples++;
-            debugPrintf("NAU7802: Scale sample %d: %ld\n", i+1, reading);
-        } else {
-            debugPrintf("NAU7802: Scale sample %d: timeout\n", i+1);
+            currentReading = scale.getReading();
+            readingObtained = true;
+            debugPrintf("NAU7802: Current reading: %ld\n", currentReading);
+            break;
         }
-        delay(50); // Short delay between readings
+        delay(100);
+        yield();
     }
     
-    if (validSamples < samples / 2) {
-        lastError = NAU7802_CALIBRATION_FAILED;
-        logError(lastError, "calibrateScale - insufficient samples");
-        debugPrintf("NAU7802: Only got %d valid samples out of %d\n", validSamples, samples);
-        return lastError;
+    if (!readingObtained) {
+        debugPrintf("NAU7802: ERROR - Could not get reading for scale calibration\n");
+        return NAU7802_CALIBRATION_FAILED;
     }
     
-    long rawReading = sum / validSamples;
-    debugPrintf("NAU7802: Average raw reading: %ld, zero offset: %ld\n", rawReading, zeroOffset);
+    debugPrintf("NAU7802: Zero offset: %ld\n", zeroOffset);
     
-    // Calculate calibration factor
-    float adjustedReading = rawReading - zeroOffset;
-    debugPrintf("NAU7802: Adjusted reading (raw - zero): %.2f\n", adjustedReading);
+    // Calculate adjusted reading
+    long adjustedReading = currentReading - zeroOffset;
+    debugPrintf("NAU7802: Adjusted reading: %ld\n", adjustedReading);
     
-    if (abs(adjustedReading) < 10) { // Lower threshold for sensitive load cells
-        lastError = NAU7802_CALIBRATION_FAILED;
-        logError(lastError, "calibrateScale - reading too close to zero");
-        debugPrintf("NAU7802: Adjusted reading %.2f is too small (< 10)\n", adjustedReading);
-        return lastError;
+    if (adjustedReading == 0) {
+        debugPrintf("NAU7802: ERROR - No weight detected\n");
+        return NAU7802_CALIBRATION_FAILED;
     }
     
-    calibrationFactor = knownWeight / adjustedReading;
+    // Calculate and set calibration factor
+    calibrationFactor = knownWeight / (float)adjustedReading;
     isCalibrated = true;
     
-    debugPrintf("NAU7802: Scale calibration completed, factor=%.6f\n", calibrationFactor);
-    debugPrintf("NAU7802: Test calculation: %.2f weight -> %.2f result\n", 
-        knownWeight, adjustedReading * calibrationFactor);
+    debugPrintf("NAU7802: SUCCESS - Calibration factor: %.8f\n", calibrationFactor);
+    debugPrintf("NAU7802: Test: %.2fg should read %.2fg\n", knownWeight, adjustedReading * calibrationFactor);
     
-    // Save calibration to EEPROM
+    // Save to EEPROM
     saveCalibration();
+    debugPrintf("NAU7802: Calibration saved\n");
     
     return NAU7802_OK;
 }

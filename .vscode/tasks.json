@@ -1,134 +1,130 @@
+{{
+
+	"version": "2.0.0","version": "2.0.0",
+
+	"tasks": ["tasks": [
+
+		{{
+
+			"label": "Build","label": "Build",
+
+			"type": "shell","type": "shell",
+
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe","command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
+
+			"args": ["run"],"args": ["run"],
+
+			"group": "build","group": "build",
+
+			"options": {"options": {
+
+				"cwd": "${workspaceFolder}""cwd": "${workspaceFolder}"
+
+			},},
+
+			"presentation": {"presentation": {
+
+				"echo": true,"echo": true,
+
+				"reveal": "always","reveal": "always",
+
+				"focus": false,"focus": false,
+
+				"panel": "shared","panel": "shared",
+
+				"showReuseMessage": true,"showReuseMessage": true,
+
+				"clear": false"clear": false
+
+			},},
+
+			"problemMatcher": ["$gcc"]"problemMatcher": ["$gcc"]
+
+		},},
+
+		{{
+
+			"label": "Upload via USB","label": "Upload via USB",
+
+			"type": "shell","type": "shell",
+
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe","command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
+
+			"args": ["run", "--target", "upload"],"args": ["run", "--target", "upload"],
+
+			"group": {"group": "build",
+
+				"kind": "build","options": {
+
+				"isDefault": true"cwd": "${workspaceFolder}"
+
+			},},
+
+			"options": {"presentation": {
+
+				"cwd": "${workspaceFolder}""echo": true,
+
+			},"reveal": "always",
+
+			"presentation": {"focus": false,
+
+				"echo": true,"panel": "shared",
+
+				"reveal": "always","showReuseMessage": true,
+
+				"focus": false,"clear": false
+
+				"panel": "shared",},
+
+				"showReuseMessage": true,"problemMatcher": ["$gcc"]
+
+				"clear": false},
+
+			},{
+
+			"problemMatcher": ["$gcc"]"label": "Build and Upload via TFTP",
+
+		}"type": "shell",
+
+	]"command": "powershell.exe",
+
+}"args": [
+"-Command",
+"Write-Host 'Building...' -ForegroundColor Green; C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe run; if ($LASTEXITCODE -eq 0) { Write-Host 'Uploading via TFTP...' -ForegroundColor Green; tftp -i 192.168.1.225 put '.pio\\build\\uno_r4_wifi\\firmware.bin' 'firmware.bin' } else { Write-Host 'Build failed!' -ForegroundColor Red }"
+],
+"group": {
+"kind": "build",
+"isDefault": true
+},
+"options": {
+"cwd": "${workspaceFolder}"
+},
+"presentation": {
+"echo": true,
+"reveal": "always",
+"focus": true,
+"panel": "shared",
+"showReuseMessage": true,
+"clear": true
+}
+},
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "🔧 Build Controller Program",
-			"type": "shell",
-			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": ["run"],
-			"options": {
-				"cwd": "${workspaceFolder}/controller"
-			},
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"problemMatcher": ["$platformio"]
-		},
-		{
-			"label": "📤 Upload Controller Program",
-			"type": "shell",
-			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": ["run", "--target", "upload"],
-			"options": {
-				"cwd": "${workspaceFolder}/controller"
-			},
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"problemMatcher": ["$platformio"]
-		},
-		{
-			"label": "🔧 Build Monitor Program",
-			"type": "shell",
-			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": ["run"],
-			"options": {
-				"cwd": "${workspaceFolder}/monitor"
-			},
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"problemMatcher": ["$platformio"]
-		},
-		{
-			"label": "📤 Upload Monitor Program",
-			"type": "shell",
-			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": ["run", "--target", "upload"],
-			"options": {
-				"cwd": "${workspaceFolder}/monitor"
-			},
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"problemMatcher": ["$platformio"]
-		},
-		{
-			"label": "🔍 Monitor Controller Serial",
-			"type": "shell",
-			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": ["device", "monitor"],
-			"options": {
-				"cwd": "${workspaceFolder}/controller"
-			},
-			"group": "test",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "dedicated",
-				"showReuseMessage": false,
-				"clear": true
-			},
-			"isBackground": true
-		},
-		{
-			"label": "🔍 Monitor Program Serial",
-			"type": "shell",
-			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
-			"args": ["device", "monitor"],
-			"options": {
-				"cwd": "${workspaceFolder}/monitor"
-			},
-			"group": "test",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "dedicated",
-				"showReuseMessage": false,
-				"clear": true
-			},
-			"isBackground": true
-		},
-		{
-			"label": "🏗️ Build Both Programs",
-			"dependsOrder": "parallel",
-			"dependsOn": [
-				"🔧 Build Controller Program",
-				"🔧 Build Monitor Program"
-			],
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": false,
-				"panel": "shared"
-			}
-		}
-	]
+"label": "Upload via TFTP",
+"type": "shell",
+"command": "tftp",
+"args": ["-i", "192.168.1.225", "put", ".pio\\build\\uno_r4_wifi\\firmware.bin", "firmware.bin"],
+"group": "build",
+"options": {
+"cwd": "${workspaceFolder}"
+},
+"presentation": {
+"echo": true,
+"reveal": "always",
+"focus": false,
+"panel": "shared",
+"showReuseMessage": true,
+"clear": false
+}
+}
+]
 }

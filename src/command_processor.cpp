@@ -1,303 +1,241 @@
 #include "command_processor.h"
-#include "subsystem_timing_monitor.h"
-#include "config_manager.h"
-#include "pressure_sensor.h"
-#include "pressure_manager.h"
-#include "sequence_controller.h"
-#include "relay_controller.h"
-#include "network_manager.h"
-#include "safety_system.h"
-#include "system_error_manager.h"
-#include "system_test_suite.h"
-#include "input_manager.h"
-#include "command_processor.h"
-#include "arduino_secrets.h"
+#include "lcd_display.h"
 #include "logger.h"
-#include "constants.h"
-#include "ota_server.h"
+#include "arduino_secrets.h"
 #include <ctype.h>
-
-// For system reset functionality on Arduino UNO R4 WiFi
-#ifdef ARDUINO_ARCH_RENESAS_UNO
-extern "C" {
-    void NVIC_SystemReset(void);
-}
-#endif
+#include <string.h>
+#include <Wire.h>
 
 extern void debugPrintf(const char* fmt, ...);
-
-// External debug flag
 extern bool g_debugEnabled;
-
-// External E-Stop state variables
-extern bool g_emergencyStopActive;
-extern bool g_emergencyStopLatched;
-extern SystemState currentSystemState;
+extern LCDDisplay* g_lcdDisplay;
 
 // Static data for rate limiting
 static unsigned long lastCommandTime = 0;
-static const unsigned long COMMAND_RATE_LIMIT_MS = 50; // 20 commands/second max
+static const unsigned long COMMAND_RATE_LIMIT_MS = 100; // 10 commands/second max
 
-// ============================================================================
-// CommandValidator Implementation
-// ============================================================================
-
-bool CommandValidator::isValidCommand(const char* cmd) {
-    if (!cmd || strlen(cmd) == 0 || strlen(cmd) > MAX_CMD_LENGTH) return false;
-    
-    // Allow shorthand relay commands like "R1 ON" without leading 'relay'
-    if ((cmd[0] == 'R' || cmd[0] == 'r') && isdigit((unsigned char)cmd[1])) {
-        return true;
-    }
-
-    // Check against whitelist
-    for (int i = 0; ALLOWED_COMMANDS[i] != nullptr; i++) {
-        if (strcasecmp(cmd, ALLOWED_COMMANDS[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
+CommandProcessor::CommandProcessor() :
+    networkManager(nullptr),
+    monitorSystem(nullptr) {
 }
 
-bool CommandValidator::isValidSetParam(const char* param) {
-    if (!param || strlen(param) == 0) return false;
-    
-    for (int i = 0; ALLOWED_SET_PARAMS[i] != nullptr; i++) {
-        if (strcasecmp(param, ALLOWED_SET_PARAMS[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
+void CommandProcessor::begin(NetworkManager* network, MonitorSystem* monitor) {
+    networkManager = network;
+    monitorSystem = monitor;
+    debugPrintf("CommandProcessor: Initialized\n");
 }
 
-bool CommandValidator::isValidRelayNumber(int num) {
-    return (num >= 1 && num <= MAX_RELAYS);
-}
-
-bool CommandValidator::isValidRelayState(const char* state) {
-    return (strcasecmp(state, "ON") == 0 || strcasecmp(state, "OFF") == 0);
-}
-
-bool CommandValidator::validateCommand(const char* command) {
-    return isValidCommand(command);
-}
-
-bool CommandValidator::validateSetCommand(const char* param, const char* value) {
-    if (!isValidSetParam(param) || !value) return false;
+bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize) {
+    // Initialize response
+    response[0] = '\0';
     
-    // Additional parameter-specific validation
-    if (strcasecmp(param, "vref") == 0 ||
-        strcasecmp(param, "a1_vref") == 0 ||
-        strcasecmp(param, "a5_vref") == 0) {
-        float val = atof(value);
-        return (val > 0.0f && val <= 5.0f);
-    }
-    
-    if (strcasecmp(param, "maxpsi") == 0 || 
-        strcasecmp(param, "a1_maxpsi") == 0 || 
-        strcasecmp(param, "a5_maxpsi") == 0) {
-        float val = atof(value);
-        return (val > 0.0f && val <= 10000.0f);
-    }
-    
-    if (strcasecmp(param, "gain") == 0) {
-        float val = atof(value);
-        return (val > 0.0f && val <= 100.0f);
-    }
-    
-    if (strcasecmp(param, "emaalpha") == 0) {
-        float val = atof(value);
-        return (val > 0.0f && val <= 1.0f);
-    }
-    
-    if (strcasecmp(param, "filter") == 0) {
-        return (strcasecmp(value, "none") == 0 || 
-                strcasecmp(value, "median3") == 0 || 
-                strcasecmp(value, "ema") == 0);
-    }
-    
-    return true; // Allow other parameters with basic validation
-}
-
-bool CommandValidator::validateRelayCommand(const char* relayToken, const char* stateToken) {
-    if (!relayToken || !stateToken) return false;
-    
-    // Check relay token format
-    if ((relayToken[0] != 'R' && relayToken[0] != 'r') || strlen(relayToken) < 2) {
+    // Rate limiting
+    if (!CommandValidator::checkRateLimit()) {
+        snprintf(response, responseSize, "rate limited");
         return false;
     }
     
-    int num = atoi(relayToken + 1);
-    return isValidRelayNumber(num) && isValidRelayState(stateToken);
-}
-
-void CommandValidator::sanitizeInput(char* input, size_t maxLength) {
-    if (!input) return;
+    // Sanitize input
+    CommandValidator::sanitizeInput(commandBuffer, COMMAND_BUFFER_SIZE - 1);
     
-    size_t len = strlen(input);
-    if (len > maxLength) {
-        input[maxLength] = '\0';
-        len = maxLength;
+    // Trim whitespace
+    char* start = commandBuffer;
+    while (*start == ' ' || *start == '\t') start++;
+    
+    // Find end and remove trailing whitespace
+    char* end = start + strlen(start) - 1;
+    while (end > start && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) {
+        *end = '\0';
+        end--;
     }
     
-    // Remove any non-printable characters
-    for (size_t i = 0; i < len; i++) {
-        if (input[i] < 32 || input[i] > 126) {
-            input[i] = ' ';
+    // Copy trimmed command back
+    if (start != commandBuffer) {
+        memmove(commandBuffer, start, strlen(start) + 1);
+    }
+    
+    debugPrintf("Command received: '%s' (length: %d)\n", commandBuffer, strlen(commandBuffer));
+    
+    // Tokenize command
+    char* cmd = strtok(commandBuffer, " ");
+    if (!cmd) {
+        snprintf(response, responseSize, "empty command");
+        return false;
+    }
+    
+    debugPrintf("Parsed command: '%s'\n", cmd);
+    
+    // Validate command
+    if (!CommandValidator::validateCommand(cmd)) {
+        snprintf(response, responseSize, "invalid command: '%s'", cmd);
+        return false;
+    }
+    
+    // Handle specific commands
+    if (strcasecmp(cmd, "help") == 0) {
+        handleHelp(response, responseSize, fromMqtt);
+    }
+    else if (strcasecmp(cmd, "show") == 0) {
+        handleShow(response, responseSize, fromMqtt);
+    }
+    else if (strcasecmp(cmd, "status") == 0) {
+        handleStatus(response, responseSize);
+    }
+    else if (strcasecmp(cmd, "set") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        
+        if (CommandValidator::validateSetCommand(param, value)) {
+            handleSet(param, value, response, responseSize);
+        } else {
+            snprintf(response, responseSize, "invalid set command");
         }
     }
-}
-
-bool CommandValidator::isAlphaNumeric(char c) {
-    return (c >= 'a' && c <= 'z') || 
-           (c >= 'A' && c <= 'Z') || 
-           (c >= '0' && c <= '9');
-}
-
-bool CommandValidator::checkRateLimit() {
-    unsigned long now = millis();
-    if (now - lastCommandTime < COMMAND_RATE_LIMIT_MS) {
-        return false; // Rate limited
+    else if (strcasecmp(cmd, "debug") == 0) {
+        char* param = strtok(NULL, " ");
+        handleDebug(param, response, responseSize);
     }
-    lastCommandTime = now;
+    else if (strcasecmp(cmd, "network") == 0) {
+        char* subcommand = strtok(NULL, " ");
+        handleNetwork(subcommand, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "reset") == 0) {
+        char* param = strtok(NULL, " ");
+        handleReset(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "test") == 0) {
+        char* param = strtok(NULL, " ");
+        handleTest(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "syslog") == 0) {
+        char* param = strtok(NULL, " ");
+        handleSyslog(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "mqtt") == 0) {
+        char* param = strtok(NULL, " ");
+        handleMqtt(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "monitor") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleMonitor(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "weight") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleWeight(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "temp") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleTemperature(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "power") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handlePower(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "adc") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleAdc(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "loglevel") == 0) {
+        char* param = strtok(NULL, " ");
+        handleLogLevel(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "temp") == 0 || strcasecmp(cmd, "temperature") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleTemperature(param, value, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "lcd") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleLCD(param, value, response, responseSize);
+    }
+
+    // TFTP commands removed - USB uploads only
+    else {
+        snprintf(response, responseSize, "unknown command: %s", cmd);
+        return false;
+    }
+    
     return true;
 }
 
-// ============================================================================
-// CommandProcessor Implementation
-// ============================================================================
-
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], timing [report|reset|status|slowest|log], ota [start|stop|status|reboot|url], bypass, syslog, mqtt";
-    if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck\n\nOTA Commands:\nota start - Start OTA server\nota status - Show OTA status\nota url - Show update URL", helpText);
-    } else {
-        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\n\nTiming: timing report|status|slowest\nOTA: ota start|status|url", helpText);
-    }
+    snprintf(response, responseSize, 
+        "Available commands:\r\n"
+        "help           - Show this help\r\n" 
+        "show           - Show sensor readings\r\n"
+        "status         - Show system status\r\n"
+        "network [subcommand] - Network management\r\n"
+        "  status       - Detailed network status\r\n"
+        "  reconnect    - Reconnect WiFi\r\n"
+        "  mqtt_reconnect - Reconnect MQTT\r\n"
+        "  syslog_test  - Test syslog connectivity\r\n"
+        "set <param> <value> - Live configuration\r\n"
+        "  syslog <server:port> - Reconfigure syslog server\r\n"
+        "  mqtt_broker <host:port> - Reconfigure MQTT broker\r\n"
+        "  wifi_ssid <ssid> - Reconfigure WiFi SSID\r\n"
+        "  loglevel <0-7> - Set logging level\r\n"
+        "  debug <on|off> - Toggle debug mode\r\n"
+        "debug [on|off] - Toggle debug mode\r\n"
+        "loglevel [0-7] - Set logging level (0=EMERGENCY, 7=DEBUG)\r\n"
+        "monitor start  - Start monitoring\r\n"
+        "monitor stop   - Stop monitoring\r\n"
+        "weight read    - Read current weight\r\n"
+        "weight tare    - Tare the scale\r\n"
+        "weight zero    - Zero calibration\r\n"
+        "weight calibrate <weight> - Scale calibration\r\n"
+        "temp read      - Read temperature sensors (Fahrenheit)\r\n"
+        "temp readc     - Read temperature sensors (Celsius)\r\n"
+        "temp local|localc - Local temperature (F/C)\r\n"
+        "power read     - Read power sensor (voltage, current, power)\r\n"
+        "power voltage  - Read bus voltage only\r\n"
+        "power current  - Read current only\r\n"
+        "adc read       - Read ADC sensor voltage and raw value\r\n"
+        "adc voltage    - Read ADC voltage only\r\n"
+        "adc raw        - Read ADC raw value only\r\n"
+        "adc status     - Show ADC sensor status and configuration\r\n"
+        "temp remote|remotec - Remote temperature (F/C)\r\n"
+        "temp status    - Show temperature sensor status\r\n"
+        "temp debug on|off - Toggle temperature sensor debug output\r\n"
+        "temp offset <local> <remote> - Set temperature offsets\r\n"
+        "lcd on|off     - Turn LCD display on/off\r\n"
+        "lcd backlight on|off - Control LCD backlight\r\n"
+        "lcd clear      - Clear LCD display\r\n"
+        "test network   - Test network connectivity\r\n"
+        "syslog test    - Send test syslog message\r\n"
+        "mqtt test      - Send test MQTT message\r\n"
+        "mqtt status    - Show MQTT broker status\r\n"
+        "reset system   - Restart the device");
 }
 
 void CommandProcessor::handleShow(char* response, size_t responseSize, bool fromMqtt) {
-    // Build compact status line in stable key=value groups.
-    // Order is intentionally fixed for downstream parsers: pressures, sequence, relays, safety.
-    // Example:
-    //   hydraulic=1234.5 hydraulic_oil=1180.2 seq=IDLE stage=NONE relays=1:ON,2:OFF safe=OK
-    char pressureStatus[96] = "";   // Increased for longer pressure readings
-    char sequenceStatus[80] = "";   // Increased for sequence info
-    char relayStatus[80] = "";      // Increased for relay status  
-    char safetyStatus[48] = "";     // Increased for safety status
-    
-    if (pressureManager) {
-        pressureManager->getStatusString(pressureStatus, sizeof(pressureStatus));
-        // Debug: Check if pressure status is empty
-        if (strlen(pressureStatus) == 0) {
-            snprintf(pressureStatus, sizeof(pressureStatus), "pressure=NONE");
-        }
-    } else if (pressureSensor) {
-        pressureSensor->getStatusString(pressureStatus, sizeof(pressureStatus));
-    } else {
-        snprintf(pressureStatus, sizeof(pressureStatus), "pressure=NO_MANAGER");
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
     }
     
-    if (sequenceController) {
-        sequenceController->getStatusString(sequenceStatus, sizeof(sequenceStatus));
-    }
-    
-    if (relayController) {
-        relayController->getStatusString(relayStatus, sizeof(relayStatus));
-    }
-    
-    if (safetySystem) {
-        safetySystem->getStatusString(safetyStatus, sizeof(safetyStatus));
-    }
-    
-    char errorStatus[32] = "errors=0";
-    if (systemErrorManager) {
-        int errorCount = systemErrorManager->getActiveErrorCount();
-        const char* ledPattern = systemErrorManager->getCurrentLedPatternString();
-        snprintf(errorStatus, sizeof(errorStatus), "errors=%d led=%s", errorCount, ledPattern);
-    }
-    
-    snprintf(response, responseSize, "%s %s %s %s %s", 
-        pressureStatus, sequenceStatus, relayStatus, safetyStatus, errorStatus);
+    monitorSystem->getStatusString(response, responseSize);
 }
 
-void CommandProcessor::handlePins(char* response, size_t responseSize, bool fromMqtt) {
-    if (fromMqtt) {
-        snprintf(response, responseSize, "pins command only available via serial");
+void CommandProcessor::handleStatus(char* response, size_t responseSize) {
+    if (!monitorSystem || !networkManager) {
+        snprintf(response, responseSize, "system components not available");
         return;
     }
     
-    // This will be printed directly to Serial, not stored in response
-    debugPrintf("=== Pin Configuration ===\n");
-    for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
-        bool isNC = configManager ? configManager->isPinNC(i) : false;
-        uint8_t pin = WATCH_PINS[i];
-        
-        const char* function = "";
-        if (pin == LIMIT_EXTEND_PIN) {
-            function = "EXTEND_LIMIT ";
-        } else if (pin == LIMIT_RETRACT_PIN) {
-            function = "RETRACT_LIMIT ";
-        } else if (pin == 2 || pin == 3) {
-            function = "MANUAL_CTRL ";
-        } else if (pin == 4) {
-            function = "SAFETY_CLEAR ";
-        } else if (pin == 5) {
-            function = "SEQUENCE_START ";
-        } else if (pin == 12) {
-            function = "E_STOP ";
-        }
-        
-        if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
-            const char* debounceLevel = inputManager ? inputManager->getPinDebounceLevel(pin) : "N/A";
-            unsigned long debounceMs = inputManager ? inputManager->getPinDebounceMs(pin) : 0;
-            debugPrintf("Pin %d: %smode=%s debounce=%s(%lums)\n", pin, function, isNC ? "NC" : "NO", debounceLevel, debounceMs);
-        } else {
-            debugPrintf("Pin %d: %smode=%s\n", pin, function, isNC ? "NC" : "NO");
-        }
-    }
+    char networkStatus[128];
+    char monitorStatus[128];
     
-    debugPrintf("\nUsage: set pinmode <pin> <NO|NC>\n");
-    debugPrintf("Example: set pinmode 6 NC  (set extend limit to normally closed)\n");
-    debugPrintf("Debounce: pin <6|7> debounce <low|med|high>  (adjust response time)\n");
-    debugPrintf("Debug: set debugpins ON|OFF  (enable raw pin change logging)\n");
+    networkManager->getHealthString(networkStatus, sizeof(networkStatus));
+    monitorSystem->getStatusString(monitorStatus, sizeof(monitorStatus));
     
-    response[0] = '\0'; // No MQTT response
-}
-
-void CommandProcessor::handlePin(char* param1, char* param2, char* param3, char* response, size_t responseSize) {
-    if (!param1 || !param2 || !param3) {
-        snprintf(response, responseSize, "Usage: pin <6|7> debounce <low|med|high>");
-        return;
-    }
-    
-    // Parse pin number
-    uint8_t pin = atoi(param1);
-    if (pin != 6 && pin != 7) {
-        snprintf(response, responseSize, "Pin must be 6 or 7 (limit switches only)");
-        return;
-    }
-    
-    // Check for "debounce" command
-    if (strcasecmp(param2, "debounce") != 0) {
-        snprintf(response, responseSize, "Usage: pin <6|7> debounce <low|med|high>");
-        return;
-    }
-    
-    // Validate and apply debounce level
-    if (strcasecmp(param3, "low") != 0 && strcasecmp(param3, "med") != 0 && 
-        strcasecmp(param3, "medium") != 0 && strcasecmp(param3, "high") != 0) {
-        snprintf(response, responseSize, "Debounce level must be: low, med, or high");
-        return;
-    }
-    
-    if (inputManager) {
-        inputManager->setPinDebounce(pin, param3);
-        unsigned long newMs = inputManager->getPinDebounceMs(pin);
-        snprintf(response, responseSize, "Pin %d debounce: %s (%lums)", pin, param3, newMs);
-    } else {
-        snprintf(response, responseSize, "InputManager not available");
-    }
+    snprintf(response, responseSize, "network: %s | monitor: %s", 
+        networkStatus, monitorStatus);
 }
 
 void CommandProcessor::handleSet(char* param, char* value, char* response, size_t responseSize) {
@@ -306,228 +244,7 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         return;
     }
     
-    if (strcasecmp(param, "vref") == 0) {
-        float val = atof(value);
-        if (pressureSensor) pressureSensor->setAdcVref(val);
-        if (configManager) {
-            configManager->loadFromPressureSensor(*pressureSensor);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "vref set %.6f", val);
-    }
-    else if (strcasecmp(param, "maxpsi") == 0) {
-        float val = atof(value);
-        if (pressureSensor) pressureSensor->setMaxPressure(val);
-        if (configManager) {
-            configManager->loadFromPressureSensor(*pressureSensor);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "maxpsi set %.2f", val);
-    }
-    else if (strcasecmp(param, "gain") == 0) {
-        float val = atof(value);
-        if (pressureSensor) pressureSensor->setSensorGain(val);
-        if (configManager) {
-            configManager->loadFromPressureSensor(*pressureSensor);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "gain set %.6f", val);
-    }
-    else if (strcasecmp(param, "offset") == 0) {
-        float val = atof(value);
-        if (pressureSensor) pressureSensor->setSensorOffset(val);
-        if (configManager) {
-            configManager->loadFromPressureSensor(*pressureSensor);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "offset set %.6f", val);
-    }
-    // Individual sensor A1 (system pressure) configuration
-    else if (strcasecmp(param, "a1_maxpsi") == 0) {
-        float val = atof(value);
-        if (pressureManager && configManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC).setMaxPressure(val);
-            configManager->setA1MaxPressure(val);
-            configManager->save();
-            snprintf(response, responseSize, "A1 maxpsi set %.2f", val);
-        } else {
-            snprintf(response, responseSize, "A1 maxpsi failed: PressureManager or ConfigManager not available");
-        }
-    }
-    else if (strcasecmp(param, "a1_vref") == 0) {
-        float val = atof(value);
-        if (pressureManager && configManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC).setAdcVref(val);
-            configManager->setA1AdcVref(val);
-            configManager->save();
-            snprintf(response, responseSize, "A1 vref set %.6f", val);
-        } else {
-            snprintf(response, responseSize, "A1 vref failed: PressureManager or ConfigManager not available");
-        }
-    }
-    else if (strcasecmp(param, "a1_gain") == 0) {
-        float val = atof(value);
-        if (pressureManager && configManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC).setSensorGain(val);
-            configManager->setA1SensorGain(val);
-            configManager->save();
-            snprintf(response, responseSize, "A1 gain set %.6f", val);
-        } else {
-            snprintf(response, responseSize, "A1 gain failed: PressureManager or ConfigManager not available");
-        }
-    }
-    else if (strcasecmp(param, "a1_offset") == 0) {
-        float val = atof(value);
-        if (pressureManager && configManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC).setSensorOffset(val);
-            configManager->setA1SensorOffset(val);
-            configManager->save();
-            snprintf(response, responseSize, "A1 offset set %.6f", val);
-        } else {
-            snprintf(response, responseSize, "A1 offset failed: PressureManager or ConfigManager not available");
-        }
-    }
-    // Individual sensor A5 (filter pressure) configuration
-    else if (strcasecmp(param, "a5_maxpsi") == 0) {
-        float val = atof(value);
-        if (pressureManager && configManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setMaxPressure(val);
-            configManager->setA5MaxPressure(val);
-            configManager->save();
-            snprintf(response, responseSize, "A5 maxpsi set %.2f", val);
-        } else {
-            snprintf(response, responseSize, "A5 maxpsi failed: PressureManager or ConfigManager not available");
-        }
-    }
-    else if (strcasecmp(param, "a5_vref") == 0) {
-        float val = atof(value);
-        if (pressureManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setAdcVref(val);
-            if (configManager) {
-                configManager->setA5AdcVref(val);
-                configManager->save();
-            }
-            snprintf(response, responseSize, "A5 vref set %.6f", val);
-        } else {
-            snprintf(response, responseSize, "A5 vref failed: PressureManager not available");
-        }
-    }
-    else if (strcasecmp(param, "a5_gain") == 0) {
-        float val = atof(value);
-        if (pressureManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setSensorGain(val);
-            if (configManager) {
-                configManager->setA5SensorGain(val);
-                configManager->save();
-            }
-            snprintf(response, responseSize, "A5 gain set %.6f", val);
-        } else {
-            snprintf(response, responseSize, "A5 gain failed: PressureManager not available");
-        }
-    }
-    else if (strcasecmp(param, "a5_offset") == 0) {
-        float val = atof(value);
-        if (pressureManager) {
-            pressureManager->getSensor(SENSOR_HYDRAULIC_OIL).setSensorOffset(val);
-            if (configManager) {
-                configManager->setA5SensorOffset(val);
-                configManager->save();
-            }
-            snprintf(response, responseSize, "A5 offset set %.6f", val);
-        } else {
-            snprintf(response, responseSize, "A5 offset failed: PressureManager not available");
-        }
-    }
-    else if (strcasecmp(param, "filter") == 0) {
-        FilterMode mode = FILTER_NONE;
-        if (strcasecmp(value, "median3") == 0) mode = FILTER_MEDIAN3;
-        else if (strcasecmp(value, "ema") == 0) mode = FILTER_EMA;
-        
-        if (pressureSensor) pressureSensor->setFilterMode(mode);
-        if (configManager) {
-            configManager->loadFromPressureSensor(*pressureSensor);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "filter set %s", value);
-    }
-    else if (strcasecmp(param, "seqstable") == 0) {
-        unsigned long val = strtoul(value, NULL, 10);
-        if (sequenceController) sequenceController->setStableTime(val);
-        if (configManager) {
-            configManager->loadFromSequenceController(*sequenceController);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "seqStableMs set %lu", val);
-    }
-    else if (strcasecmp(param, "seqstartstable") == 0) {
-        unsigned long val = strtoul(value, NULL, 10);
-        if (sequenceController) sequenceController->setStartStableTime(val);
-        if (configManager) {
-            configManager->loadFromSequenceController(*sequenceController);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "seqStartStableMs set %lu", val);
-    }
-    else if (strcasecmp(param, "seqtimeout") == 0) {
-        unsigned long val = strtoul(value, NULL, 10);
-        if (sequenceController) sequenceController->setTimeout(val);
-        if (configManager) {
-            configManager->loadFromSequenceController(*sequenceController);
-            configManager->save();
-        }
-        snprintf(response, responseSize, "seqTimeoutMs set %lu", val);
-    }
-    else if (strcasecmp(param, "emaalpha") == 0) {
-        float val = atof(value);
-        if (val > 0.0f && val <= 1.0f) {
-            if (pressureSensor) pressureSensor->setEmaAlpha(val);
-            if (configManager) {
-                configManager->setEmaAlpha(val);
-                configManager->save();
-            }
-            snprintf(response, responseSize, "emaAlpha set %.3f", val);
-        } else {
-            snprintf(response, responseSize, "emaAlpha must be between 0.0 and 1.0");
-        }
-    }
-    else if (strcasecmp(param, "pinmode") == 0) {
-        // Accept both "set pinmode 6 NC" (separate tokens) and "set pinmode \"6 NC\""
-        char* pinStr = value;
-        char* modeStr = strchr(value, ' ');
-        if (!modeStr) {
-            // Try to fetch next token from the tokenizer stream (works for serial/MQTT)
-            char* nextToken = strtok(NULL, " ");
-            if (nextToken) {
-                modeStr = nextToken;
-            }
-        } else {
-            *modeStr = '\0'; // Split the string
-            modeStr++; // Move to mode part
-        }
-        
-        if (!modeStr) {
-            snprintf(response, responseSize, "Usage: set pinmode <pin> <NO|NC>");
-            return;
-        }
-        
-        uint8_t pin = atoi(pinStr);
-        bool isNC = (strcasecmp(modeStr, "NC") == 0);
-        bool isNO = (strcasecmp(modeStr, "NO") == 0);
-        
-        if (!isNC && !isNO) {
-            snprintf(response, responseSize, "Mode must be NO or NC");
-            return;
-        }
-        
-        if (configManager) {
-            configManager->setPinMode(pin, isNC);
-            configManager->save();
-            snprintf(response, responseSize, "Pin %d set to %s", pin, isNC ? "NC" : "NO");
-        } else {
-            snprintf(response, responseSize, "Config manager not available");
-        }
-    }
-    else if (strcasecmp(param, "debug") == 0) {
+    if (strcasecmp(param, "debug") == 0) {
         bool enabled;
         if (strcasecmp(value, "on") == 0 || strcasecmp(value, "1") == 0) {
             enabled = true;
@@ -539,41 +256,33 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
         
         g_debugEnabled = enabled;
-        if (configManager) {
-            configManager->setDebugEnabled(enabled);
-            configManager->save();
-        }
         snprintf(response, responseSize, "debug %s", enabled ? "ON" : "OFF");
     }
-    else if (strcasecmp(param, "debugpins") == 0) {
-        bool enabled;
-        if (strcasecmp(value, "on") == 0 || strcasecmp(value, "1") == 0) {
-            enabled = true;
-        } else if (strcasecmp(value, "off") == 0 || strcasecmp(value, "0") == 0) {
-            enabled = false;
-        } else {
-            snprintf(response, responseSize, "debugpins value must be ON|OFF|1|0");
+    else if (strcasecmp(param, "loglevel") == 0) {
+        if (!value) {
+            // Show current log level
+            LogLevel currentLevel = Logger::getLogLevel();
+            snprintf(response, responseSize, "Current log level: %d (%s)", 
+                currentLevel, 
+                (currentLevel == LOG_EMERGENCY) ? "EMERGENCY" :
+                (currentLevel == LOG_ALERT) ? "ALERT" :
+                (currentLevel == LOG_CRITICAL) ? "CRITICAL" :
+                (currentLevel == LOG_ERROR) ? "ERROR" :
+                (currentLevel == LOG_WARNING) ? "WARNING" :
+                (currentLevel == LOG_NOTICE) ? "NOTICE" :
+                (currentLevel == LOG_INFO) ? "INFO" :
+                (currentLevel == LOG_DEBUG) ? "DEBUG" : "UNKNOWN");
             return;
         }
         
-        if (inputManager) {
-            inputManager->setDebugPinChanges(enabled);
-            snprintf(response, responseSize, "debugpins %s", enabled ? "ON" : "OFF");
-        } else {
-            snprintf(response, responseSize, "InputManager not available");
-        }
-    }
-    else if (strcasecmp(param, "loglevel") == 0) {
-        // Parse numeric log level (0-7)
         int level = atoi(value);
         if (level < 0 || level > 7) {
-            snprintf(response, responseSize, "loglevel must be 0-7 (0=EMERGENCY, 7=DEBUG)");
+            snprintf(response, responseSize, "Invalid log level. Use 0-7 (0=EMERGENCY, 7=DEBUG)");
             return;
         }
         
         Logger::setLogLevel(static_cast<LogLevel>(level));
-        snprintf(response, responseSize, "log level set to %d", level);
-        LOG_INFO("Log level changed to %d", level);
+        snprintf(response, responseSize, "Log level set to %d", level);
     }
     else if (strcasecmp(param, "syslog") == 0) {
         if (networkManager) {
@@ -591,18 +300,59 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             }
             
             // Use live reconfiguration method
-            if (networkManager->reconfigureSyslog(value, port)) {
+            bool result = networkManager->reconfigureSyslog(value, port);
+            if (result) {
                 if (portPtr) {
-                    snprintf(response, responseSize, "syslog server set to %s:%d (applied immediately)", value, port);
+                    snprintf(response, responseSize, "syslog server reconfigured to %s:%d", value, port);
                 } else {
-                    snprintf(response, responseSize, "syslog server set to %s:%d (applied immediately)", value, SYSLOG_PORT);
+                    snprintf(response, responseSize, "syslog server reconfigured to %s:%d", value, SYSLOG_PORT);
                 }
             } else {
-                if (portPtr) {
-                    snprintf(response, responseSize, "syslog server set to %s:%d (connection test failed)", value, port);
-                } else {
-                    snprintf(response, responseSize, "syslog server set to %s:%d (connection test failed)", value, SYSLOG_PORT);
+                snprintf(response, responseSize, "syslog reconfiguration failed");
+            }
+        } else {
+            snprintf(response, responseSize, "Network manager not available");
+        }
+    }
+    else if (strcasecmp(param, "mqtt_broker") == 0) {
+        if (networkManager) {
+            // Parse broker address and optional port
+            char* portPtr = strchr(value, ':');
+            int port = BROKER_PORT;
+            
+            if (portPtr) {
+                *portPtr = '\0'; // Split the string
+                port = atoi(portPtr + 1);
+                if (port <= 0 || port > 65535) {
+                    snprintf(response, responseSize, "Invalid port number");
+                    return;
                 }
+            }
+            
+            // Use live reconfiguration method
+            bool result = networkManager->reconfigureMQTT(value, port, MQTT_USER, MQTT_PASS);
+            if (result) {
+                if (portPtr) {
+                    snprintf(response, responseSize, "MQTT broker reconfigured to %s:%d", value, port);
+                } else {
+                    snprintf(response, responseSize, "MQTT broker reconfigured to %s:%d", value, BROKER_PORT);
+                }
+            } else {
+                snprintf(response, responseSize, "MQTT reconfiguration failed");
+            }
+        } else {
+            snprintf(response, responseSize, "Network manager not available");
+        }
+    }
+    else if (strcasecmp(param, "wifi_ssid") == 0) {
+        if (networkManager) {
+            // For security, we need the password too - this is a simplified example
+            // In a real implementation, you'd want to handle this more securely
+            bool result = networkManager->reconfigureWiFi(value, SECRET_PASS);
+            if (result) {
+                snprintf(response, responseSize, "WiFi SSID reconfigured to %s", value);
+            } else {
+                snprintf(response, responseSize, "WiFi reconfiguration failed");
             }
         } else {
             snprintf(response, responseSize, "Network manager not available");
@@ -623,8 +373,7 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
                 }
             }
             
-            // Use live reconfiguration method
-            if (networkManager->reconfigureMQTT(value, port)) {
+            if (networkManager->reconfigureMqttBroker(value, port)) {
                 if (portPtr) {
                     snprintf(response, responseSize, "mqtt broker set to %s:%d (applied immediately)", value, port);
                 } else {
@@ -632,81 +381,43 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
                 }
             } else {
                 if (portPtr) {
-                    snprintf(response, responseSize, "mqtt broker set to %s:%d (will retry connection)", value, port);
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (connection test failed)", value, port);
                 } else {
-                    snprintf(response, responseSize, "mqtt broker set to %s:%d (will retry connection)", value, BROKER_PORT);
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (connection test failed)", value, BROKER_PORT);
                 }
             }
         } else {
             snprintf(response, responseSize, "Network manager not available");
         }
     }
-    // Add more parameter handlers as needed
-    else {
-        snprintf(response, responseSize, "unknown parameter %s", param);
-    }
-}
-
-void CommandProcessor::handleRelay(char* relayToken, char* stateToken, char* response, size_t responseSize) {
-    if (!relayToken || !stateToken) {
-        snprintf(response, responseSize, "relay command failed - invalid parameters");
-        return;
-    }
-    
-    // Parse relay number (expect format like "R1", "R2", etc.)
-    int relayNum = atoi(relayToken + 1); // Skip 'R' prefix
-    
-    // Parse state
-    bool on;
-    if (strcasecmp(stateToken, "ON") == 0 || strcasecmp(stateToken, "1") == 0) {
-        on = true;
-    } else if (strcasecmp(stateToken, "OFF") == 0 || strcasecmp(stateToken, "0") == 0) {
-        on = false;
-    } else {
-        snprintf(response, responseSize, "relay command failed - invalid state");
-        return;
-    }
-    
-    // Intercept hydraulic relay commands (R1 = extend, R2 = retract)
-    if (sequenceController && (relayNum == 1 || relayNum == 2)) {
-        if (relayNum == 1) { // R1 = Extend
-            if (on) {
-                if (sequenceController->startManualExtend()) {
-                    snprintf(response, responseSize, "manual extend started (safety-monitored)");
-                } else {
-                    snprintf(response, responseSize, "manual extend blocked - check limits/pressure/status");
-                }
+    else if (strcasecmp(param, "interval") == 0) {
+        unsigned long interval = strtoul(value, NULL, 10);
+        if (interval >= 1000 && interval <= 300000) { // 1 second to 5 minutes
+            if (monitorSystem) {
+                monitorSystem->setPublishInterval(interval);
+                snprintf(response, responseSize, "publish interval set to %lu ms", interval);
             } else {
-                if (sequenceController->stopManualOperation()) {
-                    snprintf(response, responseSize, "manual operation stopped");
-                } else {
-                    snprintf(response, responseSize, "no manual operation to stop");
-                }
+                snprintf(response, responseSize, "Monitor system not available");
             }
-            return;
-        } else if (relayNum == 2) { // R2 = Retract
-            if (on) {
-                if (sequenceController->startManualRetract()) {
-                    snprintf(response, responseSize, "manual retract started (safety-monitored)");
-                } else {
-                    snprintf(response, responseSize, "manual retract blocked - check limits/pressure/status");
-                }
-            } else {
-                if (sequenceController->stopManualOperation()) {
-                    snprintf(response, responseSize, "manual operation stopped");
-                } else {
-                    snprintf(response, responseSize, "no manual operation to stop");
-                }
-            }
-            return;
+        } else {
+            snprintf(response, responseSize, "Interval must be between 1000 and 300000 ms");
         }
     }
-    
-    // For all other relays (R3-R9), use normal relay controller
-    if (relayController && relayController->processCommand(relayToken, stateToken)) {
-        snprintf(response, responseSize, "relay %s %s", relayToken, stateToken);
-    } else {
-        snprintf(response, responseSize, "relay command failed");
+    else if (strcasecmp(param, "heartbeat") == 0) {
+        unsigned long interval = strtoul(value, NULL, 10);
+        if (interval >= 5000 && interval <= 600000) { // 5 seconds to 10 minutes
+            if (monitorSystem) {
+                monitorSystem->setHeartbeatInterval(interval);
+                snprintf(response, responseSize, "heartbeat interval set to %lu ms", interval);
+            } else {
+                snprintf(response, responseSize, "Monitor system not available");
+            }
+        } else {
+            snprintf(response, responseSize, "Heartbeat interval must be between 5000 and 600000 ms");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "unknown parameter %s", param);
     }
 }
 
@@ -720,397 +431,258 @@ void CommandProcessor::handleDebug(char* param, char* response, size_t responseS
     if (strcasecmp(param, "on") == 0 || strcasecmp(param, "1") == 0) {
         g_debugEnabled = true;
         snprintf(response, responseSize, "debug ON");
-        Serial.println("Debug output enabled");
     } else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "0") == 0) {
         g_debugEnabled = false;
         snprintf(response, responseSize, "debug OFF");
-        Serial.println("Debug output disabled");
     } else {
         snprintf(response, responseSize, "usage: debug [ON|OFF]");
     }
 }
 
-void CommandProcessor::handleNetwork(char* param, char* response, size_t responseSize) {
+void CommandProcessor::handleNetwork(char* subcommand, char* response, size_t responseSize) {
     if (!networkManager) {
         snprintf(response, responseSize, "network manager not available");
         return;
     }
     
-    if (!param) {
-        // Default: show network status
+    if (!subcommand) {
+        // Default behavior - show network status
         networkManager->getHealthString(response, responseSize);
         return;
     }
     
-    if (strcasecmp(param, "status") == 0) {
-        // Detailed network status
-        char wifiStatus[64];
-        if (networkManager->isWiFiConnected()) {
-            snprintf(wifiStatus, sizeof(wifiStatus), "Connected (IP: %s)", WiFi.localIP().toString().c_str());
-        } else {
-            snprintf(wifiStatus, sizeof(wifiStatus), "Disconnected");
-        }
+    if (strcasecmp(subcommand, "status") == 0) {
+        char healthBuffer[256];
+        networkManager->getHealthString(healthBuffer, sizeof(healthBuffer));
         
         snprintf(response, responseSize, 
-                "Network Status:\n"
-                "WiFi: %s\n"
-                "MQTT: %s\n"
-                "Syslog: %s:%d\n"
-                "Broker: %s:%d\n"
-                "Bypass: %s",
-                wifiStatus,
-                networkManager->isMQTTConnected() ? "Connected" : "Disconnected",
-                networkManager->getSyslogServer(), networkManager->getSyslogPort(),
-                networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort(),
-                networkManager->isNetworkBypassed() ? "ENABLED" : "disabled");
+            "network status: %s | syslog: %s:%d | hostname: %s",
+            healthBuffer,
+            networkManager->getSyslogServer(),
+            networkManager->getSyslogPort(),
+            networkManager->getHostname());
     }
-    else if (strcasecmp(param, "reconnect") == 0) {
-        // Force WiFi reconnection with current credentials
-        if (networkManager->reconfigureWiFi(SECRET_SSID, SECRET_PASS)) {
-            snprintf(response, responseSize, "WiFi reconnection initiated");
+    else if (strcasecmp(subcommand, "reconnect") == 0) {
+        // Force WiFi reconnection
+        if (networkManager->isWiFiConnected()) {
+            snprintf(response, responseSize, "disconnecting WiFi for reconnection...");
+            // The reconfigureWiFi method will handle reconnection with current credentials
+            networkManager->reconfigureWiFi(SECRET_SSID, SECRET_PASS);
         } else {
-            snprintf(response, responseSize, "WiFi reconnection failed to start");
+            snprintf(response, responseSize, "WiFi not connected - attempting connection");
+            networkManager->reconfigureWiFi(SECRET_SSID, SECRET_PASS);
         }
     }
-    else if (strcasecmp(param, "mqtt_reconnect") == 0) {
-        // Force MQTT reconnection with current broker settings
-        if (networkManager->reconfigureMQTT(networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort())) {
-            snprintf(response, responseSize, "MQTT reconnection initiated");
+    else if (strcasecmp(subcommand, "mqtt_reconnect") == 0) {
+        if (networkManager->isWiFiConnected()) {
+            bool result = networkManager->reconfigureMQTT(BROKER_HOST, BROKER_PORT, MQTT_USER, MQTT_PASS);
+            snprintf(response, responseSize, "MQTT reconnection %s", result ? "successful" : "failed");
         } else {
-            snprintf(response, responseSize, "MQTT reconnection failed");
+            snprintf(response, responseSize, "WiFi not connected - cannot reconnect MQTT");
         }
     }
-    else if (strcasecmp(param, "syslog_test") == 0) {
-        // Send test message to syslog server
-        if (networkManager->sendSyslog("NetworkManager: Syslog connectivity test message", 6)) {
-            snprintf(response, responseSize, "Syslog test message sent successfully");
+    else if (strcasecmp(subcommand, "syslog_test") == 0) {
+        if (networkManager->isWiFiConnected()) {
+            bool result = networkManager->sendSyslog("NETWORK COMMAND SYSLOG TEST - LogSplitter Monitor");
+            snprintf(response, responseSize, "syslog test %s", result ? "successful" : "failed");
         } else {
-            snprintf(response, responseSize, "Syslog test message failed to send");
+            snprintf(response, responseSize, "WiFi not connected - cannot test syslog");
         }
     }
     else {
-        snprintf(response, responseSize, "Unknown network command: %s\nAvailable: status, reconnect, mqtt_reconnect, syslog_test", param);
-    }
-}
-
-void CommandProcessor::handleBypass(char* param, char* response, size_t responseSize) {
-    if (!networkManager) {
-        snprintf(response, responseSize, "network manager not available");
-        return;
-    }
-    
-    if (!param) {
-        // Show current bypass status
-        snprintf(response, responseSize, "Network bypass: %s, max update time: %lums", 
-                networkManager->isNetworkBypassed() ? "ENABLED" : "disabled",
-                networkManager->getMaxUpdateTime());
-        return;
-    }
-    
-    if (strcasecmp(param, "on") == 0 || strcasecmp(param, "enable") == 0) {
-        networkManager->enableNetworkBypass(true);
-        LOG_WARN("Network bypass ENABLED manually - system operating without network");
-        snprintf(response, responseSize, "Network bypass ENABLED - system will run without network");
-    }
-    else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "disable") == 0) {
-        networkManager->enableNetworkBypass(false);
-        LOG_INFO("Network bypass DISABLED - network operations resumed");
-        snprintf(response, responseSize, "Network bypass DISABLED - network operations resumed");
-    }
-    else {
-        snprintf(response, responseSize, "usage: bypass [on|off|enable|disable]");
+        snprintf(response, responseSize, "network subcommands: status, reconnect, mqtt_reconnect, syslog_test");
     }
 }
 
 void CommandProcessor::handleReset(char* param, char* response, size_t responseSize) {
     if (!param) {
-        snprintf(response, responseSize, "usage: reset estop|system");
+        snprintf(response, responseSize, "usage: reset system|network");
         return;
     }
     
-    if (strcasecmp(param, "estop") == 0) {
-        // Only allow E-Stop reset if E-Stop button is not currently pressed
-        if (g_emergencyStopActive) {
-            snprintf(response, responseSize, "E-Stop reset failed: E-Stop button still pressed");
-            return;
-        }
-        
-        if (g_emergencyStopLatched) {
-            g_emergencyStopLatched = false;
-            currentSystemState = SYS_RUNNING;
-            
-            // Notify safety system of reset
-            if (safetySystem) {
-                safetySystem->clearEmergencyStop();
-            }
-            
-            snprintf(response, responseSize, "E-Stop reset successful - system operational");
-            Serial.println("E-Stop reset: System restored to operational state");
-        } else {
-            snprintf(response, responseSize, "E-Stop not latched - no reset needed");
-        }
-    }
-    else if (strcasecmp(param, "system") == 0) {
-        snprintf(response, responseSize, "System reset initiated - rebooting...");
-        Serial.println("SYSTEM RESET: Complete system reboot initiated via command");
-        Serial.flush(); // Ensure message is sent before reset
-        delay(100);     // Brief delay to send response
-        
-        // Perform system reset - equivalent to power cycle
-        #ifdef ARDUINO_ARCH_RENESAS_UNO
-        // For Arduino UNO R4 WiFi
+    if (strcasecmp(param, "system") == 0) {
+        snprintf(response, responseSize, "system reset requested - restarting...");
+        delay(100); // Allow response to be sent
+        // Restart the system
         NVIC_SystemReset();
-        #else
-        // Fallback for other Arduino architectures
-        asm volatile ("  jmp 0");
-        #endif
-    } 
-    else {
-        snprintf(response, responseSize, "unknown reset parameter: %s (try: estop, system)", param);
-    }
-}
-
-void CommandProcessor::handleError(char* param, char* value, char* response, size_t responseSize) {
-    if (!systemErrorManager) {
-        snprintf(response, responseSize, "error manager not available");
-        return;
-    }
-    
-    if (!param) {
-        snprintf(response, responseSize, "usage: error list|ack <code>|clear");
-        return;
-    }
-    
-    if (strcasecmp(param, "list") == 0) {
-        if (systemErrorManager->hasErrors()) {
-            systemErrorManager->listActiveErrors(response, responseSize);
+    } else if (strcasecmp(param, "network") == 0) {
+        if (networkManager) {
+            // Force network reconnection by setting state
+            snprintf(response, responseSize, "network reset requested");
+            // This would require exposing a reset method in NetworkManager
         } else {
-            snprintf(response, responseSize, "no active errors");
-        }
-    }
-    else if (strcasecmp(param, "ack") == 0) {
-        if (!value) {
-            snprintf(response, responseSize, "usage: error ack <error_code>");
-            return;
-        }
-        
-        // Parse error code (hex format like 0x01)
-        uint8_t errorCode = 0;
-        if (strncasecmp(value, "0x", 2) == 0) {
-            errorCode = (uint8_t)strtol(value, NULL, 16);
-        } else {
-            errorCode = (uint8_t)strtol(value, NULL, 10);
-        }
-        
-        if (errorCode == 0 || (errorCode & 0x7F) == 0) {
-            snprintf(response, responseSize, "invalid error code: %s", value);
-            return;
-        }
-        
-        SystemErrorType errorType = (SystemErrorType)errorCode;
-        if (systemErrorManager->hasError(errorType)) {
-            systemErrorManager->acknowledgeError(errorType);
-            snprintf(response, responseSize, "error 0x%02X acknowledged", errorCode);
-        } else {
-            snprintf(response, responseSize, "error 0x%02X not active", errorCode);
-        }
-    }
-    else if (strcasecmp(param, "clear") == 0) {
-        systemErrorManager->clearAllErrors();
-        snprintf(response, responseSize, "all errors cleared");
-    }
-    else {
-        snprintf(response, responseSize, "unknown error command: %s", param);
-    }
-}
-
-bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize) {
-    // Initialize response
-    response[0] = '\0';
-    
-    // Rate limiting (more permissive for MQTT)
-    if (!fromMqtt) {
-        if (!CommandValidator::checkRateLimit()) {
-            snprintf(response, responseSize, "rate limited");
-            return false;
+            snprintf(response, responseSize, "network manager not available");
         }
     } else {
-        // For MQTT, apply a looser window: only block if more than 10 msgs in rapid succession
-        if (!CommandValidator::checkRateLimit()) {
-            // Don't hard-fail; annotate response but continue parsing
-            // This helps avoid dropping legitimate batched MQTT inputs
-            // response may be overwritten by a valid command handler
-            snprintf(response, responseSize, "rate_warn");
-        }
+        snprintf(response, responseSize, "unknown reset parameter: %s", param);
     }
-    
-    // Sanitize input
-    CommandValidator::sanitizeInput(commandBuffer, COMMAND_BUFFER_SIZE - 1);
-    
-    // Tokenize command
-    char* cmd = strtok(commandBuffer, " ");
-    if (!cmd) {
-        snprintf(response, responseSize, "empty command");
-        return false;
-    }
-    
-    // Validate command
-    if (!CommandValidator::validateCommand(cmd)) {
-        snprintf(response, responseSize, "invalid command: %s", cmd);
-        return false;
-    }
-    
-    // Handle specific commands
-    if (strcasecmp(cmd, "help") == 0) {
-        handleHelp(response, responseSize, fromMqtt);
-    }
-    else if (strcasecmp(cmd, "show") == 0) {
-        handleShow(response, responseSize, fromMqtt);
-    }
-    else if (strcasecmp(cmd, "pins") == 0) {
-        handlePins(response, responseSize, fromMqtt);
-    }
-    else if (strcasecmp(cmd, "pin") == 0) {
-        char* param1 = strtok(NULL, " ");
-        char* param2 = strtok(NULL, " ");
-        char* param3 = strtok(NULL, " ");
-        handlePin(param1, param2, param3, response, responseSize);
-    }
-    // Support shorthand relay control: "R1 ON" style (works for both Serial & MQTT)
-    else if ((cmd[0] == 'R' || cmd[0] == 'r') && cmd[1] && (cmd[1] >= '0' && cmd[1] <= '9')) {
-        char* stateToken = strtok(NULL, " ");
-        if (!stateToken) {
-            snprintf(response, responseSize, "usage: R<n> ON|OFF");
-            return false;
-        }
-        if (CommandValidator::validateRelayCommand(cmd, stateToken)) {
-            handleRelay(cmd, stateToken, response, responseSize);
-            return true;
-        } else {
-            snprintf(response, responseSize, "invalid relay command");
-            return false;
-        }
-    }
-    else if (strcasecmp(cmd, "set") == 0) {
-        char* param = strtok(NULL, " ");
-        char* value = strtok(NULL, " ");
-        
-        if (CommandValidator::validateSetCommand(param, value)) {
-            handleSet(param, value, response, responseSize);
-        } else {
-            snprintf(response, responseSize, "invalid set command");
-        }
-    }
-    else if (strcasecmp(cmd, "relay") == 0) {
-        char* relayToken = strtok(NULL, " ");
-        char* stateToken = strtok(NULL, " ");
-        
-        if (CommandValidator::validateRelayCommand(relayToken, stateToken)) {
-            handleRelay(relayToken, stateToken, response, responseSize);
-        } else {
-            snprintf(response, responseSize, "invalid relay command");
-        }
-    }
-    else if (strcasecmp(cmd, "debug") == 0) {
-        char* param = strtok(NULL, " ");
-        handleDebug(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "network") == 0) {
-        char* param = strtok(NULL, " ");
-        handleNetwork(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "bypass") == 0) {
-        char* param = strtok(NULL, " ");
-        handleBypass(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "reset") == 0) {
-        char* param = strtok(NULL, " ");
-        handleReset(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "error") == 0) {
-        char* param = strtok(NULL, " ");
-        char* value = strtok(NULL, " ");
-        handleError(param, value, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "test") == 0) {
-        char* param = strtok(NULL, " ");
-        handleTest(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "syslog") == 0) {
-        char* param = strtok(NULL, " ");
-        handleSyslog(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "mqtt") == 0) {
-        char* param = strtok(NULL, " ");
-        handleMqtt(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "loglevel") == 0) {
-        char* param = strtok(NULL, " ");
-        handleLogLevel(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "timing") == 0) {
-        char* param = strtok(NULL, " ");
-        handleTiming(param, response, responseSize);
-    }
-    else if (strcasecmp(cmd, "ota") == 0) {
-        char* param = strtok(NULL, " ");
-        handleOTA(param, response, responseSize);
-    }
-    else {
-        snprintf(response, responseSize, "unknown command: %s", cmd);
-        return false;
-    }
-    
-    return true;
 }
 
 void CommandProcessor::handleTest(char* param, char* response, size_t responseSize) {
-    if (!systemTestSuite) {
-        snprintf(response, responseSize, "test system not initialized");
-        return;
-    }
-    
     if (!param) {
-        snprintf(response, responseSize, 
-            "test commands: all, safety, outputs, systems, report, status");
+        snprintf(response, responseSize, "test commands: network, sensors, weight, temp, outputs, i2c, pins");
         return;
     }
     
-    if (strcasecmp(param, "all") == 0) {
-        snprintf(response, responseSize, "starting complete system test suite...");
-        systemTestSuite->runAllTests();
+    if (strcasecmp(param, "network") == 0) {
+        if (networkManager) {
+            bool wifiOk = networkManager->isWiFiConnected();
+            bool mqttOk = networkManager->isMQTTConnected();
+            snprintf(response, responseSize, "network test: wifi=%s mqtt=%s", 
+                wifiOk ? "OK" : "FAIL", mqttOk ? "OK" : "FAIL");
+        } else {
+            snprintf(response, responseSize, "network manager not available");
+        }
     }
-    else if (strcasecmp(param, "safety") == 0) {
-        snprintf(response, responseSize, "starting safety input tests...");
-        systemTestSuite->runTestCategory(SystemTestSuite::SAFETY_INPUTS);
+    else if (strcasecmp(param, "sensors") == 0) {
+        if (monitorSystem) {
+            float localTempF = monitorSystem->getLocalTemperatureF();
+            float remoteTempF = monitorSystem->getRemoteTemperatureF();
+            snprintf(response, responseSize, "sensor test: local=%.1f°F remote=%.1f°F", localTempF, remoteTempF);
+        } else {
+            snprintf(response, responseSize, "monitor system not available");
+        }
+    }
+    else if (strcasecmp(param, "weight") == 0) {
+        if (monitorSystem) {
+            bool ready = monitorSystem->isWeightSensorReady();
+            NAU7802Status status = monitorSystem->getWeightSensorStatus();
+            float weight = monitorSystem->getWeight();
+            long raw = monitorSystem->getRawWeight();
+            
+            snprintf(response, responseSize, 
+                "weight test: status=%s ready=%s weight=%.3f raw=%ld",
+                (status == NAU7802_OK) ? "OK" : "ERROR",
+                ready ? "YES" : "NO",
+                weight, raw);
+        } else {
+            snprintf(response, responseSize, "monitor system not available");
+        }
+    }
+    else if (strcasecmp(param, "temp") == 0 || strcasecmp(param, "temperature") == 0) {
+        if (monitorSystem) {
+            bool ready = monitorSystem->isTemperatureSensorReady();
+            float localTempF = monitorSystem->getLocalTemperatureF();
+            float remoteTempF = monitorSystem->getRemoteTemperatureF();
+            char statusBuffer[256];
+            monitorSystem->getTemperatureSensorStatus(statusBuffer, sizeof(statusBuffer));
+            
+            snprintf(response, responseSize, 
+                "temp test: ready=%s local=%.2fF remote=%.2fF - %s",
+                ready ? "YES" : "NO",
+                localTempF, remoteTempF, statusBuffer);
+        } else {
+            snprintf(response, responseSize, "monitor system not available");
+        }
     }
     else if (strcasecmp(param, "outputs") == 0) {
-        snprintf(response, responseSize, "starting output device tests...");
-        systemTestSuite->runTestCategory(SystemTestSuite::OUTPUT_DEVICES);
+        if (monitorSystem) {
+            // Toggle output pins briefly for testing
+            monitorSystem->setDigitalOutput(DIGITAL_OUTPUT_1, true);
+            delay(100);
+            monitorSystem->setDigitalOutput(DIGITAL_OUTPUT_1, false);
+            snprintf(response, responseSize, "output test: toggled output pins");
+        } else {
+            snprintf(response, responseSize, "monitor system not available");
+        }
     }
-    else if (strcasecmp(param, "systems") == 0) {
-        snprintf(response, responseSize, "starting integrated system tests...");
-        systemTestSuite->runTestCategory(SystemTestSuite::INTEGRATED_SYSTEMS);
+    else if (strcasecmp(param, "i2c") == 0) {
+        // Enhanced I2C scanner with diagnostics - using Wire1 for Qwiic connector
+        int deviceCount = 0;
+        char deviceList[200] = "";
+        
+        debugPrintf("DEBUG: Starting I2C scan on Wire1 (Qwiic connector)...\n");
+        debugPrintf("DEBUG: Reinitializing Wire1 bus...\n");
+        
+        // Reinitialize Wire1 bus (Qwiic connector) with slower clock speed
+        Wire1.end();
+        Wire1.begin();
+        Wire1.setClock(100000); // Set to 100kHz (standard I2C speed)
+        debugPrintf("DEBUG: Wire1 bus reinitialized at 100kHz\n");
+        
+        // Check I2C pin states (R4 WiFi Qwiic connector)
+        debugPrintf("DEBUG: Testing Wire1 communication...\n");
+        
+        // Try Wire1 I2C communication
+        debugPrintf("DEBUG: Testing basic I2C communication on Wire1...\n");
+        
+        // Try a different I2C initialization approach
+        debugPrintf("DEBUG: Testing basic I2C communication...\n");
+        
+        for (int address = 1; address < 127; address++) {
+            Wire1.beginTransmission(address);
+            int error = Wire1.endTransmission();
+            
+            if (error == 0) {
+                deviceCount++;
+                char addrStr[16];
+                snprintf(addrStr, sizeof(addrStr), "0x%02X ", address);
+                if (strlen(deviceList) + strlen(addrStr) < sizeof(deviceList) - 1) {
+                    strcat(deviceList, addrStr);
+                }
+                
+                debugPrintf("DEBUG: Found device at address 0x%02X on Wire1\n", address);
+                
+                // Check if this is the NAU7802 (default address 0x2A)
+                if (address == 0x2A) {
+                    debugPrintf("DEBUG: Found NAU7802 at address 0x2A on Wire1\n");
+                }
+            } else if (error == 2) {
+                // Address not acknowledged - this is normal for unused addresses
+            } else {
+                // Other error - could indicate bus problem
+                debugPrintf("DEBUG: Wire1 I2C error %d at address 0x%02X\n", error, address);
+                // If we get consistent error 5, stop scanning early
+                if (error == 5 && address > 10) {
+                    debugPrintf("DEBUG: Multiple timeout errors detected - stopping scan\n");
+                    break;
+                }
+            }
+        }
+        
+        if (deviceCount == 0) {
+            snprintf(response, responseSize, "i2c test: no devices found on Wire1 - check Qwiic connector");
+            debugPrintf("DEBUG: No I2C devices detected on Wire1 (Qwiic)\n");
+            debugPrintf("DEBUG: Ensure device is connected to Qwiic connector\n");
+        } else {
+            snprintf(response, responseSize, "i2c test: found %d device(s) on Wire1: %s", deviceCount, deviceList);
+        }
     }
-    else if (strcasecmp(param, "report") == 0) {
-        snprintf(response, responseSize, "generating test report...");
-        systemTestSuite->printTestReport();
-    }
-    else if (strcasecmp(param, "status") == 0) {
-        uint8_t completed = systemTestSuite->getCompletedTests();
-        SystemTestSuite::TestResult overall = systemTestSuite->getOverallResult();
+    else if (strcasecmp(param, "pins") == 0) {
+        // Test I2C pin functionality (R4 WiFi dedicated I2C pins)
+        debugPrintf("DEBUG: Testing I2C pin functionality\n");
+        
+        // Read current pin states
+        int sda_state = digitalRead(SDA);
+        int scl_state = digitalRead(SCL);
+        
+        // Set pins as outputs and test
+        pinMode(SDA, OUTPUT);
+        pinMode(SCL, OUTPUT);
+        
+        digitalWrite(SDA, HIGH);
+        digitalWrite(SCL, HIGH);
+        delay(10);
+        int sda_high = digitalRead(SDA);
+        int scl_high = digitalRead(SCL);
+        
+        digitalWrite(SDA, LOW);
+        digitalWrite(SCL, LOW);
+        delay(10);
+        int sda_low = digitalRead(SDA);
+        int scl_low = digitalRead(SCL);
+        
+        // Restore I2C functionality
+        Wire.begin();
+        
         snprintf(response, responseSize, 
-            "test status: %d/11 complete, overall: %s", 
-            completed, 
-            systemTestSuite->resultToString(overall));
-    }
-    else if (strcasecmp(param, "progress") == 0) {
-        snprintf(response, responseSize, "displaying test progress...");
-        systemTestSuite->displayProgress();
+            "pin test: SDA init=%d high=%d low=%d | SCL init=%d high=%d low=%d",
+            sda_state, sda_high, sda_low, scl_state, scl_high, scl_low);
+        
+        debugPrintf("DEBUG: Pin test complete, I2C reinitialized\n");
     }
     else {
-        snprintf(response, responseSize, 
-            "unknown test command: %s (try: all, safety, outputs, systems, report)", param);
+        snprintf(response, responseSize, "unknown test parameter: %s", param);
     }
 }
 
@@ -1121,8 +693,7 @@ void CommandProcessor::handleSyslog(char* param, char* response, size_t response
     }
     
     if (!param) {
-        snprintf(response, responseSize, 
-            "syslog commands: test, status");
+        snprintf(response, responseSize, "syslog commands: test, status");
         return;
     }
     
@@ -1133,25 +704,21 @@ void CommandProcessor::handleSyslog(char* param, char* response, size_t response
         }
         
         // Send test message to syslog server
-        bool result = networkManager->sendSyslog("SYSLOG TEST MESSAGE - LogSplitter Controller");
+        bool result = networkManager->sendSyslog("SYSLOG TEST MESSAGE - LogSplitter Monitor");
         if (result) {
-            snprintf(response, responseSize, "syslog test message sent successfully to %s:%d", 
-                networkManager->getSyslogServer(), networkManager->getSyslogPort());
+            snprintf(response, responseSize, "syslog test message sent successfully");
         } else {
-            snprintf(response, responseSize, "syslog test message failed to send to %s:%d", 
-                networkManager->getSyslogServer(), networkManager->getSyslogPort());
+            snprintf(response, responseSize, "syslog test message failed to send");
         }
     }
     else if (strcasecmp(param, "status") == 0) {
         snprintf(response, responseSize, 
-            "syslog server: %s:%d, wifi: %s, local IP: %s", 
+            "syslog server: %s:%d, wifi: %s", 
             networkManager->getSyslogServer(), networkManager->getSyslogPort(),
-            networkManager->isWiFiConnected() ? "connected" : "disconnected",
-            networkManager->isWiFiConnected() ? WiFi.localIP().toString().c_str() : "none");
+            networkManager->isWiFiConnected() ? "connected" : "disconnected");
     }
     else {
-        snprintf(response, responseSize, 
-            "unknown syslog command: %s (try: test, status)", param);
+        snprintf(response, responseSize, "unknown syslog command: %s", param);
     }
 }
 
@@ -1162,25 +729,18 @@ void CommandProcessor::handleMqtt(char* param, char* response, size_t responseSi
     }
     
     if (!param) {
-        snprintf(response, responseSize, 
-            "mqtt commands: test, status");
+        snprintf(response, responseSize, "mqtt commands: test, status");
         return;
     }
     
     if (strcasecmp(param, "test") == 0) {
         if (!networkManager->isWiFiConnected()) {
-            snprintf(response, responseSize, "WiFi not connected - cannot test MQTT");
+            snprintf(response, responseSize, "WiFi not connected - cannot send mqtt test");
             return;
         }
         
-        if (!networkManager->isMQTTConnected()) {
-            snprintf(response, responseSize, "MQTT not connected to broker %s:%d", 
-                networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort());
-            return;
-        }
-        
-        // Send test message to MQTT broker
-        bool result = networkManager->publish("r4/test", "MQTT TEST MESSAGE - LogSplitter Controller");
+        // Send test message to mqtt broker
+        bool result = networkManager->sendMqttTest("MQTT TEST MESSAGE - LogSplitter Monitor");
         if (result) {
             snprintf(response, responseSize, "mqtt test message sent successfully to %s:%d", 
                 networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort());
@@ -1191,15 +751,521 @@ void CommandProcessor::handleMqtt(char* param, char* response, size_t responseSi
     }
     else if (strcasecmp(param, "status") == 0) {
         snprintf(response, responseSize, 
-            "mqtt broker: %s:%d, wifi: %s, mqtt: %s, local IP: %s", 
+            "mqtt broker: %s:%d, wifi: %s, mqtt: %s", 
             networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort(),
             networkManager->isWiFiConnected() ? "connected" : "disconnected",
-            networkManager->isMQTTConnected() ? "connected" : "disconnected",
-            networkManager->isWiFiConnected() ? WiFi.localIP().toString().c_str() : "none");
+            networkManager->isMQTTConnected() ? "connected" : "disconnected");
     }
     else {
+        snprintf(response, responseSize, "unknown mqtt command: %s", param);
+    }
+}
+
+void CommandProcessor::handleMonitor(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "monitor commands: start, stop, state, output");
+        return;
+    }
+    
+    if (strcasecmp(param, "start") == 0) {
+        monitorSystem->setSystemState(SYS_MONITORING);
+        snprintf(response, responseSize, "monitoring started");
+    }
+    else if (strcasecmp(param, "stop") == 0) {
+        monitorSystem->setSystemState(SYS_MAINTENANCE);
+        snprintf(response, responseSize, "monitoring stopped");
+    }
+    else if (strcasecmp(param, "state") == 0) {
+        SystemState state = monitorSystem->getSystemState();
+        const char* stateStr = "";
+        switch (state) {
+            case SYS_INITIALIZING: stateStr = "INITIALIZING"; break;
+            case SYS_CONNECTING: stateStr = "CONNECTING"; break;
+            case SYS_MONITORING: stateStr = "MONITORING"; break;
+            case SYS_ERROR: stateStr = "ERROR"; break;
+            case SYS_MAINTENANCE: stateStr = "MAINTENANCE"; break;
+        }
+        snprintf(response, responseSize, "monitor state: %s (%d)", stateStr, (int)state);
+    }
+    else if (strcasecmp(param, "output") == 0) {
+        if (!value) {
+            snprintf(response, responseSize, "usage: monitor output <1|2> <on|off>");
+            return;
+        }
+        
+        int outputNum = atoi(value);
+        char* stateStr = strtok(NULL, " ");
+        
+        if (outputNum < 1 || outputNum > 2 || !stateStr) {
+            snprintf(response, responseSize, "usage: monitor output <1|2> <on|off>");
+            return;
+        }
+        
+        bool state = (strcasecmp(stateStr, "on") == 0 || strcasecmp(stateStr, "1") == 0);
+        uint8_t pin = (outputNum == 1) ? DIGITAL_OUTPUT_1 : DIGITAL_OUTPUT_2;
+        
+        monitorSystem->setDigitalOutput(pin, state);
+        snprintf(response, responseSize, "output %d set to %s", outputNum, state ? "ON" : "OFF");
+    }
+    else {
+        snprintf(response, responseSize, "unknown monitor command: %s", param);
+    }
+}
+
+void CommandProcessor::handleWeight(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "weight commands: read, raw, tare, zero, calibrate, status");
+        return;
+    }
+    
+    if (strcasecmp(param, "read") == 0) {
+        float weight = monitorSystem->getWeight();
+        float filtered = monitorSystem->getFilteredWeight();
+        snprintf(response, responseSize, "weight: %.3f (filtered: %.3f)", weight, filtered);
+    }
+    else if (strcasecmp(param, "raw") == 0) {
+        long rawWeight = monitorSystem->getRawWeight();
+        snprintf(response, responseSize, "raw weight: %ld", rawWeight);
+    }
+    else if (strcasecmp(param, "tare") == 0) {
+        monitorSystem->tareWeightSensor();
+        snprintf(response, responseSize, "weight sensor tared");
+    }
+    else if (strcasecmp(param, "zero") == 0) {
+        if (monitorSystem->calibrateWeightSensorZero()) {
+            snprintf(response, responseSize, "zero calibration completed");
+        } else {
+            snprintf(response, responseSize, "zero calibration failed");
+        }
+    }
+    else if (strcasecmp(param, "calibrate") == 0) {
+        if (!value) {
+            snprintf(response, responseSize, "usage: weight calibrate <known_weight>");
+            return;
+        }
+        
+        float knownWeight = atof(value);
+        if (knownWeight <= 0) {
+            snprintf(response, responseSize, "known weight must be positive");
+            return;
+        }
+        
+        if (monitorSystem->calibrateWeightSensorScale(knownWeight)) {
+            snprintf(response, responseSize, "scale calibrated with weight %.2f", knownWeight);
+        } else {
+            snprintf(response, responseSize, "scale calibration failed");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        NAU7802Status status = monitorSystem->getWeightSensorStatus();
+        bool ready = monitorSystem->isWeightSensorReady();
+        float weight = monitorSystem->getWeight();
+        long raw = monitorSystem->getRawWeight();
+        
         snprintf(response, responseSize, 
-            "unknown mqtt command: %s (try: test, status)", param);
+            "status: %s, ready: %s, weight: %.3f, raw: %ld",
+            (status == NAU7802_OK) ? "OK" : "ERROR",
+            ready ? "YES" : "NO",
+            weight, raw);
+    }
+    else if (strcasecmp(param, "save") == 0) {
+        if (monitorSystem->saveWeightCalibration()) {
+            snprintf(response, responseSize, "weight calibration saved to EEPROM");
+        } else {
+            snprintf(response, responseSize, "failed to save weight calibration");
+        }
+    }
+    else if (strcasecmp(param, "load") == 0) {
+        if (monitorSystem->loadWeightCalibration()) {
+            snprintf(response, responseSize, "weight calibration loaded from EEPROM");
+        } else {
+            snprintf(response, responseSize, "failed to load weight calibration");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "unknown weight command: %s", param);
+    }
+}
+
+void CommandProcessor::handleTemperature(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "temp commands: read, readc, local, remote, localc, remotec, status, debug, offset");
+        return;
+    }
+    
+    if (strcasecmp(param, "read") == 0) {
+        bool ready = monitorSystem->isTemperatureSensorReady();
+        if (ready) {
+            float localTempF = monitorSystem->getLocalTemperatureF();
+            float remoteTempF = monitorSystem->getRemoteTemperatureF();
+            snprintf(response, responseSize, "local: %.2fF, remote: %.2fF", localTempF, remoteTempF);
+        } else {
+            snprintf(response, responseSize, "temperature sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "readc") == 0) {
+        bool ready = monitorSystem->isTemperatureSensorReady();
+        if (ready) {
+            float localTemp = monitorSystem->getLocalTemperature();
+            float remoteTemp = monitorSystem->getRemoteTemperature();
+            snprintf(response, responseSize, "local: %.2fC, remote: %.2fC", localTemp, remoteTemp);
+        } else {
+            snprintf(response, responseSize, "temperature sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "local") == 0) {
+        float localTempF = monitorSystem->getLocalTemperatureF();
+        snprintf(response, responseSize, "local temperature: %.2f°F", localTempF);
+    }
+    else if (strcasecmp(param, "localc") == 0) {
+        float localTemp = monitorSystem->getLocalTemperature();
+        snprintf(response, responseSize, "local temperature: %.2f°C", localTemp);
+    }
+    else if (strcasecmp(param, "remote") == 0) {
+        float remoteTempF = monitorSystem->getRemoteTemperatureF();
+        snprintf(response, responseSize, "remote temperature: %.2f°F", remoteTempF);
+    }
+    else if (strcasecmp(param, "remotec") == 0) {
+        float remoteTemp = monitorSystem->getRemoteTemperature();
+        snprintf(response, responseSize, "remote temperature: %.2f°C", remoteTemp);
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        char statusBuffer[256];
+        monitorSystem->getTemperatureSensorStatus(statusBuffer, sizeof(statusBuffer));
+        snprintf(response, responseSize, "%s", statusBuffer);
+    }
+    else if (strcasecmp(param, "offset") == 0) {
+        if (!value) {
+            snprintf(response, responseSize, "usage: temp offset <local_offset> <remote_offset>");
+            return;
+        }
+        
+        // Parse two float values
+        char* localStr = value;
+        char* remoteStr = strtok(NULL, " ");
+        
+        if (!remoteStr) {
+            snprintf(response, responseSize, "usage: temp offset <local_offset> <remote_offset>");
+            return;
+        }
+        
+        float localOffset = atof(localStr);
+        float remoteOffset = atof(remoteStr);
+        
+        monitorSystem->setTemperatureOffset(localOffset, remoteOffset);
+        snprintf(response, responseSize, "temperature offsets set: local=%.2f°C, remote=%.2f°C", 
+                localOffset, remoteOffset);
+    }
+    else if (strcasecmp(param, "debug") == 0) {
+        if (!value) {
+            // Show current debug state
+            MCP9600Sensor* tempSensor = monitorSystem->getTemperatureSensor();
+            bool debugEnabled = tempSensor->isDebugEnabled();
+            snprintf(response, responseSize, "temperature debug: %s", debugEnabled ? "ON" : "OFF");
+            return;
+        }
+        
+        if (strcasecmp(value, "on") == 0) {
+            MCP9600Sensor* tempSensor = monitorSystem->getTemperatureSensor();
+            tempSensor->enableDebugOutput(true);
+            snprintf(response, responseSize, "temperature debug enabled");
+        }
+        else if (strcasecmp(value, "off") == 0) {
+            MCP9600Sensor* tempSensor = monitorSystem->getTemperatureSensor();
+            tempSensor->enableDebugOutput(false);
+            snprintf(response, responseSize, "temperature debug disabled");
+        }
+        else {
+            snprintf(response, responseSize, "usage: temp debug [on|off]");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "unknown temperature command: %s", param);
+    }
+}
+
+void CommandProcessor::handlePower(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "power commands: read, voltage, current, watts, status");
+        return;
+    }
+    
+    if (strcasecmp(param, "read") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getBusVoltage();
+            float current = monitorSystem->getCurrent();
+            float power = monitorSystem->getPower();
+            snprintf(response, responseSize, "%.3fV, %.2fmA, %.2fmW", voltage, current, power);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "voltage") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getBusVoltage();
+            snprintf(response, responseSize, "bus voltage: %.3fV", voltage);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "current") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float current = monitorSystem->getCurrent();
+            snprintf(response, responseSize, "current: %.2fmA", current);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "watts") == 0 || strcasecmp(param, "power") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        if (ready) {
+            float power = monitorSystem->getPower();
+            snprintf(response, responseSize, "power: %.2fmW", power);
+        } else {
+            snprintf(response, responseSize, "power sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        bool ready = monitorSystem->isPowerSensorReady();
+        float voltage = monitorSystem->getBusVoltage();
+        float current = monitorSystem->getCurrent();
+        float power = monitorSystem->getPower();
+        snprintf(response, responseSize, "INA219: %s, %.3fV, %.2fmA, %.2fmW", 
+                ready ? "READY" : "NOT READY", voltage, current, power);
+    }
+    else {
+        snprintf(response, responseSize, "unknown power command: %s", param);
+    }
+}
+
+void CommandProcessor::handleAdc(char* param, char* value, char* response, size_t responseSize) {
+    if (!monitorSystem) {
+        snprintf(response, responseSize, "monitor system not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "adc commands: read, voltage, raw, status, config");
+        return;
+    }
+    
+    if (strcasecmp(param, "read") == 0) {
+        bool ready = monitorSystem->isAdcSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getAdcVoltage();
+            int32_t raw = monitorSystem->getAdcRawValue();
+            snprintf(response, responseSize, "%.6fV, raw: %ld", voltage, raw);
+        } else {
+            snprintf(response, responseSize, "ADC sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "voltage") == 0) {
+        bool ready = monitorSystem->isAdcSensorReady();
+        if (ready) {
+            float voltage = monitorSystem->getAdcVoltage();
+            snprintf(response, responseSize, "ADC voltage: %.6fV", voltage);
+        } else {
+            snprintf(response, responseSize, "ADC sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "raw") == 0) {
+        bool ready = monitorSystem->isAdcSensorReady();
+        if (ready) {
+            int32_t raw = monitorSystem->getAdcRawValue();
+            snprintf(response, responseSize, "ADC raw: %ld", raw);
+        } else {
+            snprintf(response, responseSize, "ADC sensor not available");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        char statusBuffer[256];
+        monitorSystem->getAdcSensorStatus(statusBuffer, sizeof(statusBuffer));
+        snprintf(response, responseSize, "%s", statusBuffer);
+    }
+    else if (strcasecmp(param, "config") == 0) {
+        if (!value) {
+            // Show current configuration
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            int resolution = adcSensor->getResolution();
+            int gain = 1 << adcSensor->getGain();
+            snprintf(response, responseSize, "MCP3421: %d-bit, Gain=%dx, Vref=%.3fV", 
+                    resolution, gain, adcSensor->getReferenceVoltage());
+            return;
+        }
+        
+        // Handle configuration changes
+        if (strcasecmp(value, "12bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_12_BIT_240_SPS);
+            snprintf(response, responseSize, "ADC set to 12-bit, 240 SPS");
+        }
+        else if (strcasecmp(value, "14bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_14_BIT_60_SPS);
+            snprintf(response, responseSize, "ADC set to 14-bit, 60 SPS");
+        }
+        else if (strcasecmp(value, "16bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_16_BIT_15_SPS);
+            snprintf(response, responseSize, "ADC set to 16-bit, 15 SPS");
+        }
+        else if (strcasecmp(value, "18bit") == 0) {
+            MCP3421_Sensor* adcSensor = monitorSystem->getAdcSensor();
+            adcSensor->setSampleRate(MCP3421_18_BIT_3_75_SPS);
+            snprintf(response, responseSize, "ADC set to 18-bit, 3.75 SPS");
+        }
+        else {
+            snprintf(response, responseSize, "usage: adc config [12bit|14bit|16bit|18bit]");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "unknown adc command: %s", param);
+    }
+}
+
+// CommandValidator implementation
+bool CommandValidator::isValidCommand(const char* cmd) {
+    if (!cmd || strlen(cmd) == 0 || strlen(cmd) > MAX_CMD_LENGTH) return false;
+    
+    // Check against whitelist
+    for (int i = 0; ALLOWED_COMMANDS[i] != nullptr; i++) {
+        if (strcasecmp(cmd, ALLOWED_COMMANDS[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CommandValidator::isValidSetParam(const char* param) {
+    if (!param || strlen(param) == 0) return false;
+    
+    for (int i = 0; ALLOWED_SET_PARAMS[i] != nullptr; i++) {
+        if (strcasecmp(param, ALLOWED_SET_PARAMS[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CommandValidator::validateCommand(const char* command) {
+    return isValidCommand(command);
+}
+
+bool CommandValidator::validateSetCommand(const char* param, const char* value) {
+    if (!isValidSetParam(param) || !value) return false;
+    
+    // Additional parameter-specific validation
+    if (strcasecmp(param, "interval") == 0 || strcasecmp(param, "heartbeat") == 0) {
+        unsigned long val = strtoul(value, NULL, 10);
+        return (val >= 1000 && val <= 600000);
+    }
+    
+    return true; // Allow other parameters with basic validation
+}
+
+void CommandValidator::sanitizeInput(char* input, size_t maxLength) {
+    if (!input) return;
+    
+    size_t len = strlen(input);
+    if (len > maxLength) {
+        input[maxLength] = '\0';
+        len = maxLength;
+    }
+    
+    // Remove any non-printable characters
+    for (size_t i = 0; i < len; i++) {
+        if (input[i] < 32 || input[i] > 126) {
+            input[i] = ' ';
+        }
+    }
+}
+
+bool CommandValidator::checkRateLimit() {
+    unsigned long now = millis();
+    if (now - lastCommandTime < COMMAND_RATE_LIMIT_MS) {
+        return false; // Rate limited
+    }
+    lastCommandTime = now;
+    return true;
+}
+
+void CommandProcessor::handleLCD(char* param, char* value, char* response, size_t responseSize) {
+    if (!g_lcdDisplay) {
+        snprintf(response, responseSize, "LCD display not available");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "LCD status: %s, backlight: %s", 
+            g_lcdDisplay->isEnabled() ? "ON" : "OFF",
+            g_lcdDisplay->isBacklightEnabled() ? "ON" : "OFF");
+        return;
+    }
+    
+    if (strcasecmp(param, "on") == 0) {
+        g_lcdDisplay->setEnabled(true);
+        snprintf(response, responseSize, "LCD display enabled");
+    }
+    else if (strcasecmp(param, "off") == 0) {
+        g_lcdDisplay->setEnabled(false);
+        snprintf(response, responseSize, "LCD display disabled");
+    }
+    else if (strcasecmp(param, "clear") == 0) {
+        g_lcdDisplay->clear();
+        snprintf(response, responseSize, "LCD display cleared");
+    }
+    else if (strcasecmp(param, "backlight") == 0) {
+        if (!value) {
+            snprintf(response, responseSize, "LCD backlight: %s", 
+                g_lcdDisplay->isBacklightEnabled() ? "ON" : "OFF");
+            return;
+        }
+        
+        if (strcasecmp(value, "on") == 0) {
+            g_lcdDisplay->setBacklight(true);
+            snprintf(response, responseSize, "LCD backlight enabled");
+        }
+        else if (strcasecmp(value, "off") == 0) {
+            g_lcdDisplay->setBacklight(false);
+            snprintf(response, responseSize, "LCD backlight disabled");
+        }
+        else {
+            snprintf(response, responseSize, "usage: lcd backlight on|off");
+        }
+    }
+    else if (strcasecmp(param, "info") == 0) {
+        if (value) {
+            g_lcdDisplay->showInfo(value);
+            snprintf(response, responseSize, "LCD info message displayed");
+        } else {
+            snprintf(response, responseSize, "usage: lcd info <message>");
+        }
+    }
+    else {
+        snprintf(response, responseSize, "usage: lcd [on|off|clear|backlight|info]");
     }
 }
 
@@ -1229,7 +1295,7 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
         snprintf(response, responseSize, "usage: loglevel set <0-7>");
     }
     else {
-        // Try to parse as numeric level
+        // Try to parse as log level number
         int level = atoi(param);
         if (level >= 0 && level <= 7) {
             Logger::setLogLevel(static_cast<LogLevel>(level));
@@ -1246,136 +1312,11 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
                 default: levelName = "UNKNOWN"; break;
             }
             snprintf(response, responseSize, "Log level set to %d (%s)", level, levelName);
-            LOG_INFO("Log level changed to %d (%s)", level, levelName);
         } else {
             snprintf(response, responseSize, "usage: loglevel [get|list|<0-7>]");
         }
     }
 }
 
-void CommandProcessor::handleTiming(char* param, char* response, size_t responseSize) {
-    if (!timingMonitor) {
-        snprintf(response, responseSize, "timing monitor not available");
-        return;
-    }
-    
-    if (!param || strcasecmp(param, "report") == 0) {
-        // Generate timing report
-        timingMonitor->getTimingReport(response, responseSize);
-    }
-    else if (strcasecmp(param, "reset") == 0) {
-        timingMonitor->resetStatistics();
-        snprintf(response, responseSize, "timing statistics reset");
-    }
-    else if (strcasecmp(param, "status") == 0) {
-        // Show health status
-        bool hasWarnings = timingMonitor->hasAnyWarnings();
-        bool hasCritical = timingMonitor->hasAnyCriticalIssues();
-        
-        if (hasCritical) {
-            snprintf(response, responseSize, "timing status: CRITICAL - performance issues detected");
-        } else if (hasWarnings) {
-            snprintf(response, responseSize, "timing status: WARNING - minor performance issues");
-        } else {
-            snprintf(response, responseSize, "timing status: OK - all subsystems performing normally");
-        }
-    }
-    else if (strcasecmp(param, "slowest") == 0) {
-        // Show slowest subsystem
-        SubsystemID slowest = timingMonitor->getSlowestSubsystem();
-        char subsystemStatus[256];
-        timingMonitor->getSubsystemStatus(slowest, subsystemStatus, sizeof(subsystemStatus));
-        snprintf(response, responseSize, "slowest subsystem: %s", subsystemStatus);
-    }
-    else if (strcasecmp(param, "log") == 0) {
-        // Force timing report to logs
-        timingMonitor->logTimingReport();
-        snprintf(response, responseSize, "timing report logged to syslog/MQTT");
-    }
-    else if (strcasecmp(param, "detailed") == 0) {
-        char* enableParam = strtok(NULL, " ");
-        if (enableParam) {
-            bool enable = (strcasecmp(enableParam, "on") == 0 || strcasecmp(enableParam, "1") == 0);
-            timingMonitor->enableDetailedLogging(enable);
-            snprintf(response, responseSize, "detailed timing logging %s", enable ? "enabled" : "disabled");
-        } else {
-            snprintf(response, responseSize, "usage: timing detailed <on|off>");
-        }
-    }
-    else {
-        snprintf(response, responseSize, "timing commands: report, reset, status, slowest, log, detailed");
-    }
-}
 
-void CommandProcessor::handleOTA(char* param, char* response, size_t responseSize) {
-    if (!param) {
-        snprintf(response, responseSize, 
-            "ota commands: start, stop, status, reboot, url");
-        return;
-    }
-    
-    if (strcasecmp(param, "start") == 0) {
-        if (otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server already running");
-        } else {
-            otaServer.begin(80);
-            if (otaServer.isServerRunning()) {
-                snprintf(response, responseSize, "OTA server started on port 80 - URL: http://%s/update", 
-                         WiFi.localIP().toString().c_str());
-                LOG_INFO("OTA: Server started via telnet command");
-            } else {
-                snprintf(response, responseSize, "Failed to start OTA server");
-            }
-        }
-    }
-    else if (strcasecmp(param, "stop") == 0) {
-        if (!otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server not running");
-        } else {
-            otaServer.stop();
-            snprintf(response, responseSize, "OTA server stopped");
-            LOG_INFO("OTA: Server stopped via telnet command");
-        }
-    }
-    else if (strcasecmp(param, "status") == 0) {
-        if (!otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server: STOPPED");
-        } else {
-            float progress = otaServer.getUpdateProgress();
-            const char* status = otaServer.getStatusString();
-            
-            if (otaServer.isUpdateInProgress()) {
-                snprintf(response, responseSize, 
-                    "OTA server: RUNNING\nStatus: %s (%.1f%%)\nUpdate URL: http://%s/update", 
-                    status, progress, WiFi.localIP().toString().c_str());
-            } else {
-                const char* lastError = otaServer.getLastError();
-                snprintf(response, responseSize, 
-                    "OTA server: RUNNING\nStatus: %s\nLast Error: %s\nUpdate URL: http://%s/update", 
-                    status, lastError, WiFi.localIP().toString().c_str());
-            }
-        }
-    }
-    else if (strcasecmp(param, "url") == 0) {
-        if (!otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server not running - use 'ota start' first");
-        } else {
-            snprintf(response, responseSize, 
-                "OTA Update URL: http://%s/update\n"
-                "Progress API: http://%s/progress\n"
-                "Command Line: curl -X POST -F \"firmware=@firmware.bin\" http://%s/update", 
-                WiFi.localIP().toString().c_str(),
-                WiFi.localIP().toString().c_str(),
-                WiFi.localIP().toString().c_str());
-        }
-    }
-    else if (strcasecmp(param, "reboot") == 0) {
-        snprintf(response, responseSize, "System reboot in 3 seconds...");
-        LOG_WARN("System reboot requested via OTA command");
-        delay(3000);
-        NVIC_SystemReset();
-    }
-    else {
-        snprintf(response, responseSize, "ota commands: start, stop, status, reboot, url");
-    }
-}
+
