@@ -403,8 +403,8 @@ bool NetworkManager::reconfigureSyslog(const char* server, int port) {
     if (isWiFiConnected()) {
         // Store old configuration for rollback
         char oldServer[64];
-        int oldPort = syslogPort;
-        strncpy(oldServer, syslogServer, sizeof(oldServer));
+        int oldPort = getSyslogPort();
+        strncpy(oldServer, getSyslogServer(), sizeof(oldServer));
         
         // Apply new configuration
         setSyslogServer(server, port);
@@ -502,15 +502,12 @@ bool NetworkManager::isMQTTConnected() const {
 }
 
 bool NetworkManager::isSyslogWorking() const {
-    return lastSyslogSuccess;
-}
-
-bool NetworkManager::isSyslogWorking() const {
     // Consider syslog working if:
     // 1. WiFi is connected
     // 2. Syslog server is configured
     // 3. Recent syslog attempt was successful (within last 30 seconds)
-    if (!isWiFiConnected() || strlen(syslogServer) == 0) {
+    const char* server = getSyslogServer();
+    if (!isWiFiConnected() || strlen(server) == 0) {
         return false;
     }
     
