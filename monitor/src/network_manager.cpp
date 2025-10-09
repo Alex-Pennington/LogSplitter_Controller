@@ -14,8 +14,11 @@ void onMqttMessageStatic(int messageSize) {
     }
 }
 
-NetworkManager::NetworkManager() : 
+NetworkManager::NetworkManager(ConfigManager* configMgr) :
+    configManager(configMgr),
+    wifiClient(),
     mqttClient(wifiClient),
+    udpClient(),
     wifiState(WiFiState::DISCONNECTED),
     mqttState(MQTTState::DISCONNECTED),
     lastConnectAttempt(0),
@@ -24,16 +27,10 @@ NetworkManager::NetworkManager() :
     connectionUptime(0),
     disconnectCount(0),
     failedPublishCount(0),
-    connectionStable(false),
-    syslogPort(SYSLOG_PORT) {
+    connectionStable(false) {
     
-    // Set default syslog server
-    strncpy(syslogServer, SYSLOG_SERVER, sizeof(syslogServer) - 1);
-    syslogServer[sizeof(syslogServer) - 1] = '\0';
-    
-    // Set default hostname
-    strncpy(hostname, SYSLOG_HOSTNAME, sizeof(hostname) - 1);
-    hostname[sizeof(hostname) - 1] = '\0';
+    // Configure MQTT client
+    mqttClient.setId("LogMonitor");
 }
 
 void NetworkManager::begin() {
@@ -43,8 +40,13 @@ void NetworkManager::begin() {
     s_instance = this;
     
     // Set hostname for easier network identification
-    WiFi.setHostname(hostname);
-    debugPrintf("NetworkManager: Set hostname to '%s'\n", hostname);
+    if (configManager) {
+        WiFi.setHostname(configManager->getHostname());
+        debugPrintf("NetworkManager: Set hostname to '%s'\n", configManager->getHostname());
+    } else {
+        WiFi.setHostname(SYSLOG_HOSTNAME);
+        debugPrintf("NetworkManager: Using default hostname '%s'\n", SYSLOG_HOSTNAME);
+    }
     
     // Initialize UDP client for syslog
     udpClient.begin(0);
@@ -68,13 +70,16 @@ void NetworkManager::startWiFiConnection() {
 void NetworkManager::startMQTTConnection() {
     if (mqttState == MQTTState::CONNECTING || wifiState != WiFiState::CONNECTED) return;
     
+    const char* brokerHost = getMqttBrokerHost();
+    int brokerPort = getMqttBrokerPort();
+    
     mqttState = MQTTState::CONNECTING;
-    debugPrintf("NetworkManager: Connecting to MQTT broker: %s:%d\n", BROKER_HOST, BROKER_PORT);
+    debugPrintf("NetworkManager: Connecting to MQTT broker: %s:%d\n", brokerHost, brokerPort);
     
     mqttClient.setId("LogMonitor");
     mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
     
-    if (mqttClient.connect(BROKER_HOST, BROKER_PORT)) {
+    if (mqttClient.connect(brokerHost, brokerPort)) {
         mqttState = MQTTState::CONNECTED;
         debugPrintf("NetworkManager: MQTT connected successfully\n");
         
@@ -255,7 +260,10 @@ bool NetworkManager::publishWithRetain(const char* topic, const char* payload) {
 }
 
 bool NetworkManager::sendSyslog(const char* message, int level) {
-    if (!isWiFiConnected() || strlen(syslogServer) == 0) {
+    const char* server = getSyslogServer();
+    int port = getSyslogPort();
+    
+    if (!isWiFiConnected() || strlen(server) == 0) {
         return false;
     }
     
@@ -269,12 +277,14 @@ bool NetworkManager::sendSyslog(const char* message, int level) {
     // Using SYSLOG_FACILITY (16 = local0) from constants.h
     int priority = SYSLOG_FACILITY * 8 + level;
     
+    const char* hostname = configManager ? configManager->getHostname() : SYSLOG_HOSTNAME;
+    
     char syslogMessage[512];
     snprintf(syslogMessage, sizeof(syslogMessage), 
         "<%d>%s %s: %s", priority, hostname, SYSLOG_TAG, message);
     
     // Send UDP packet to syslog server
-    if (udpClient.beginPacket(syslogServer, syslogPort)) {
+    if (udpClient.beginPacket(server, port)) {
         udpClient.print(syslogMessage);
         bool success = udpClient.endPacket();
         return success;
@@ -284,21 +294,69 @@ bool NetworkManager::sendSyslog(const char* message, int level) {
 }
 
 void NetworkManager::setSyslogServer(const char* server, int port) {
-    strncpy(syslogServer, server, sizeof(syslogServer) - 1);
-    syslogServer[sizeof(syslogServer) - 1] = '\0';
-    syslogPort = port;
-    debugPrintf("NetworkManager: Syslog server set to %s:%d\n", syslogServer, syslogPort);
+    if (configManager) {
+        configManager->setSyslogServer(server, port);
+        configManager->saveToEEPROM();
+        debugPrintf("NetworkManager: Syslog server set to %s:%d (saved to EEPROM)\n", server, port);
+    } else {
+        debugPrintf("NetworkManager: ConfigManager not available\n");
+    }
+}
+
+bool NetworkManager::reconfigureMqttBroker(const char* host, int port) {
+    debugPrintf("NetworkManager: Reconfiguring MQTT to %s:%d\n", host, port);
+    
+    if (!configManager) {
+        debugPrintf("NetworkManager: ConfigManager not available\n");
+        return false;
+    }
+    
+    // Check if settings actually changed
+    if (strcmp(host, configManager->getMqttBrokerHost()) == 0 && port == configManager->getMqttBrokerPort()) {
+        debugPrintf("NetworkManager: MQTT settings unchanged\n");
+        return true;
+    }
+    
+    // Update MQTT broker settings and save to EEPROM
+    configManager->setMqttBroker(host, port);
+    configManager->saveToEEPROM();
+    
+    // Disconnect current MQTT connection to force reconnection with new broker
+    if (mqttState == MQTTState::CONNECTED) {
+        mqttClient.stop();
+        mqttState = MQTTState::DISCONNECTED;
+        debugPrintf("NetworkManager: Disconnected from old MQTT broker\n");
+    }
+    
+    // Reset retry counters for immediate reconnection attempt
+    mqttRetries = 0;
+    lastConnectAttempt = 0;
+    
+    debugPrintf("NetworkManager: MQTT broker updated to %s:%d (saved to EEPROM)\n", host, port);
+    return true;
+}
+
+bool NetworkManager::sendMqttTest(const char* message) {
+    if (!isWiFiConnected() || !isMQTTConnected()) {
+        return false;
+    }
+    
+    return publish("monitor/test", message);
 }
 
 void NetworkManager::setHostname(const char* newHostname) {
-    strncpy(hostname, newHostname, sizeof(hostname) - 1);
-    hostname[sizeof(hostname) - 1] = '\0';
-    WiFi.setHostname(hostname);
-    debugPrintf("NetworkManager: Hostname set to '%s'\n", hostname);
+    if (configManager) {
+        configManager->setHostname(newHostname);
+        configManager->saveToEEPROM();
+        WiFi.setHostname(newHostname);
+        debugPrintf("NetworkManager: Hostname set to '%s' (saved to EEPROM)\n", newHostname);
+    } else {
+        debugPrintf("NetworkManager: ConfigManager not available\n");
+    }
 }
 
 const char* NetworkManager::getHostname() const {
-    return hostname;
+    return configManager ? configManager->getHostname() : SYSLOG_HOSTNAME;
 }
 
 bool NetworkManager::isWiFiConnected() const {
@@ -339,6 +397,22 @@ uint16_t NetworkManager::getDisconnectCount() const {
 
 uint16_t NetworkManager::getFailedPublishCount() const {
     return failedPublishCount;
+}
+
+const char* NetworkManager::getSyslogServer() const {
+    return configManager ? configManager->getSyslogServer() : SYSLOG_SERVER;
+}
+
+int NetworkManager::getSyslogPort() const {
+    return configManager ? configManager->getSyslogPort() : SYSLOG_PORT;
+}
+
+const char* NetworkManager::getMqttBrokerHost() const {
+    return configManager ? configManager->getMqttBrokerHost() : BROKER_HOST;
+}
+
+int NetworkManager::getMqttBrokerPort() const {
+    return configManager ? configManager->getMqttBrokerPort() : BROKER_PORT;
 }
 
 void NetworkManager::onMqttMessage(int messageSize) {

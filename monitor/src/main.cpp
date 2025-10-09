@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "constants.h"
+#include "config_manager.h"
 #include "network_manager.h"
 #include "telnet_server.h"
 #include "monitor_system.h"
@@ -10,7 +11,8 @@
 #include "heartbeat_animation.h"
 
 // Global instances
-NetworkManager networkManager;
+ConfigManager configManager;
+NetworkManager networkManager(&configManager);
 TelnetServer telnetServer;
 MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
@@ -68,6 +70,14 @@ void setup() {
     // Initialize system components one by one with debug output
     Serial.println("DEBUG: About to initialize components");
     
+    // Initialize ConfigManager first to load settings from EEPROM
+    Serial.println("DEBUG: Initializing configuration manager...");
+    if (configManager.loadFromEEPROM()) {
+        Serial.println("DEBUG: Configuration loaded from EEPROM successfully");
+    } else {
+        Serial.println("DEBUG: Using default configuration (EEPROM invalid or empty)");
+    }
+    
     Serial.println("DEBUG: Initializing monitor system...");
     monitorSystem.begin();
     Serial.println("DEBUG: Monitor system initialized");
@@ -106,10 +116,6 @@ void setup() {
     
     // Show connecting message on LCD
     lcdDisplay.showConnectingMessage();
-    
-    Serial.println("DEBUG: Setting hostname...");
-    networkManager.setHostname("LogMonitor");
-    Serial.println("DEBUG: Hostname set");
     
     Serial.println("DEBUG: Setting telnet server connection info...");
     telnetServer.setConnectionInfo("LogMonitor", "1.0.0");

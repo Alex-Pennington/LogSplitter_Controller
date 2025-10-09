@@ -27,6 +27,7 @@ private:
     void handleReset(char* param, char* response, size_t responseSize);
     void handleTest(char* param, char* response, size_t responseSize);
     void handleSyslog(char* param, char* response, size_t responseSize);
+    void handleMqtt(char* param, char* response, size_t responseSize);
     void handleMonitor(char* param, char* value, char* response, size_t responseSize);
     void handleWeight(char* param, char* value, char* response, size_t responseSize);
     void handleTemperature(char* param, char* value, char* response, size_t responseSize);

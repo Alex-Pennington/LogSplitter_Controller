@@ -1125,15 +1125,17 @@ void CommandProcessor::handleSyslog(char* param, char* response, size_t response
         // Send test message to syslog server
         bool result = networkManager->sendSyslog("SYSLOG TEST MESSAGE - LogSplitter Controller");
         if (result) {
-            snprintf(response, responseSize, "syslog test message sent successfully to %s:%d", SYSLOG_SERVER, SYSLOG_PORT);
+            snprintf(response, responseSize, "syslog test message sent successfully to %s:%d", 
+                networkManager->getSyslogServer(), networkManager->getSyslogPort());
         } else {
-            snprintf(response, responseSize, "syslog test message failed to send to %s:%d", SYSLOG_SERVER, SYSLOG_PORT);
+            snprintf(response, responseSize, "syslog test message failed to send to %s:%d", 
+                networkManager->getSyslogServer(), networkManager->getSyslogPort());
         }
     }
     else if (strcasecmp(param, "status") == 0) {
         snprintf(response, responseSize, 
             "syslog server: %s:%d, wifi: %s, local IP: %s", 
-            SYSLOG_SERVER, SYSLOG_PORT,
+            networkManager->getSyslogServer(), networkManager->getSyslogPort(),
             networkManager->isWiFiConnected() ? "connected" : "disconnected",
             networkManager->isWiFiConnected() ? WiFi.localIP().toString().c_str() : "none");
     }

@@ -4,6 +4,7 @@
 #include <ArduinoMqttClient.h>
 #include <WiFiUdp.h>
 #include "constants.h"
+#include "config_manager.h"
 
 // Network connection states
 enum class WiFiState {
@@ -22,7 +23,7 @@ enum class MQTTState {
 
 class NetworkManager {
 public:
-    NetworkManager();
+    NetworkManager(ConfigManager* configMgr);
     
     void begin();
     void update();
@@ -40,6 +41,14 @@ public:
     // Syslog functionality
     bool sendSyslog(const char* message, int level = 6);  // Default to INFO level
     void setSyslogServer(const char* server, int port = 514);  // Standard syslog port
+    const char* getSyslogServer() const;
+    int getSyslogPort() const;
+    
+    // MQTT broker configuration
+    bool reconfigureMqttBroker(const char* host, int port = 1883);
+    bool sendMqttTest(const char* message);
+    const char* getMqttBrokerHost() const;
+    int getMqttBrokerPort() const;
     
     // Status reporting
     void getHealthString(char* buffer, size_t bufferSize);
@@ -52,6 +61,9 @@ public:
     const char* getHostname() const;
 
 private:
+    // Configuration manager
+    ConfigManager* configManager;
+    
     // WiFi and MQTT clients
     WiFiClient wifiClient;
     MqttClient mqttClient;
@@ -77,13 +89,6 @@ private:
     uint16_t disconnectCount;
     uint16_t failedPublishCount;
     bool connectionStable;
-    
-    // Syslog configuration
-    char syslogServer[64];  // Increased size for longer hostnames
-    int syslogPort;
-    
-    // Hostname
-    char hostname[32];
     
     // Allow access to onMqttMessage from static callback
     friend void onMqttMessageStatic(int messageSize);

@@ -110,6 +110,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleSyslog(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "mqtt") == 0) {
+        char* param = strtok(NULL, " ");
+        handleMqtt(param, response, responseSize);
+    }
     else if (strcasecmp(cmd, "monitor") == 0) {
         char* param = strtok(NULL, " ");
         char* value = strtok(NULL, " ");
@@ -181,6 +185,8 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "heartbeat brightness <0-255> - Set brightness\r\n"
         "test network   - Test network connectivity\r\n"
         "syslog test    - Send test syslog message\r\n"
+        "mqtt test      - Send test MQTT message\r\n"
+        "mqtt status    - Show MQTT broker status\r\n"
         "reset system   - Restart the device");
 }
 
@@ -275,6 +281,38 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
                 snprintf(response, responseSize, "syslog server set to %s:%d", value, port);
             } else {
                 snprintf(response, responseSize, "syslog server set to %s:%d", value, SYSLOG_PORT);
+            }
+        } else {
+            snprintf(response, responseSize, "Network manager not available");
+        }
+    }
+    else if (strcasecmp(param, "mqtt") == 0) {
+        if (networkManager) {
+            // Parse MQTT broker address and optional port
+            char* portPtr = strchr(value, ':');
+            int port = BROKER_PORT;
+            
+            if (portPtr) {
+                *portPtr = '\0'; // Split the string
+                port = atoi(portPtr + 1);
+                if (port <= 0 || port > 65535) {
+                    snprintf(response, responseSize, "Invalid port number");
+                    return;
+                }
+            }
+            
+            if (networkManager->reconfigureMqttBroker(value, port)) {
+                if (portPtr) {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (applied immediately)", value, port);
+                } else {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (applied immediately)", value, BROKER_PORT);
+                }
+            } else {
+                if (portPtr) {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (connection test failed)", value, port);
+                } else {
+                    snprintf(response, responseSize, "mqtt broker set to %s:%d (connection test failed)", value, BROKER_PORT);
+                }
             }
         } else {
             snprintf(response, responseSize, "Network manager not available");
@@ -557,11 +595,50 @@ void CommandProcessor::handleSyslog(char* param, char* response, size_t response
     else if (strcasecmp(param, "status") == 0) {
         snprintf(response, responseSize, 
             "syslog server: %s:%d, wifi: %s", 
-            SYSLOG_SERVER, SYSLOG_PORT,
+            networkManager->getSyslogServer(), networkManager->getSyslogPort(),
             networkManager->isWiFiConnected() ? "connected" : "disconnected");
     }
     else {
         snprintf(response, responseSize, "unknown syslog command: %s", param);
+    }
+}
+
+void CommandProcessor::handleMqtt(char* param, char* response, size_t responseSize) {
+    if (!networkManager) {
+        snprintf(response, responseSize, "network manager not initialized");
+        return;
+    }
+    
+    if (!param) {
+        snprintf(response, responseSize, "mqtt commands: test, status");
+        return;
+    }
+    
+    if (strcasecmp(param, "test") == 0) {
+        if (!networkManager->isWiFiConnected()) {
+            snprintf(response, responseSize, "WiFi not connected - cannot send mqtt test");
+            return;
+        }
+        
+        // Send test message to mqtt broker
+        bool result = networkManager->sendMqttTest("MQTT TEST MESSAGE - LogSplitter Monitor");
+        if (result) {
+            snprintf(response, responseSize, "mqtt test message sent successfully to %s:%d", 
+                networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort());
+        } else {
+            snprintf(response, responseSize, "mqtt test message failed to send to %s:%d", 
+                networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort());
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        snprintf(response, responseSize, 
+            "mqtt broker: %s:%d, wifi: %s, mqtt: %s", 
+            networkManager->getMqttBrokerHost(), networkManager->getMqttBrokerPort(),
+            networkManager->isWiFiConnected() ? "connected" : "disconnected",
+            networkManager->isMQTTConnected() ? "connected" : "disconnected");
+    }
+    else {
+        snprintf(response, responseSize, "unknown mqtt command: %s", param);
     }
 }
 
