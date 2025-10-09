@@ -27,7 +27,9 @@ NetworkManager::NetworkManager(ConfigManager* configMgr) :
     connectionUptime(0),
     disconnectCount(0),
     failedPublishCount(0),
-    connectionStable(false) {
+    connectionStable(false),
+    lastSyslogSuccess(false),
+    lastSyslogAttempt(0) {
     
     // Configure MQTT client
     mqttClient.setId("LogMonitor");
@@ -260,10 +262,13 @@ bool NetworkManager::publishWithRetain(const char* topic, const char* payload) {
 }
 
 bool NetworkManager::sendSyslog(const char* message, int level) {
+    lastSyslogAttempt = millis();
+    
     const char* server = getSyslogServer();
     int port = getSyslogPort();
     
     if (!isWiFiConnected() || strlen(server) == 0) {
+        lastSyslogSuccess = false;
         return false;
     }
     
@@ -287,9 +292,11 @@ bool NetworkManager::sendSyslog(const char* message, int level) {
     if (udpClient.beginPacket(server, port)) {
         udpClient.print(syslogMessage);
         bool success = udpClient.endPacket();
+        lastSyslogSuccess = success;
         return success;
     }
     
+    lastSyslogSuccess = false;
     return false;
 }
 
@@ -344,6 +351,133 @@ bool NetworkManager::sendMqttTest(const char* message) {
     return publish("monitor/test", message);
 }
 
+bool NetworkManager::reconfigureMQTT(const char* brokerHost, int brokerPort, const char* username, const char* password) {
+    debugPrintf("NetworkManager: Reconfiguring MQTT to %s:%d\n", brokerHost, brokerPort);
+    
+    // Disconnect current MQTT connection
+    if (mqttState == MQTTState::CONNECTED) {
+        mqttClient.stop();
+        mqttState = MQTTState::DISCONNECTED;
+        debugPrintf("NetworkManager: Disconnected from current MQTT broker\n");
+    }
+    
+    // Reset connection state
+    mqttRetries = 0;
+    
+    // Update credentials (in a real implementation, these would be stored securely)
+    // For now, we'll log the configuration change
+    debugPrintf("NetworkManager: MQTT credentials updated for %s\n", brokerHost);
+    
+    // Attempt new connection
+    if (isWiFiConnected()) {
+        mqttState = MQTTState::CONNECTING;
+        debugPrintf("NetworkManager: Attempting connection to new MQTT broker\n");
+        
+        mqttClient.setId("LogMonitor");
+        mqttClient.setUsernamePassword(username, password);
+        
+        if (mqttClient.connect(brokerHost, brokerPort)) {
+            mqttState = MQTTState::CONNECTED;
+            debugPrintf("NetworkManager: Successfully connected to new MQTT broker\n");
+            
+            // Re-subscribe to control topic
+            mqttClient.subscribe(TOPIC_MONITOR_CONTROL);
+            debugPrintf("NetworkManager: Re-subscribed to %s\n", TOPIC_MONITOR_CONTROL);
+            
+            return true;
+        } else {
+            mqttState = MQTTState::FAILED;
+            debugPrintf("NetworkManager: Failed to connect to new MQTT broker\n");
+            return false;
+        }
+    }
+    
+    debugPrintf("NetworkManager: WiFi not connected, MQTT reconfiguration deferred\n");
+    return false;
+}
+
+bool NetworkManager::reconfigureSyslog(const char* server, int port) {
+    debugPrintf("NetworkManager: Reconfiguring syslog to %s:%d\n", server, port);
+    
+    // Test connectivity to new syslog server
+    if (isWiFiConnected()) {
+        // Store old configuration for rollback
+        char oldServer[64];
+        int oldPort = syslogPort;
+        strncpy(oldServer, syslogServer, sizeof(oldServer));
+        
+        // Apply new configuration
+        setSyslogServer(server, port);
+        
+        // Test the new configuration
+        bool testResult = sendSyslog("SYSLOG RECONFIGURATION TEST - LogSplitter Monitor", 6);
+        
+        if (testResult) {
+            debugPrintf("NetworkManager: Syslog reconfiguration successful\n");
+            return true;
+        } else {
+            // Rollback on failure
+            debugPrintf("NetworkManager: Syslog test failed, rolling back configuration\n");
+            setSyslogServer(oldServer, oldPort);
+            return false;
+        }
+    }
+    
+    // If WiFi not connected, just update configuration
+    setSyslogServer(server, port);
+    debugPrintf("NetworkManager: WiFi not connected, syslog configuration updated for future use\n");
+    return true;
+}
+
+bool NetworkManager::reconfigureWiFi(const char* ssid, const char* password) {
+    debugPrintf("NetworkManager: Reconfiguring WiFi to SSID: %s\n", ssid);
+    
+    // Disconnect current WiFi
+    if (isWiFiConnected()) {
+        WiFi.disconnect();
+        debugPrintf("NetworkManager: Disconnected from current WiFi\n");
+    }
+    
+    // Also disconnect MQTT since WiFi is changing
+    if (mqttState == MQTTState::CONNECTED) {
+        mqttClient.stop();
+        mqttState = MQTTState::DISCONNECTED;
+        debugPrintf("NetworkManager: Disconnected MQTT due to WiFi change\n");
+    }
+    
+    // Reset connection states
+    wifiState = WiFiState::DISCONNECTED;
+    wifiRetries = 0;
+    mqttRetries = 0;
+    connectionStable = false;
+    
+    // Update credentials (in a real implementation, these would be stored in arduino_secrets.h)
+    debugPrintf("NetworkManager: WiFi credentials updated\n");
+    
+    // Attempt connection with new credentials
+    wifiState = WiFiState::CONNECTING;
+    debugPrintf("NetworkManager: Attempting connection to new WiFi network\n");
+    
+    WiFi.begin(ssid, password);
+    
+    // Wait a bit for connection attempt
+    unsigned long startTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startTime < 10000) {
+        delay(100);
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        wifiState = WiFiState::CONNECTED;
+        debugPrintf("NetworkManager: Successfully connected to new WiFi network\n");
+        debugPrintf("NetworkManager: New IP address: %s\n", WiFi.localIP().toString().c_str());
+        return true;
+    } else {
+        wifiState = WiFiState::FAILED;
+        debugPrintf("NetworkManager: Failed to connect to new WiFi network\n");
+        return false;
+    }
+}
+
 void NetworkManager::setHostname(const char* newHostname) {
     if (configManager) {
         configManager->setHostname(newHostname);
@@ -365,6 +499,27 @@ bool NetworkManager::isWiFiConnected() const {
 
 bool NetworkManager::isMQTTConnected() const {
     return mqttState == MQTTState::CONNECTED;
+}
+
+bool NetworkManager::isSyslogWorking() const {
+    return lastSyslogSuccess;
+}
+
+bool NetworkManager::isSyslogWorking() const {
+    // Consider syslog working if:
+    // 1. WiFi is connected
+    // 2. Syslog server is configured
+    // 3. Recent syslog attempt was successful (within last 30 seconds)
+    if (!isWiFiConnected() || strlen(syslogServer) == 0) {
+        return false;
+    }
+    
+    // If we haven't tried syslog recently, assume it's working
+    if (lastSyslogAttempt == 0 || (millis() - lastSyslogAttempt) > 30000) {
+        return true;
+    }
+    
+    return lastSyslogSuccess;
 }
 
 bool NetworkManager::isConnected() const {

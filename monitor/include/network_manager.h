@@ -31,6 +31,7 @@ public:
     // Connection status
     bool isWiFiConnected() const;
     bool isMQTTConnected() const;
+    bool isSyslogWorking() const;
     bool isConnected() const;
     bool isStable() const;
     
@@ -49,6 +50,11 @@ public:
     bool sendMqttTest(const char* message);
     const char* getMqttBrokerHost() const;
     int getMqttBrokerPort() const;
+    
+    // Live reconfiguration methods
+    bool reconfigureMQTT(const char* brokerHost, int brokerPort, const char* username, const char* password);
+    bool reconfigureSyslog(const char* server, int port);
+    bool reconfigureWiFi(const char* ssid, const char* password);
     
     // Status reporting
     void getHealthString(char* buffer, size_t bufferSize);
@@ -89,6 +95,8 @@ private:
     uint16_t disconnectCount;
     uint16_t failedPublishCount;
     bool connectionStable;
+    bool lastSyslogSuccess;
+    unsigned long lastSyslogAttempt;
     
     // Allow access to onMqttMessage from static callback
     friend void onMqttMessageStatic(int messageSize);

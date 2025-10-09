@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include "constants.h"
 #include "config_manager.h"
 #include "network_manager.h"
@@ -9,6 +10,7 @@
 #include "mcp9600_sensor.h"
 #include "logger.h"
 #include "heartbeat_animation.h"
+#include "tca9548a_multiplexer.h"
 
 // Global instances
 ConfigManager configManager;
@@ -67,6 +69,38 @@ void setup() {
     Serial.println("   Version: 1.0.0");
     Serial.println("===============================================");
     
+    // Initialize I2C bus BEFORE any sensors
+    Serial.println("DEBUG: Initializing I2C bus (Wire1)...");
+    Wire1.begin();
+    delay(100); // Allow I2C bus to stabilize
+    Serial.println("DEBUG: I2C bus initialized");
+    
+    // Scan I2C bus to see what devices are present
+    Serial.println("DEBUG: Scanning I2C bus for devices...");
+    int deviceCount = 0;
+    for (byte address = 1; address < 127; address++) {
+        Wire1.beginTransmission(address);
+        byte error = Wire1.endTransmission();
+        
+        if (error == 0) {
+            Serial.print("DEBUG: I2C device found at address 0x");
+            if (address < 16) Serial.print("0");
+            Serial.print(address, HEX);
+            Serial.println();
+            deviceCount++;
+        }
+    }
+    
+    if (deviceCount == 0) {
+        Serial.println("DEBUG: No I2C devices found on the bus!");
+        Serial.println("DEBUG: Check wiring: SDA to A4/SDA1, SCL to A5/SCL1");
+    } else {
+        Serial.print("DEBUG: Found ");
+        Serial.print(deviceCount);
+        Serial.println(" I2C device(s)");
+    }
+    Serial.println("DEBUG: I2C scan complete");
+    
     // Initialize system components one by one with debug output
     Serial.println("DEBUG: About to initialize components");
     
@@ -83,10 +117,18 @@ void setup() {
     Serial.println("DEBUG: Monitor system initialized");
     
     Serial.println("DEBUG: Initializing LCD display...");
-    if (lcdDisplay.begin()) {
-        Serial.println("DEBUG: LCD display initialized successfully");
+    // Create temporary multiplexer instance for LCD initialization
+    TCA9548A_Multiplexer tempMux(0x70);
+    if (tempMux.begin()) {
+        tempMux.selectChannel(7); // LCD_CHANNEL = 7
+        if (lcdDisplay.begin()) {
+            Serial.println("DEBUG: LCD display initialized successfully");
+        } else {
+            Serial.println("DEBUG: LCD display initialization failed or not present");
+        }
+        tempMux.disableAllChannels();
     } else {
-        Serial.println("DEBUG: LCD display initialization failed or not present");
+        Serial.println("DEBUG: Could not access multiplexer for LCD initialization");
     }
     
     Serial.println("DEBUG: Initializing heartbeat animation...");

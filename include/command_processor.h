@@ -39,6 +39,7 @@ private:
     class SystemErrorManager* systemErrorManager = nullptr;
     class SystemTestSuite* systemTestSuite = nullptr;
     class InputManager* inputManager = nullptr;
+    class SubsystemTimingMonitor* timingMonitor = nullptr;
     
     // Command handlers
     void handleHelp(char* response, size_t responseSize, bool fromMqtt);
@@ -56,6 +57,7 @@ private:
     void handleSyslog(char* param, char* response, size_t responseSize);
     void handleMqtt(char* param, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
+    void handleTiming(char* param, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;
@@ -71,6 +73,7 @@ public:
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     void setSystemTestSuite(class SystemTestSuite* testSuite) { systemTestSuite = testSuite; }
     void setInputManager(class InputManager* input) { inputManager = input; }
+    void setTimingMonitor(class SubsystemTimingMonitor* timing) { timingMonitor = timing; }
     
     // Main processing function
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);

@@ -27,11 +27,21 @@ def send_telnet_command(host, port, command):
             sock.send(command_bytes)
             
             # Wait for response
-            time.sleep(0.5)
+            time.sleep(1.0)  # Increased wait time
             
-            # Receive response
-            response = sock.recv(1024).decode('utf-8', errors='ignore')
-            print(f"Response: {response.strip()}")
+            # Receive response - get multiple chunks
+            full_response = ""
+            try:
+                while True:
+                    chunk = sock.recv(1024).decode('utf-8', errors='ignore')
+                    if not chunk:
+                        break
+                    full_response += chunk
+                    time.sleep(0.1)  # Small delay between chunks
+            except socket.timeout:
+                pass  # Expected when no more data
+            
+            print(f"Response: {full_response.strip()}")
             
             return True
             

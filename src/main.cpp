@@ -34,6 +34,7 @@
 #include "system_error_manager.h"
 #include "command_processor.h"
 #include "system_test_suite.h"
+#include "subsystem_timing_monitor.h"
 #include "arduino_secrets.h"
 
 // ============================================================================
@@ -58,6 +59,7 @@ InputManager inputManager;
 SafetySystem safetySystem;
 SystemErrorManager systemErrorManager;
 CommandProcessor commandProcessor;
+SubsystemTimingMonitor timingMonitor;
 
 // Use the global SystemTestSuite defined in system_test_suite.cpp
 extern SystemTestSuite systemTestSuite;
@@ -107,6 +109,15 @@ void checkSystemHealth() {
     if (now - lastWatchdogReset > MAIN_LOOP_TIMEOUT_MS) {
         Serial.println("SYSTEM ERROR: Main loop timeout detected");
         LOG_CRITICAL("Main loop timeout detected - system unresponsive");
+        
+        // Generate detailed timing analysis for the timeout
+        char timingAnalysis[512];
+        timingMonitor.analyzeTimeout(timingAnalysis, sizeof(timingAnalysis));
+        LOG_CRITICAL("TIMEOUT ANALYSIS: %s", timingAnalysis);
+        
+        // Log detailed timing report to identify bottleneck
+        LOG_CRITICAL("=== TIMEOUT TIMING REPORT ===");
+        timingMonitor.logTimingReport();
         
         // Try to enable network bypass as emergency measure
         if (!networkManager.isNetworkBypassed()) {
@@ -329,6 +340,7 @@ bool initializeSystem() {
     commandProcessor.setSystemTestSuite(&systemTestSuite);
     commandProcessor.setInputManager(&inputManager);
     commandProcessor.setSystemErrorManager(&systemErrorManager);
+    commandProcessor.setTimingMonitor(&timingMonitor);
     
     // Connect error manager to other components
     configManager.setSystemErrorManager(&systemErrorManager);
@@ -348,6 +360,10 @@ bool initializeSystem() {
     Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
     LOG_INFO("Logger initialized with network manager");
     
+    // Initialize timing monitor
+    timingMonitor.begin();
+    LOG_INFO("Subsystem timing monitor initialized");
+    
     // Initialize telnet server (will work once WiFi connects)
     telnet.begin();
     Serial.println("Telnet server initialized");
@@ -366,10 +382,14 @@ bool initializeSystem() {
 // ============================================================================
 
 void updateSystem() {
+    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::MAIN_LOOP_TOTAL);
     resetWatchdog();
     
-    // Update all subsystems with watchdog resets between heavy operations
-    networkManager.update();
+    // Update all subsystems with timing monitoring
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::NETWORK_MANAGER);
+        networkManager.update();
+    }
     
     // Set telnet connection info when network first connects
     if (!telnetInfoSet && networkManager.isWiFiConnected()) {
@@ -380,24 +400,51 @@ void updateSystem() {
                    networkManager.getHostname(), ipStr.c_str());
     }
     
-    telnet.update(); // Update telnet server
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::TELNET_SERVER);
+        telnet.update(); // Update telnet server
+    }
     resetWatchdog(); // Reset after network operations (potential blocking)
     
-    pressureManager.update();
-    sequenceController.update();
-    relayController.update();
-    inputManager.update();
-    systemErrorManager.update();
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::PRESSURE_MANAGER);
+        pressureManager.update();
+    }
+    
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SEQUENCE_CONTROLLER);
+        sequenceController.update();
+    }
+    
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::RELAY_CONTROLLER);
+        relayController.update();
+    }
+    
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::INPUT_MANAGER);
+        inputManager.update();
+    }
+    
+    {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SYSTEM_ERROR_MANAGER);
+        systemErrorManager.update();
+    }
     
     // Update safety system with current pressure
     if (pressureManager.isReady()) {
+        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SAFETY_SYSTEM);
         safetySystem.update(pressureManager.getPressure());
     }
+    
+    // Check timing monitor health
+    timingMonitor.checkHealthStatus();
     
     checkSystemHealth();
 }
 
 void publishTelemetry() {
+    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::TELEMETRY_PUBLISHING);
     unsigned long now = millis();
     
     if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
@@ -423,6 +470,7 @@ void publishTelemetry() {
 }
 
 void processSerialCommands() {
+    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_SERIAL);
     while (Serial.available()) {
         char c = Serial.read();
         if (c == '\r') continue; // Ignore CR
@@ -459,6 +507,7 @@ void processSerialCommands() {
 }
 
 void processTelnetCommands() {
+    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_TELNET);
     static char telnetCommandBuffer[COMMAND_BUFFER_SIZE];
     static size_t telnetLinePos = 0;
     static bool inTelnetCommand = false;

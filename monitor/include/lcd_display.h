@@ -48,8 +48,9 @@ public:
      * @param uptime Uptime in seconds
      * @param wifiConnected WiFi connection status
      * @param mqttConnected MQTT connection status
+     * @param syslogWorking Syslog functionality status
      */
-    void updateSystemStatus(uint8_t state, unsigned long uptime, bool wifiConnected, bool mqttConnected);
+    void updateSystemStatus(uint8_t state, unsigned long uptime, bool wifiConnected, bool mqttConnected, bool syslogWorking = false);
     
     /**
      * Update network status display (line 2)
@@ -66,6 +67,14 @@ public:
      * @param remoteTemp Remote temperature in Celsius (optional)
      */
     void updateSensorReadings(float localTemp, float weight, float remoteTemp = -999.0);
+    
+    /**
+     * Update additional sensor data (power, ADC) on line 4
+     * @param voltage Bus voltage from power sensor
+     * @param current Current from power sensor in mA
+     * @param adcVoltage ADC voltage reading
+     */
+    void updateAdditionalSensors(float voltage, float current, float adcVoltage);
     
     /**
      * Display error message (line 4)
