@@ -17,12 +17,14 @@ static const unsigned long COMMAND_RATE_LIMIT_MS = 100; // 10 commands/second ma
 
 CommandProcessor::CommandProcessor() :
     networkManager(nullptr),
-    monitorSystem(nullptr) {
+    monitorSystem(nullptr),
+    tftpServer(nullptr) {
 }
 
-void CommandProcessor::begin(NetworkManager* network, MonitorSystem* monitor) {
+void CommandProcessor::begin(NetworkManager* network, MonitorSystem* monitor, TFTPServer* tftp) {
     networkManager = network;
     monitorSystem = monitor;
+    tftpServer = tftp;
     debugPrintf("CommandProcessor: Initialized\n");
 }
 
@@ -158,6 +160,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     else if (strcasecmp(cmd, "heartbeat") == 0) {
         char* param = strtok(NULL, " ");
         handleHeartbeat(param, response, responseSize);
+    }
+    else if (strcasecmp(cmd, "tftp") == 0) {
+        char* param = strtok(NULL, " ");
+        handleTftp(param, response, responseSize);
     }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
@@ -1412,5 +1418,40 @@ void CommandProcessor::handleHeartbeat(char* param, char* response, size_t respo
     } else {
         snprintf(response, responseSize, 
                 "usage: heartbeat [on|off|rate <bpm>|brightness <0-255>|frame <0-3>|status]");
+    }
+}
+void CommandProcessor::handleTftp(char* param, char* response, size_t responseSize) {
+    if (!tftpServer) {
+        snprintf(response, responseSize, "TFTP server not initialized");
+        return;
+    }
+    
+    if (!param || strcasecmp(param, "status") == 0) {
+        // Show TFTP server status
+        tftpServer->getStatus(response, responseSize);
+    }
+    else if (strcasecmp(param, "start") == 0) {
+        // Start TFTP server
+        if (tftpServer->isRunning()) {
+            snprintf(response, responseSize, "TFTP server already running");
+        } else if (tftpServer->begin()) {
+            snprintf(response, responseSize, "TFTP server started on port 69");
+        } else {
+            snprintf(response, responseSize, "Failed to start TFTP server: %s", 
+                    tftpServer->getLastError());
+        }
+    }
+    else if (strcasecmp(param, "stop") == 0) {
+        // Stop TFTP server
+        if (!tftpServer->isRunning()) {
+            snprintf(response, responseSize, "TFTP server not running");
+        } else {
+            tftpServer->stop();
+            snprintf(response, responseSize, "TFTP server stopped");
+        }
+    }
+    else {
+        snprintf(response, responseSize, 
+                "usage: tftp [status|start|stop]");
     }
 }

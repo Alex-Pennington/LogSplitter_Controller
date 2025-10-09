@@ -4,6 +4,7 @@
 #include "config_manager.h"
 #include "network_manager.h"
 #include "telnet_server.h"
+#include "tftp_server.h"
 #include "monitor_system.h"
 #include "command_processor.h"
 #include "lcd_display.h"
@@ -16,6 +17,7 @@
 ConfigManager configManager;
 NetworkManager networkManager(&configManager);
 TelnetServer telnetServer;
+TFTPServer tftpServer;
 MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
 LCDDisplay lcdDisplay;
@@ -227,7 +229,7 @@ void setup() {
     Serial.println("DEBUG: System state set to initializing");
     
     Serial.println("DEBUG: Initializing command processor...");
-    commandProcessor.begin(&networkManager, &monitorSystem);
+    commandProcessor.begin(&networkManager, &monitorSystem, &tftpServer);
     commandProcessor.setHeartbeatAnimation(&heartbeat);
     Serial.println("DEBUG: Command processor initialized");
     
@@ -265,6 +267,9 @@ void loop() {
     // Update all system components
     networkManager.update();
     monitorSystem.update();
+    
+    // Update TFTP server if running
+    tftpServer.update();
     
     // Update heartbeat animation (minimal CPU usage)
     heartbeat.update();

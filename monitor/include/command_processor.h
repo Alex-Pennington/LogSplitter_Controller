@@ -3,18 +3,20 @@
 #include "constants.h"
 #include "network_manager.h"
 #include "monitor_system.h"
+#include "tftp_server.h"
 
 class CommandProcessor {
 public:
     CommandProcessor();
     
-    void begin(NetworkManager* network, MonitorSystem* monitor);
+    void begin(NetworkManager* network, MonitorSystem* monitor, TFTPServer* tftp);
     void setHeartbeatAnimation(class HeartbeatAnimation* heartbeat) { heartbeatAnimation = heartbeat; }
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);
     
 private:
     NetworkManager* networkManager;
     MonitorSystem* monitorSystem;
+    TFTPServer* tftpServer;
     class HeartbeatAnimation* heartbeatAnimation = nullptr;
     
     // Command handlers
@@ -36,6 +38,7 @@ private:
     void handleLCD(char* param, char* value, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
     void handleHeartbeat(char* param, char* response, size_t responseSize);
+    void handleTftp(char* param, char* response, size_t responseSize);
 };
 
 class CommandValidator {
