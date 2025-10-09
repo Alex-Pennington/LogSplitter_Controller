@@ -78,6 +78,10 @@ public:
     void setPublishInterval(unsigned long interval);
     void setHeartbeatInterval(unsigned long interval);
     unsigned long getPublishInterval() const;
+    
+    // I2C Health monitoring
+    void checkI2CDeviceHealth();
+    bool isI2CDeviceResponding(uint8_t address);
     unsigned long getHeartbeatInterval() const;
 
 private:

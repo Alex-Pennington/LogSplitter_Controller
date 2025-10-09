@@ -69,15 +69,49 @@ void setup() {
     Serial.println("   Version: 1.0.0");
     Serial.println("===============================================");
     
-    // Initialize I2C bus BEFORE any sensors
+    // Initialize I2C bus BEFORE any sensors with retry logic
     Serial.println("DEBUG: Initializing I2C bus (Wire1)...");
-    Wire1.begin();
-    delay(100); // Allow I2C bus to stabilize
-    Serial.println("DEBUG: I2C bus initialized");
+    bool i2cInitialized = false;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        Wire1.begin();
+        delay(100); // Allow I2C bus to stabilize
+        
+        // Test I2C bus by scanning for any device
+        bool busWorking = false;
+        for (byte testAddr = 8; testAddr < 120 && !busWorking; testAddr++) {
+            Wire1.beginTransmission(testAddr);
+            if (Wire1.endTransmission() != 2) { // 2 = NACK on address (no device), anything else means bus is working
+                busWorking = true;
+            }
+        }
+        
+        if (busWorking) {
+            i2cInitialized = true;
+            Serial.println("DEBUG: I2C bus initialized successfully");
+            break;
+        } else {
+            Serial.print("DEBUG: I2C initialization attempt ");
+            Serial.print(attempt);
+            Serial.println(" failed, retrying...");
+            delay(500);
+        }
+    }
     
-    // Scan I2C bus to see what devices are present
+    if (!i2cInitialized) {
+        Serial.println("ERROR: I2C bus initialization failed after 3 attempts!");
+        Serial.println("ERROR: Check wiring: SDA to A4/SDA1, SCL to A5/SCL1");
+    }
+    
+    // Comprehensive I2C device scan with device identification
     Serial.println("DEBUG: Scanning I2C bus for devices...");
     int deviceCount = 0;
+    bool foundTCA9548A = false;
+    bool foundMCP9600 = false;
+    bool foundNAU7802 = false;
+    bool foundINA219 = false;
+    bool foundMCP3421 = false;
+    bool foundLCD = false;
+    
     for (byte address = 1; address < 127; address++) {
         Wire1.beginTransmission(address);
         byte error = Wire1.endTransmission();
@@ -86,18 +120,69 @@ void setup() {
             Serial.print("DEBUG: I2C device found at address 0x");
             if (address < 16) Serial.print("0");
             Serial.print(address, HEX);
+            
+            // Identify known devices
+            switch (address) {
+                case 0x70:
+                    Serial.print(" (TCA9548A I2C Multiplexer)");
+                    foundTCA9548A = true;
+                    break;
+                case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
+                    Serial.print(" (MCP9600 Temperature Sensor)");
+                    foundMCP9600 = true;
+                    break;
+                case 0x2A:
+                    Serial.print(" (NAU7802 Load Cell ADC)");
+                    foundNAU7802 = true;
+                    break;
+                case 0x40: case 0x41: case 0x44: case 0x45:
+                    Serial.print(" (INA219 Power Monitor)");
+                    foundINA219 = true;
+                    break;
+                case 0x68:
+                    Serial.print(" (MCP3421 18-bit ADC)");
+                    foundMCP3421 = true;
+                    break;
+                case 0x3C: case 0x3D:
+                    Serial.print(" (OLED Display)");
+                    foundLCD = true;
+                    break;
+                default:
+                    Serial.print(" (Unknown device)");
+                    break;
+            }
             Serial.println();
             deviceCount++;
         }
     }
     
     if (deviceCount == 0) {
-        Serial.println("DEBUG: No I2C devices found on the bus!");
-        Serial.println("DEBUG: Check wiring: SDA to A4/SDA1, SCL to A5/SCL1");
+        Serial.println("ERROR: No I2C devices found on the bus!");
+        Serial.println("ERROR: Check wiring: SDA to A4/SDA1, SCL to A5/SCL1");
     } else {
         Serial.print("DEBUG: Found ");
         Serial.print(deviceCount);
         Serial.println(" I2C device(s)");
+        
+        // Report missing critical devices
+        if (!foundTCA9548A) {
+            Serial.println("WARNING: TCA9548A I2C multiplexer not found - sensor access will be limited");
+        }
+        if (!foundMCP9600) {
+            Serial.println("WARNING: MCP9600 temperature sensor not detected");
+        }
+        if (!foundNAU7802) {
+            Serial.println("WARNING: NAU7802 load cell ADC not detected");
+        }
+        if (!foundINA219) {
+            Serial.println("WARNING: INA219 power monitor not detected");
+        }
+        if (!foundMCP3421) {
+            Serial.println("WARNING: MCP3421 18-bit ADC not detected");
+        }
+        if (!foundLCD) {
+            Serial.println("WARNING: LCD/OLED display not detected");
+        }
     }
     Serial.println("DEBUG: I2C scan complete");
     

@@ -51,74 +51,170 @@ void MonitorSystem::begin() {
     // Set global pointer for external access
     g_mcp9600Sensor = &temperatureSensor;
     
-    // Initialize I2C multiplexer first
+    // Initialize I2C multiplexer first with retry logic
     debugPrintf("MonitorSystem: Initializing TCA9548A I2C multiplexer...\n");
-    if (i2cMux.begin()) {
-        LOG_INFO("MonitorSystem: TCA9548A multiplexer initialized successfully");
-        debugPrintf("MonitorSystem: I2C multiplexer ready\n");
-    } else {
-        LOG_ERROR("MonitorSystem: TCA9548A multiplexer initialization failed");
+    bool muxInitialized = false;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        if (i2cMux.begin()) {
+            LOG_INFO("MonitorSystem: TCA9548A multiplexer initialized successfully on attempt %d", attempt);
+            debugPrintf("MonitorSystem: I2C multiplexer ready\n");
+            muxInitialized = true;
+            break;
+        } else {
+            debugPrintf("MonitorSystem: TCA9548A initialization attempt %d failed\n", attempt);
+            if (attempt < 3) {
+                delay(100); // Brief delay before retry
+            }
+        }
+    }
+    
+    if (!muxInitialized) {
+        LOG_ERROR("MonitorSystem: TCA9548A multiplexer initialization failed after 3 attempts - sensors may not work");
         debugPrintf("MonitorSystem: I2C multiplexer NOT found - sensors may not work!\n");
     }
     
-    // Initialize MCP9600 temperature sensor
+    // Initialize MCP9600 temperature sensor with enhanced error handling
     debugPrintf("MonitorSystem: Initializing MCP9600 temperature sensor on channel %d...\n", MCP9600_CHANNEL);
-    i2cMux.selectChannel(MCP9600_CHANNEL);
-    if (temperatureSensor.begin()) {
-        LOG_INFO("MonitorSystem: MCP9600 temperature sensor initialized successfully");
-        
-        // Enable temperature filtering to smooth readings
-        temperatureSensor.enableFiltering(true, 5);  // 5-sample moving average
-        
-        // Set thermocouple type to K-type (most common)
-        temperatureSensor.setThermocoupleType(0x00); // Type K
-        debugPrintf("MonitorSystem: MCP9600 configured (Type K, 5-sample filter)\n");
-    } else {
-        LOG_WARN("MonitorSystem: MCP9600 temperature sensor initialization failed or not present");
+    if (muxInitialized) {
+        i2cMux.selectChannel(MCP9600_CHANNEL);
+        delay(10); // Allow multiplexer channel to settle
+    }
+    
+    bool tempSensorInitialized = false;
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        if (temperatureSensor.begin()) {
+            LOG_INFO("MonitorSystem: MCP9600 temperature sensor initialized successfully");
+            
+            // Enable temperature filtering to smooth readings
+            temperatureSensor.enableFiltering(true, 5);  // 5-sample moving average
+            
+            // Set thermocouple type to K-type (most common)
+            temperatureSensor.setThermocoupleType(0x00); // Type K
+            debugPrintf("MonitorSystem: MCP9600 configured (Type K, 5-sample filter)\n");
+            tempSensorInitialized = true;
+            break;
+        } else {
+            debugPrintf("MonitorSystem: MCP9600 initialization attempt %d failed\n", attempt);
+            if (attempt < 2) {
+                delay(50);
+            }
+        }
+    }
+    
+    if (!tempSensorInitialized) {
+        LOG_WARN("MonitorSystem: MCP9600 temperature sensor not found at I2C address 0x60-0x67");
+        debugPrintf("MonitorSystem: Temperature readings will not be available\n");
     }
     
     // Initialize sensor availability tracking
     lastSensorAvailable = temperatureSensor.isAvailable();
     
-    // Initialize NAU7802 weight sensor
+    // Initialize NAU7802 weight sensor with enhanced error handling
     debugPrintf("MonitorSystem: Initializing NAU7802 weight sensor on channel %d...\n", NAU7802_CHANNEL);
-    i2cMux.selectChannel(NAU7802_CHANNEL);
-    NAU7802Status status = weightSensor.begin();
-    if (status == NAU7802_OK) {
-        debugPrintf("MonitorSystem: NAU7802 weight sensor initialized successfully\n");
-        // Enable filtering for stable readings
-        weightSensor.enableFiltering(true, 10);
-    } else {
-        debugPrintf("MonitorSystem: NAU7802 weight sensor initialization failed: %s\n", 
-            weightSensor.getStatusString());
+    if (muxInitialized) {
+        i2cMux.selectChannel(NAU7802_CHANNEL);
+        delay(10); // Allow multiplexer channel to settle
     }
     
-    // Initialize INA219 power sensor
+    bool weightSensorInitialized = false;
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        NAU7802Status status = weightSensor.begin();
+        if (status == NAU7802_OK) {
+            LOG_INFO("MonitorSystem: NAU7802 weight sensor initialized successfully");
+            debugPrintf("MonitorSystem: NAU7802 weight sensor initialized successfully\n");
+            // Enable filtering for stable readings
+            weightSensor.enableFiltering(true, 10);
+            weightSensorInitialized = true;
+            break;
+        } else {
+            debugPrintf("MonitorSystem: NAU7802 initialization attempt %d failed: %s\n", 
+                attempt, weightSensor.getStatusString());
+            if (attempt < 2) {
+                delay(100); // Longer delay for NAU7802
+            }
+        }
+    }
+    
+    if (!weightSensorInitialized) {
+        LOG_WARN("MonitorSystem: NAU7802 load cell ADC not found at I2C address 0x2A");
+        debugPrintf("MonitorSystem: Weight measurements will not be available\n");
+    }
+    
+    // Initialize INA219 power sensor with enhanced error handling
     debugPrintf("MonitorSystem: Initializing INA219 power sensor on channel %d...\n", INA219_CHANNEL);
-    i2cMux.selectChannel(INA219_CHANNEL);
-    if (powerSensor.begin()) {
-        LOG_INFO("MonitorSystem: INA219 power sensor initialized successfully");
-        powerSensorAvailable = true;
-        debugPrintf("MonitorSystem: INA219 power sensor ready\n");
-    } else {
-        LOG_WARN("MonitorSystem: INA219 power sensor initialization failed or not present");
-        powerSensorAvailable = false;
+    if (muxInitialized) {
+        i2cMux.selectChannel(INA219_CHANNEL);
+        delay(10); // Allow multiplexer channel to settle
     }
     
-    // Initialize MCP3421 ADC sensor
+    bool powerSensorFound = false;
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        if (powerSensor.begin()) {
+            LOG_INFO("MonitorSystem: INA219 power sensor initialized successfully");
+            powerSensorAvailable = true;
+            powerSensorFound = true;
+            debugPrintf("MonitorSystem: INA219 power sensor ready\n");
+            break;
+        } else {
+            debugPrintf("MonitorSystem: INA219 initialization attempt %d failed\n", attempt);
+            if (attempt < 2) {
+                delay(50);
+            }
+        }
+    }
+    
+    if (!powerSensorFound) {
+        LOG_WARN("MonitorSystem: INA219 power monitor not found at I2C addresses 0x40-0x45");
+        powerSensorAvailable = false;
+        debugPrintf("MonitorSystem: Power measurements will not be available\n");
+    }
+    
+    // Initialize MCP3421 ADC sensor with enhanced error handling
     debugPrintf("MonitorSystem: Initializing MCP3421 ADC sensor on channel %d...\n", MCP3421_CHANNEL);
-    i2cMux.selectChannel(MCP3421_CHANNEL);
-    if (adcSensor.begin()) {
-        LOG_INFO("MonitorSystem: MCP3421 ADC sensor initialized successfully");
-        adcSensorAvailable = true;
-        debugPrintf("MonitorSystem: MCP3421 ADC sensor ready\n");
-    } else {
-        LOG_WARN("MonitorSystem: MCP3421 ADC sensor initialization failed or not present");
+    if (muxInitialized) {
+        i2cMux.selectChannel(MCP3421_CHANNEL);
+        delay(10); // Allow multiplexer channel to settle
+    }
+    
+    bool adcSensorFound = false;
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        if (adcSensor.begin()) {
+            LOG_INFO("MonitorSystem: MCP3421 ADC sensor initialized successfully");
+            adcSensorAvailable = true;
+            adcSensorFound = true;
+            debugPrintf("MonitorSystem: MCP3421 ADC sensor ready\n");
+            break;
+        } else {
+            debugPrintf("MonitorSystem: MCP3421 initialization attempt %d failed\n", attempt);
+            if (attempt < 2) {
+                delay(50);
+            }
+        }
+    }
+    
+    if (!adcSensorFound) {
+        LOG_WARN("MonitorSystem: MCP3421 18-bit ADC not found at I2C address 0x68");
         adcSensorAvailable = false;
+        debugPrintf("MonitorSystem: ADC measurements will not be available\n");
+    }
+    
+    // Log sensor initialization summary
+    int availableSensors = 0;
+    if (muxInitialized) availableSensors++;
+    if (tempSensorInitialized) availableSensors++;
+    if (weightSensorInitialized) availableSensors++;
+    if (powerSensorAvailable) availableSensors++;
+    if (adcSensorAvailable) availableSensors++;
+    
+    LOG_INFO("MonitorSystem: Sensor initialization complete - %d of 5 sensors available", availableSensors);
+    if (availableSensors < 5) {
+        LOG_WARN("MonitorSystem: Some sensors are missing - check I2C connections and power");
     }
     
     // Disable all multiplexer channels when done with initialization
-    i2cMux.disableAllChannels();
+    if (muxInitialized) {
+        i2cMux.disableAllChannels();
+    }
     
     setSystemState(SYS_CONNECTING);
     debugPrintf("MonitorSystem: All sensors initialized\n");
@@ -176,6 +272,8 @@ void MonitorSystem::update() {
         lastAdcRead = now;
     }
     
+    // Check I2C device health periodically
+    checkI2CDeviceHealth();
     
     // Update LCD display periodically
     static unsigned long lastLCDUpdate = 0;
@@ -778,4 +876,89 @@ void MonitorSystem::updateLCDDisplay() {
     
     // Update additional sensor data (line 4) - Power and ADC sensors
     g_lcdDisplay->updateAdditionalSensors(currentVoltage, currentCurrent, currentAdcVoltage);
+}
+
+// I2C Health monitoring functions
+void MonitorSystem::checkI2CDeviceHealth() {
+    static unsigned long lastHealthCheck = 0;
+    unsigned long now = millis();
+    
+    // Check I2C device health every 30 seconds
+    if (now - lastHealthCheck < 30000) {
+        return;
+    }
+    lastHealthCheck = now;
+    
+    debugPrintf("MonitorSystem: Performing I2C device health check...\n");
+    
+    // Check critical I2C devices
+    bool muxResponding = isI2CDeviceResponding(0x70);
+    bool mcp9600Responding = false;
+    bool nau7802Responding = false;
+    bool ina219Responding = false;
+    bool mcp3421Responding = false;
+    
+    // Check MCP9600 on multiple possible addresses
+    for (uint8_t addr = 0x60; addr <= 0x67 && !mcp9600Responding; addr++) {
+        if (muxResponding) {
+            i2cMux.selectChannel(MCP9600_CHANNEL);
+            delay(5);
+        }
+        mcp9600Responding = isI2CDeviceResponding(addr);
+    }
+    
+    // Check other sensors through multiplexer if available
+    if (muxResponding) {
+        i2cMux.selectChannel(NAU7802_CHANNEL);
+        delay(5);
+        nau7802Responding = isI2CDeviceResponding(0x2A);
+        
+        i2cMux.selectChannel(INA219_CHANNEL);
+        delay(5);
+        ina219Responding = isI2CDeviceResponding(0x40);
+        
+        i2cMux.selectChannel(MCP3421_CHANNEL);
+        delay(5);
+        mcp3421Responding = isI2CDeviceResponding(0x68);
+        
+        i2cMux.disableAllChannels();
+    }
+    
+    // Log any devices that have become unresponsive
+    if (!muxResponding) {
+        LOG_ERROR("MonitorSystem: TCA9548A I2C multiplexer is not responding - all sensors unavailable");
+    }
+    
+    if (!mcp9600Responding && lastSensorAvailable) {
+        LOG_WARN("MonitorSystem: MCP9600 temperature sensor is not responding");
+    }
+    
+    if (!nau7802Responding) {
+        LOG_WARN("MonitorSystem: NAU7802 weight sensor is not responding");
+    }
+    
+    if (!ina219Responding && powerSensorAvailable) {
+        LOG_WARN("MonitorSystem: INA219 power monitor is not responding");
+    }
+    
+    if (!mcp3421Responding && adcSensorAvailable) {
+        LOG_WARN("MonitorSystem: MCP3421 ADC sensor is not responding");
+    }
+    
+    // Update availability flags based on health check
+    powerSensorAvailable = ina219Responding;
+    adcSensorAvailable = mcp3421Responding;
+    
+    debugPrintf("MonitorSystem: I2C health check complete - Mux:%s MCP9600:%s NAU7802:%s INA219:%s MCP3421:%s\n",
+        muxResponding ? "OK" : "FAIL",
+        mcp9600Responding ? "OK" : "FAIL", 
+        nau7802Responding ? "OK" : "FAIL",
+        ina219Responding ? "OK" : "FAIL",
+        mcp3421Responding ? "OK" : "FAIL");
+}
+
+bool MonitorSystem::isI2CDeviceResponding(uint8_t address) {
+    Wire1.beginTransmission(address);
+    byte error = Wire1.endTransmission();
+    return (error == 0); // 0 means success (ACK received)
 }
