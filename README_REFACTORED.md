@@ -2,7 +2,18 @@
 
 ## Overview
 
-This is a complete refactor of the original monolithic LogSplitter Controller code. The system has been redesigned with a modular architecture that improves maintainability, reliability, and performance.
+This is a complete refactor of the original monolithic LogSplitter Controller code. The system has been redesigned with a modular architecture that improves maintainability, reliability, and performance. The system now includes a robust TFTP-based firmware update mechanism.
+
+## 🚀 Latest Features
+
+### **TFTP Firmware Update System** *(NEW)*
+- **Production-Ready**: Complete TFTP server for over-the-air firmware updates
+- **Streaming Architecture**: Handles 130KB+ firmware with 8KB RAM buffer
+- **ARM Validation**: Real-time firmware validation for Arduino Uno R4 WiFi
+- **Telnet Integration**: `tftp start/stop/status/reboot` commands
+- **Performance**: 3,134 bytes/sec transfer rate, 42s for full firmware update
+
+See [TFTP_FIRMWARE_UPDATE.md](TFTP_FIRMWARE_UPDATE.md) for complete documentation.
 
 ## Key Improvements
 

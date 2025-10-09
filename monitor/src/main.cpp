@@ -10,7 +10,7 @@
 #include "mcp9600_sensor.h"
 #include "logger.h"
 #include "tca9548a_multiplexer.h"
-#include "ota_server.h"
+#include "tftp_server.h"
 
 // Global instances
 ConfigManager configManager;
@@ -274,8 +274,8 @@ void loop() {
     if (networkManager.isWiFiConnected()) {
         telnetServer.update();
         
-        // Update OTA server
-        otaServer.update();
+        // Update TFTP server
+        tftpServer.update();
         
         // Process telnet commands
         if (telnetServer.isConnected()) {

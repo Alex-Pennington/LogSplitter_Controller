@@ -2,6 +2,11 @@
 
 #include <Arduino.h>
 
+// Version Information
+const char* const FIRMWARE_VERSION = "2.1.0";
+const char* const BUILD_DATE = __DATE__;
+const char* const FEATURES = "TFTP,Streaming,ARM-Validation";
+
 // System Constants
 const unsigned long WATCHDOG_TIMEOUT_MS = 15000;
 const unsigned long MAIN_LOOP_TIMEOUT_MS = 10000;

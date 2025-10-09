@@ -1,7 +1,7 @@
 #include "command_processor.h"
 #include "lcd_display.h"
 #include "logger.h"
-#include "ota_server.h"
+#include "tftp_server.h"
 #include "arduino_secrets.h"
 #include <ctype.h>
 #include <string.h>
@@ -156,9 +156,9 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         handleLCD(param, value, response, responseSize);
     }
 
-    else if (strcasecmp(cmd, "ota") == 0) {
+    else if (strcasecmp(cmd, "tftp") == 0) {
         char* param = strtok(NULL, " ");
-        handleOTA(param, response, responseSize);
+        handleTFTP(param, response, responseSize);
     }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
@@ -214,10 +214,9 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "syslog test    - Send test syslog message\r\n"
         "mqtt test      - Send test MQTT message\r\n"
         "mqtt status    - Show MQTT broker status\r\n"
-        "ota start      - Start OTA firmware update server\r\n"
-        "ota status     - Show OTA server status\r\n"
-        "ota url        - Show OTA update URLs\r\n"
-        "ota stop       - Stop OTA server\r\n"
+        "tftp start     - Start TFTP firmware update server\r\n"
+        "tftp status    - Show TFTP server status\r\n"
+        "tftp stop      - Stop TFTP server\r\n"
         "reset system   - Restart the device");
 }
 
@@ -1328,75 +1327,62 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
 
 
 
-void CommandProcessor::handleOTA(char* param, char* response, size_t responseSize) {
+void CommandProcessor::handleTFTP(char* param, char* response, size_t responseSize) {
     if (!param) {
         snprintf(response, responseSize, 
-            "ota commands: start, stop, status, reboot, url");
+            "tftp commands: start, stop, status, reboot");
         return;
     }
     
     if (strcasecmp(param, "start") == 0) {
-        if (otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server already running");
+        if (tftpServer.isServerRunning()) {
+            snprintf(response, responseSize, "TFTP server already running");
         } else {
-            otaServer.begin(80);
-            if (otaServer.isServerRunning()) {
-                snprintf(response, responseSize, "OTA server started on port 80 - URL: http://%s/update", 
+            tftpServer.begin(69);  // Standard TFTP port
+            if (tftpServer.isServerRunning()) {
+                snprintf(response, responseSize, "TFTP server started on port 69 - IP: %s", 
                          WiFi.localIP().toString().c_str());
-                LOG_INFO("OTA: Server started via telnet command");
+                LOG_INFO("TFTP: Server started via telnet command");
             } else {
-                snprintf(response, responseSize, "Failed to start OTA server");
+                snprintf(response, responseSize, "Failed to start TFTP server");
             }
         }
     }
     else if (strcasecmp(param, "stop") == 0) {
-        if (!otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server not running");
+        if (!tftpServer.isServerRunning()) {
+            snprintf(response, responseSize, "TFTP server not running");
         } else {
-            otaServer.stop();
-            snprintf(response, responseSize, "OTA server stopped");
-            LOG_INFO("OTA: Server stopped via telnet command");
+            tftpServer.stop();
+            snprintf(response, responseSize, "TFTP server stopped");
+            LOG_INFO("TFTP: Server stopped via telnet command");
         }
     }
     else if (strcasecmp(param, "status") == 0) {
-        if (!otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server: STOPPED");
+        if (!tftpServer.isServerRunning()) {
+            snprintf(response, responseSize, "TFTP server: STOPPED");
         } else {
-            float progress = otaServer.getUpdateProgress();
-            const char* status = otaServer.getStatusString();
+            float progress = tftpServer.getUpdateProgress();
+            const char* status = tftpServer.getStatusString();
             
-            if (otaServer.isUpdateInProgress()) {
+            if (tftpServer.isUpdateInProgress()) {
                 snprintf(response, responseSize, 
-                    "OTA server: RUNNING\nStatus: %s (%.1f%%)\nUpdate URL: http://%s/update", 
+                    "TFTP server: RUNNING\nStatus: %s (%.1f%%)\nServer IP: %s Port: 69", 
                     status, progress, WiFi.localIP().toString().c_str());
             } else {
-                const char* lastError = otaServer.getLastError();
+                const char* lastError = tftpServer.getLastError();
                 snprintf(response, responseSize, 
-                    "OTA server: RUNNING\nStatus: %s\nLast Error: %s\nUpdate URL: http://%s/update", 
-                    status, lastError, WiFi.localIP().toString().c_str());
+                    "TFTP server: RUNNING\nStatus: %s\nLast Error: %s\nServer IP: %s Port: 69\nUsage: tftp %s -m binary -c put firmware.bin", 
+                    status, lastError, WiFi.localIP().toString().c_str(), WiFi.localIP().toString().c_str());
             }
-        }
-    }
-    else if (strcasecmp(param, "url") == 0) {
-        if (!otaServer.isServerRunning()) {
-            snprintf(response, responseSize, "OTA server not running - use 'ota start' first");
-        } else {
-            snprintf(response, responseSize, 
-                "OTA Update URL: http://%s/update\n"
-                "Progress API: http://%s/progress\n"
-                "Command Line: curl -X POST -F \"firmware=@firmware.bin\" http://%s/update", 
-                WiFi.localIP().toString().c_str(),
-                WiFi.localIP().toString().c_str(),
-                WiFi.localIP().toString().c_str());
         }
     }
     else if (strcasecmp(param, "reboot") == 0) {
         snprintf(response, responseSize, "System reboot in 3 seconds...");
-        LOG_WARN("System reboot requested via OTA command");
+        LOG_WARN("System reboot requested via TFTP command");
         delay(3000);
         NVIC_SystemReset();
     }
     else {
-        snprintf(response, responseSize, "ota commands: start, stop, status, reboot, url");
+        snprintf(response, responseSize, "tftp commands: start, stop, status, reboot");
     }
 }

@@ -33,7 +33,7 @@ private:
     void handleAdc(char* param, char* value, char* response, size_t responseSize);
     void handleLCD(char* param, char* value, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
-    void handleOTA(char* param, char* response, size_t responseSize);
+    void handleTFTP(char* param, char* response, size_t responseSize);
 };
 
 class CommandValidator {
