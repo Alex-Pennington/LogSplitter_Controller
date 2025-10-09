@@ -1,201 +1,496 @@
-# LogSplitter Controller Command Reference
+# LogSplitter Monitor Command Reference# LogSplitter Monitor Command Reference
 
-This document details all available commands for the LogSplitter Controller via Serial Console, Telnet, and MQTT.
+
+
+This document details all available commands for the LogSplitter Monitor system via Serial Console and Telnet.This document details all available commands for the LogSplitter Monitor system via Serial Console and Telnet.
+
+
+
+## Weight Sensor Calibration Commands## Weight Sensor Calibration Commands
+
+
+
+### weight calibrate### weight calibrate
+
+**Description**: Perform scale calibration with known weight**Description**: Perform scale calibration with known weight
+
+**Syntax**: `weight calibrate <known_weight>`**Syntax**: `weight calibrate <known_weight>`
+
+**Parameters**:**Parameters**:
+
+- `known_weight`: Known weight value (must be positive)- `known_weight`: Known weight value (must be positive)
+
+**Response**: `scale calibrated with weight XX.XX` or `scale calibration failed`**Response**: `scale calibrated with weight XX.XX` or `scale calibration failed`
+
+**Example**: `weight calibrate 100.5`**Example**: `weight calibrate 100.5`
+
+
+
+### Complete Calibration Procedure:### Complete Calibration Procedure:
+
+
+
+1. **Check sensor status**:1. **Check sensor status**:
+
+   ```text   ```
+
+   weight status    # Verify sensor is working properly   weight status    # Verify sensor is working properly
+
+   ```   ```
+
+
+
+2. **Zero calibration** (empty scale):2. **Zero calibration** (empty scale):
+
+   ```text   ```
+
+   weight zero      # Set empty scale baseline   weight zero      # Set empty scale baseline
+
+   ```   ```
+
+
+
+3. **Scale calibration** (with known weight):3. **Scale calibration** (with known weight):
+
+   ```text   ```
+
+   weight calibrate 100.0    # Use precise known weight   weight calibrate 100.0    # Use precise known weight
+
+   ```   ```
+
+
+
+4. **Save calibration**:4. **Save calibration**:
+
+   ```text   ```
+
+   weight save      # Store calibration in EEPROM   weight save      # Store calibration in EEPROM
+
+   ```   ```
+
+
+
+5. **Verify calibration**:5. **Verify calibration**:
+
+   ```text   ```
+
+   weight read      # Test with known weights   weight read      # Test with known weights
+
+   ```   ```
+
+
+
+## All Weight Commands## All Weight Commands
+
+
+
+- `weight` - Show available weight commands- `weight` - Show available weight commands
+
+- `weight read` - Read current weight (filtered and unfiltered)- `weight read` - Read current weight (filtered and unfiltered)
+
+- `weight raw` - Read raw sensor value- `weight raw` - Read raw sensor value
+
+- `weight tare` - Tare the scale (set current as zero)- `weight tare` - Tare the scale (set current as zero)
+
+- `weight zero` - Zero calibration (empty scale baseline)- `weight zero` - Zero calibration (empty scale baseline)
+
+- `weight calibrate <weight>` - Scale calibration with known weight- `weight calibrate <weight>` - Scale calibration with known weight
+
+- `weight status` - Show sensor status and readings- `weight status` - Show sensor status and readings
+
+- `weight save` - Save calibration to EEPROM- `weight save` - Save calibration to EEPROM
+
+- `weight load` - Load calibration from EEPROM- `weight load` - Load calibration from EEPROM
+
+- `weight clear` - Clear calibration data
 
 ## Communication Interfaces
 
+## Temperature Sensor Commands
+
 ### Serial Console
-- **Port**: Primary USB Serial (115200 baud)
-- **Access**: Full command access including PIN mode configuration
-- **Format**: Plain text commands terminated with newline
+
+### temp- **Port**: Primary USB Serial (115200 baud)
+
+**Description**: Read temperature sensors- **Access**: Full command access including PIN mode configuration
+
+**Syntax**: `temp`- **Format**: Plain text commands terminated with newline
+
+**Access**: Serial + Telnet
 
 ### Telnet Server
-- **Port**: 23 (standard telnet port)
-- **Access**: Full command access including PIN mode configuration (equivalent to Serial)
-- **Format**: Plain text commands terminated with newline
-- **Debug Output**: Real-time debug messages with timestamps
+
+### temp read- **Port**: 23 (standard telnet port)
+
+**Description**: Read temperature value- **Access**: Full command access including PIN mode configuration (equivalent to Serial)
+
+**Syntax**: `temp read`- **Format**: Plain text commands terminated with newline
+
+**Access**: Serial + Telnet- **Debug Output**: Real-time debug messages with timestamps
+
 - **Connection**: `telnet <device_ip> 23`
 
-### MQTT Topics
-- **Subscribe (Commands)**: `r4/example/sub` and `r4/control`
-- **Publish (Responses)**: `r4/control/resp`
+### temp status
+
+**Description**: Show temperature sensor status### MQTT Topics
+
+**Syntax**: `temp status`- **Subscribe (Commands)**: `r4/example/sub` and `r4/control`
+
+**Access**: Serial + Telnet- **Publish (Responses)**: `r4/control/resp`
+
 - **Access**: All commands except `pins` (PIN mode changes restricted to serial/telnet for security)
+
+## Power Monitoring Commands
 
 ## Command Format
 
-All commands are case-insensitive and follow the format:
-```
-COMMAND [parameter] [value]
+### power
+
+**Description**: Show power monitoring dataAll commands are case-insensitive and follow the format:
+
+**Syntax**: `power````
+
+**Access**: Serial + TelnetCOMMAND [parameter] [value]
+
 ```
 
-## Available Commands
+### power status
 
-### 1. HELP
+**Description**: Show power system status## Available Commands
+
+**Syntax**: `power status`
+
+**Access**: Serial + Telnet### 1. HELP
+
 **Description**: Display available commands
-**Syntax**: `help`
+
+## ADC Commands**Syntax**: `help`
+
 **Access**: Serial + MQTT
 
-**Example**:
-```
-> help
+### adc
+
+**Description**: Read ADC values**Example**:
+
+**Syntax**: `adc````
+
+**Access**: Serial + Telnet> help
+
 Commands: help, show, debug, network, pins, set <param> <val>, relay R<n> ON|OFF
+
+### adc read```
+
+**Description**: Read specific ADC channel
+
+**Syntax**: `adc read <channel>`### 2. SHOW
+
+**Parameters**:**Description**: Display complete system status including pressure sensors, sequence controller, relays, and safety systems
+
+- `channel`: ADC channel number**Syntax**: `show`
+
+**Access**: Serial + Telnet**Access**: Serial + MQTT
+
+
+
+## LCD Display Commands**Example Output**:
+
 ```
 
-### 2. SHOW
-**Description**: Display complete system status including pressure sensors, sequence controller, relays, and safety systems
-**Syntax**: `show`
-**Access**: Serial + MQTT
+### lcd> show
 
-**Example Output**:
-```
-> show
-Pressure: Main=2450.5 PSI, Hydraulic=2340.2 PSI
-Sequence: IDLE, Safety: OK
-Relays: R1=OFF(RETRACT) R2=OFF(EXTEND)
+**Description**: Control LCD displayPressure: Main=2450.5 PSI, Hydraulic=2340.2 PSI
+
+**Syntax**: `lcd`Sequence: IDLE, Safety: OK
+
+**Access**: Serial + TelnetRelays: R1=OFF(RETRACT) R2=OFF(EXTEND)
+
 Safety: Manual Override=OFF, Pressure OK
-```
 
-### 3. DEBUG
-**Description**: Enable or disable debug output to serial console
+### lcd clear```
+
+**Description**: Clear LCD display
+
+**Syntax**: `lcd clear`### 3. DEBUG
+
+**Access**: Serial + Telnet**Description**: Enable or disable debug output to serial console
+
 **Syntax**: `debug [ON|OFF]`
-**Access**: Serial + MQTT
 
-**Examples**:
-```
+### lcd backlight**Access**: Serial + MQTT
+
+**Description**: Control LCD backlight
+
+**Syntax**: `lcd backlight <on|off>`**Examples**:
+
+**Access**: Serial + Telnet```
+
 > debug
-debug OFF
 
-> debug ON
-debug ON
+## TFTP Server Commandsdebug OFF
 
-> debug off
-debug OFF
+
+
+### tftp start> debug ON
+
+**Description**: Start TFTP server for firmware updatesdebug ON
+
+**Syntax**: `tftp start`
+
+**Access**: Serial + Telnet> debug off
+
+**Response**: Shows TFTP server IP and port (69)debug OFF
+
 ```
 
-**Note**: Debug output is **disabled by default** to reduce serial console noise. When enabled, the system outputs detailed diagnostic information including:
-- Input pin state changes
-- Limit switch activations  
+### tftp stop
+
+**Description**: Stop TFTP server**Note**: Debug output is **disabled by default** to reduce serial console noise. When enabled, the system outputs detailed diagnostic information including:
+
+**Syntax**: `tftp stop`- Input pin state changes
+
+**Access**: Serial + Telnet- Limit switch activations  
+
 - MQTT message details
-- Pressure sensor initialization
-- Command processing status
 
-### 4. NETWORK
+### tftp status- Pressure sensor initialization
+
+**Description**: Show TFTP server status- Command processing status
+
+**Syntax**: `tftp status`
+
+**Access**: Serial + Telnet### 4. NETWORK
+
 **Description**: Display network health statistics and connection status
-**Syntax**: `network`
-**Access**: Serial + MQTT
 
-**Example Output**:
-```
+### tftp upload**Syntax**: `network`
+
+**Description**: Start firmware upload via TFTP**Access**: Serial + MQTT
+
+**Syntax**: `tftp upload`
+
+**Access**: Serial + Telnet**Example Output**:
+
+**Usage**: Used with external TFTP client to upload firmware```
+
 > network
-wifi=OK mqtt=OK stable=YES disconnects=2 fails=0 uptime=1247s
+
+## System Commandswifi=OK mqtt=OK stable=YES disconnects=2 fails=0 uptime=1247s
+
 ```
 
-**Status Fields**:
-- **wifi**: OK/DOWN - WiFi connection state
-- **mqtt**: OK/DOWN - MQTT broker connection state  
+### help
+
+**Description**: Display available commands**Status Fields**:
+
+**Syntax**: `help`- **wifi**: OK/DOWN - WiFi connection state
+
+**Access**: Serial + Telnet- **mqtt**: OK/DOWN - MQTT broker connection state  
+
 - **stable**: YES/NO - Connection stable for >30 seconds
-- **disconnects**: Total number of connection losses
-- **fails**: Failed MQTT publish attempts
-- **uptime**: Current connection uptime in seconds
+
+### show- **disconnects**: Total number of connection losses
+
+**Description**: Display complete system status including sensors, network, and hardware- **fails**: Failed MQTT publish attempts
+
+**Syntax**: `show`- **uptime**: Current connection uptime in seconds
+
+**Access**: Serial + Telnet
 
 **Network Failsafe Operation**:
-- ✅ **Hydraulic control NEVER blocked by network issues**
-- ✅ **Non-blocking reconnection** - system continues operating during network problems
-- ✅ **Automatic recovery** with exponential backoff
-- ✅ **Connection stability monitoring** prevents flapping
+
+### debug on|off- ✅ **Hydraulic control NEVER blocked by network issues**
+
+**Description**: Toggle debug mode- ✅ **Non-blocking reconnection** - system continues operating during network problems
+
+**Syntax**: `debug on` or `debug off`- ✅ **Automatic recovery** with exponential backoff
+
+**Access**: Serial + Telnet- ✅ **Connection stability monitoring** prevents flapping
+
 - ✅ **Health metrics** for diagnostics and troubleshooting
 
-### 5. RESET
-**Description**: Reset system components from fault states or perform complete system reboot
-**Syntax**: `reset <component>`
+### reset
+
+**Description**: Restart the system### 5. RESET
+
+**Syntax**: `reset`**Description**: Reset system components from fault states or perform complete system reboot
+
+**Access**: Serial + Telnet**Syntax**: `reset <component>`
+
 **Access**: Serial + MQTT
 
-#### Available RESET Components:
+### monitor
 
-##### Emergency Stop (E-Stop) Reset
+**Description**: Show monitoring data (sensors, power, temperature)#### Available RESET Components:
+
+**Syntax**: `monitor`
+
+**Access**: Serial + Telnet##### Emergency Stop (E-Stop) Reset
+
 **Parameter**: `estop`
-**Function**: Clear emergency stop latch and restore system operation
 
-**Requirements**:
-- Emergency stop button must NOT be currently pressed
-- System must be in emergency stop state (SYS_EMERGENCY_STOP)
+## Network Commands**Function**: Clear emergency stop latch and restore system operation
+
+
+
+### network status**Requirements**:
+
+**Description**: Show detailed network status- Emergency stop button must NOT be currently pressed
+
+**Syntax**: `network status`- System must be in emergency stop state (SYS_EMERGENCY_STOP)
+
+**Access**: Serial + Telnet
 
 **Examples**:
-```
-> reset estop
-E-Stop reset successful - system operational
+
+### network reconnect```
+
+**Description**: Reconnect WiFi connection> reset estop
+
+**Syntax**: `network reconnect`E-Stop reset successful - system operational
+
+**Access**: Serial + Telnet
 
 > reset estop
-E-Stop reset failed: E-Stop button still pressed
 
-> reset estop  
-E-Stop not latched - no reset needed
-```
+## Communication InterfacesE-Stop reset failed: E-Stop button still pressed
+
+
+
+### Serial Console> reset estop  
+
+- **Port**: Primary USB Serial (115200 baud)E-Stop not latched - no reset needed
+
+- **Access**: Full command access```
+
+- **Format**: Plain text commands terminated with newline
 
 **Safety Notes**:
-- ⚠️ **CRITICAL**: E-Stop reset requires manual verification that all hazards are clear
-- ⚠️ **VERIFY**: Ensure E-Stop button is physically released before attempting reset
-- ⚠️ **CONFIRM**: All personnel are clear of hydraulic equipment before reset
-- ✅ Reset only clears the software latch - hardware E-Stop must be manually released
-- ✅ Safety system integration prevents unsafe operation
+
+### Telnet Server- ⚠️ **CRITICAL**: E-Stop reset requires manual verification that all hazards are clear
+
+- **Port**: 23 (standard telnet port)- ⚠️ **VERIFY**: Ensure E-Stop button is physically released before attempting reset
+
+- **Access**: Full command access (equivalent to Serial)- ⚠️ **CONFIRM**: All personnel are clear of hydraulic equipment before reset
+
+- **Format**: Plain text commands terminated with newline- ✅ Reset only clears the software latch - hardware E-Stop must be manually released
+
+- **Debug Output**: Real-time debug messages with timestamps- ✅ Safety system integration prevents unsafe operation
+
+- **Connection**: `telnet <device_ip> 23`
 
 ##### Complete System Reset
-**Parameter**: `system`
+
+## Command Format**Parameter**: `system`
+
 **Function**: Perform complete system reboot equivalent to power cycling
 
-**Examples**:
-```
-> reset system
-System reset initiated - rebooting...
-[System reboots immediately]
-```
+All commands are case-insensitive and follow the format:
 
-**Reset Effects**:
-- **Complete Hardware Reset**: Equivalent to power off/on cycle
-- **All Variables Reset**: All runtime variables return to default values
-- **Network Reconnection**: WiFi and MQTT connections will be re-established
-- **Configuration Preserved**: EEPROM settings remain intact
-- **Immediate Effect**: System reboots within ~100ms of command execution
+**Examples**:
+
+```text```
+
+COMMAND [parameter] [value]> reset system
+
+```System reset initiated - rebooting...
+
+[System reboots immediately]
+
+## Common Usage Examples```
+
+
+
+### Weight Sensor Calibration:**Reset Effects**:
+
+```text- **Complete Hardware Reset**: Equivalent to power off/on cycle
+
+weight zero              # Zero the scale (empty)- **All Variables Reset**: All runtime variables return to default values
+
+weight calibrate 100.0   # Calibrate with 100g weight- **Network Reconnection**: WiFi and MQTT connections will be re-established
+
+weight save              # Save calibration- **Configuration Preserved**: EEPROM settings remain intact
+
+weight read              # Test readings- **Immediate Effect**: System reboots within ~100ms of command execution
+
+```
 
 **Use Cases**:
-- Recovery from system lockup or unresponsive state
-- Clearing memory corruption or stack overflow issues
-- Full system refresh after configuration changes
-- Emergency recovery when other reset methods fail
 
-**Safety Notes**:
+### Temperature Monitoring:- Recovery from system lockup or unresponsive state
+
+```text- Clearing memory corruption or stack overflow issues
+
+temp status              # Check sensor status- Full system refresh after configuration changes
+
+temp read                # Get temperature reading- Emergency recovery when other reset methods fail
+
+monitor                  # Show all monitoring data
+
+```**Safety Notes**:
+
 - ⚠️ **WARNING**: All active hydraulic operations will stop immediately
-- ⚠️ **VERIFY**: Ensure hydraulic cylinders are in safe position before reset
-- ✅ Safety systems will reinitialize with full protection on reboot
-- ✅ E-Stop state will be re-evaluated on startup
 
-### 6. PINS
-**Description**: Display current PIN mode configuration for all Arduino pins
-**Syntax**: `pins`
+### TFTP Firmware Update:- ⚠️ **VERIFY**: Ensure hydraulic cylinders are in safe position before reset
+
+```text- ✅ Safety systems will reinitialize with full protection on reboot
+
+tftp start               # Start TFTP server- ✅ E-Stop state will be re-evaluated on startup
+
+tftp status              # Check server status
+
+# Use external TFTP client to upload firmware### 6. PINS
+
+tftp stop                # Stop server when done**Description**: Display current PIN mode configuration for all Arduino pins
+
+```**Syntax**: `pins`
+
 **Access**: Serial + Telnet ONLY (Security restriction)
 
-**Example Output**:
-```
-> pins
-Pin 0: INPUT_PULLUP
-Pin 1: OUTPUT
-Pin 2: INPUT
-...
-Pin 13: OUTPUT
-```
+### System Status:
 
-### 7. SET
-**Description**: Configure system parameters with EEPROM persistence
-**Syntax**: `set <parameter> <value>`
+```text**Example Output**:
+
+show                     # Complete system status```
+
+network status           # Network connectivity> pins
+
+monitor                  # All sensor readingsPin 0: INPUT_PULLUP
+
+```Pin 1: OUTPUT
+
+Pin 2: INPUT
+
+### Power and Hardware:...
+
+```textPin 13: OUTPUT
+
+power status             # Power system status```
+
+adc read 0               # Read ADC channel 0
+
+lcd clear                # Clear display### 7. SET
+
+lcd backlight on         # Turn on backlight**Description**: Configure system parameters with EEPROM persistence
+
+```**Syntax**: `set <parameter> <value>`
+
 **Access**: Serial + MQTT
+
+## Device Information
 
 #### Available SET Parameters:
 
-##### Pressure Sensor Configuration
-- **vref** - ADC reference voltage (volts, default: 4.5)
-  ```
-  > set vref 4.5
-  set vref=4.5
+- **Hardware**: Arduino-compatible monitor with sensors
+
+- **Communication**: Serial (115200 baud), Telnet (port 23)##### Pressure Sensor Configuration
+
+- **Network**: WiFi with TFTP server capability- **vref** - ADC reference voltage (volts, default: 4.5)
+
+- **Sensors**: Weight (NAU7802), temperature, power monitoring  ```
+
+- **Display**: LCD with backlight control  > set vref 4.5
+
+- **Features**: Weight calibration, TFTP firmware updates, real-time monitoring  set vref=4.5
   ```
 
 - **maxpsi** - Maximum pressure scale (PSI, default: 5000)
