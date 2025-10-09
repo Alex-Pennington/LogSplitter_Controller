@@ -181,8 +181,8 @@ void LCDDisplay::updateAdditionalSensors(float voltage, float current, float adc
     }
     
     // Current (show in mA, limit to 2 digits)
-    if (current >= 0) {
-        if (current < 100) {
+    if (current > -999.0) {  // Show current if it's a valid reading (positive or negative)
+        if (abs(current) < 100) {
             content += String(current, 0) + "mA ";
         } else {
             content += String(current, 0) + "mA ";

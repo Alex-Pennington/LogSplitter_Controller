@@ -35,6 +35,7 @@ private:
     void handleLCD(char* param, char* value, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
     void handleHeartbeat(char* param, char* response, size_t responseSize);
+    void handleConfig(char* param, char* value, char* response, size_t responseSize);
 };
 
 class CommandValidator {

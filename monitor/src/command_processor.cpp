@@ -3,12 +3,14 @@
 #include "logger.h"
 #include "heartbeat_animation.h"
 #include "arduino_secrets.h"
+#include "monitor_config.h"
 #include <ctype.h>
 #include <string.h>
 #include <Wire.h>
 
 extern void debugPrintf(const char* fmt, ...);
 extern bool g_debugEnabled;
+extern MonitorConfigManager configManager;
 extern LCDDisplay* g_lcdDisplay;
 
 // Static data for rate limiting
@@ -112,6 +114,11 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleSyslog(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "config") == 0) {
+        char* param = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+        handleConfig(param, value, response, responseSize);
+    }
     else if (strcasecmp(cmd, "monitor") == 0) {
         char* param = strtok(NULL, " ");
         char* value = strtok(NULL, " ");
@@ -180,6 +187,11 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "  wifi_ssid <ssid> - Reconfigure WiFi SSID\r\n"
         "  loglevel <0-7> - Set logging level\r\n"
         "  debug <on|off> - Toggle debug mode\r\n"
+        "config <action> - Configuration management\r\n"
+        "  show         - Show current configuration\r\n"
+        "  save         - Save current config to EEPROM\r\n"
+        "  load         - Load config from EEPROM\r\n"
+        "  reset        - Reset to factory defaults\r\n"
         "debug [on|off] - Toggle debug mode\r\n"
         "loglevel [0-7] - Set logging level (0=EMERGENCY, 7=DEBUG)\r\n"
         "monitor start  - Start monitoring\r\n"
@@ -282,7 +294,10 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
         
         Logger::setLogLevel(static_cast<LogLevel>(level));
-        snprintf(response, responseSize, "Log level set to %d", level);
+        // Save to configuration
+        configManager.setLogLevel(level);
+        configManager.save();
+        snprintf(response, responseSize, "Log level set to %d and saved", level);
     }
     else if (strcasecmp(param, "syslog") == 0) {
         if (networkManager) {
@@ -302,11 +317,15 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             // Use live reconfiguration method
             bool result = networkManager->reconfigureSyslog(value, port);
             if (result) {
+                // Update configuration and save to EEPROM
+                configManager.setSyslogServer(value);
                 if (portPtr) {
-                    snprintf(response, responseSize, "syslog server reconfigured to %s:%d", value, port);
+                    configManager.setSyslogPort(port);
+                    snprintf(response, responseSize, "syslog server reconfigured to %s:%d and saved", value, port);
                 } else {
-                    snprintf(response, responseSize, "syslog server reconfigured to %s:%d", value, SYSLOG_PORT);
+                    snprintf(response, responseSize, "syslog server reconfigured to %s:%d and saved", value, SYSLOG_PORT);
                 }
+                configManager.save();
             } else {
                 snprintf(response, responseSize, "syslog reconfiguration failed");
             }
@@ -332,11 +351,15 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             // Use live reconfiguration method
             bool result = networkManager->reconfigureMQTT(value, port, MQTT_USER, MQTT_PASS);
             if (result) {
+                // Update configuration and save to EEPROM
+                configManager.setMqttBroker(value);
                 if (portPtr) {
-                    snprintf(response, responseSize, "MQTT broker reconfigured to %s:%d", value, port);
+                    configManager.setMqttPort(port);
+                    snprintf(response, responseSize, "MQTT broker reconfigured to %s:%d and saved", value, port);
                 } else {
-                    snprintf(response, responseSize, "MQTT broker reconfigured to %s:%d", value, BROKER_PORT);
+                    snprintf(response, responseSize, "MQTT broker reconfigured to %s:%d and saved", value, BROKER_PORT);
                 }
+                configManager.save();
             } else {
                 snprintf(response, responseSize, "MQTT reconfiguration failed");
             }
@@ -350,6 +373,7 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             // In a real implementation, you'd want to handle this more securely
             bool result = networkManager->reconfigureWiFi(value, SECRET_PASS);
             if (result) {
+                // Note: WiFi SSID is not stored in persistent config for security
                 snprintf(response, responseSize, "WiFi SSID reconfigured to %s", value);
             } else {
                 snprintf(response, responseSize, "WiFi reconfiguration failed");
@@ -1228,6 +1252,10 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
         int level = atoi(param);
         if (level >= 0 && level <= 7) {
             Logger::setLogLevel(static_cast<LogLevel>(level));
+            // Save to configuration
+            configManager.setLogLevel(level);
+            configManager.save();
+            
             const char* levelName;
             switch (level) {
                 case LOG_EMERGENCY: levelName = "EMERGENCY"; break;
@@ -1240,7 +1268,7 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
                 case LOG_DEBUG: levelName = "DEBUG"; break;
                 default: levelName = "UNKNOWN"; break;
             }
-            snprintf(response, responseSize, "Log level set to %d (%s)", level, levelName);
+            snprintf(response, responseSize, "Log level set to %d (%s) and saved", level, levelName);
         } else {
             snprintf(response, responseSize, "usage: loglevel [get|list|<0-7>]");
         }
@@ -1335,5 +1363,116 @@ void CommandProcessor::handleHeartbeat(char* param, char* response, size_t respo
     } else {
         snprintf(response, responseSize, 
                 "usage: heartbeat [on|off|rate <bpm>|brightness <0-255>|frame <0-3>|status]");
+    }
+}
+
+void CommandProcessor::handleConfig(char* param, char* value, char* response, size_t responseSize) {
+    if (!param) {
+        snprintf(response, responseSize, "usage: config [show|save|load|reset]");
+        return;
+    }
+    
+    if (strcasecmp(param, "show") == 0) {
+        // Show current configuration
+        snprintf(response, responseSize,
+                "Configuration:\r\n"
+                "Network:\r\n"
+                "  WiFi Timeout: %lu ms\r\n"
+                "  MQTT Reconnect: %lu ms\r\n"
+                "  Network Stability: %lu ms\r\n"
+                "  Max Retries: %d\r\n"
+                "Syslog:\r\n"
+                "  Server: %s\r\n"
+                "  Port: %d\r\n"
+                "  Hostname: %s\r\n"
+                "MQTT:\r\n"
+                "  Broker: %s\r\n"
+                "  Port: %d\r\n"
+                "  Username: %s\r\n"
+                "Logging:\r\n"
+                "  Level: %d\r\n"
+                "  To Serial: %s\r\n"
+                "  To Syslog: %s\r\n"
+                "Sensors:\r\n"
+                "  Read Interval: %lu ms\r\n"
+                "  Temp Offset: %.2f C\r\n"
+                "  Filtering: %s",
+                configManager.getWifiConnectTimeoutMs(),
+                configManager.getMqttReconnectIntervalMs(),
+                configManager.getNetworkStabilityTimeMs(),
+                configManager.getMaxConnectRetries(),
+                configManager.getSyslogServer(),
+                configManager.getSyslogPort(),
+                configManager.getSyslogHostname(),
+                configManager.getMqttBroker(),
+                configManager.getMqttPort(),
+                configManager.getMqttUsername(),
+                configManager.getLogLevel(),
+                configManager.getLogToSerial() ? "yes" : "no",
+                configManager.getLogToSyslog() ? "yes" : "no",
+                configManager.getSensorReadIntervalMs(),
+                configManager.getTemperatureOffset(),
+                configManager.getEnableSensorFiltering() ? "yes" : "no"
+        );
+        
+    } else if (strcasecmp(param, "save") == 0) {
+        // Save current configuration to EEPROM
+        bool success = configManager.save();
+        if (success) {
+            snprintf(response, responseSize, "Configuration saved to EEPROM");
+            LOG_INFO("Configuration saved to EEPROM via telnet command");
+        } else {
+            snprintf(response, responseSize, "Failed to save configuration to EEPROM");
+            LOG_ERROR("Failed to save configuration to EEPROM");
+        }
+        
+    } else if (strcasecmp(param, "load") == 0) {
+        // Load configuration from EEPROM
+        bool success = configManager.load();
+        if (success) {
+            // Apply loaded configuration to running systems
+            Logger::setLogLevel(static_cast<LogLevel>(configManager.getLogLevel()));
+            
+            // Update NetworkManager syslog settings
+            if (configManager.getLogToSyslog()) {
+                networkManager->setSyslogServer(
+                    configManager.getSyslogServer(),
+                    configManager.getSyslogPort()
+                );
+            }
+            
+            snprintf(response, responseSize, "Configuration loaded from EEPROM and applied");
+            LOG_INFO("Configuration loaded from EEPROM via telnet command");
+        } else {
+            snprintf(response, responseSize, "Failed to load configuration from EEPROM");
+            LOG_ERROR("Failed to load configuration from EEPROM");
+        }
+        
+    } else if (strcasecmp(param, "reset") == 0) {
+        // Reset to factory defaults
+        configManager.resetToDefaults();
+        bool success = configManager.save();
+        
+        if (success) {
+            // Apply default configuration to running systems
+            Logger::setLogLevel(static_cast<LogLevel>(configManager.getLogLevel()));
+            
+            // Update NetworkManager syslog settings
+            if (configManager.getLogToSyslog()) {
+                networkManager->setSyslogServer(
+                    configManager.getSyslogServer(),
+                    configManager.getSyslogPort()
+                );
+            }
+            
+            snprintf(response, responseSize, "Configuration reset to factory defaults");
+            LOG_INFO("Configuration reset to factory defaults via telnet command");
+        } else {
+            snprintf(response, responseSize, "Failed to save factory defaults to EEPROM");
+            LOG_ERROR("Failed to save factory defaults to EEPROM");
+        }
+        
+    } else {
+        snprintf(response, responseSize, "usage: config [show|save|load|reset]");
     }
 }

@@ -10,6 +10,7 @@
 #include "logger.h"
 #include "heartbeat_animation.h"
 #include "tca9548a_multiplexer.h"
+#include "monitor_config.h"
 
 // Global instances
 NetworkManager networkManager;
@@ -18,6 +19,7 @@ MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
 LCDDisplay lcdDisplay;
 HeartbeatAnimation heartbeat;
+MonitorConfigManager configManager;
 
 // Global pointer for external access
 NetworkManager* g_networkManager = &networkManager;
@@ -131,6 +133,10 @@ void setup() {
     monitorSystem.setSystemState(SYS_INITIALIZING);
     Serial.println("DEBUG: System state set to initializing");
     
+    Serial.println("DEBUG: Initializing configuration manager...");
+    configManager.begin();
+    Serial.println("DEBUG: Configuration manager initialized");
+    
     Serial.println("DEBUG: Initializing command processor...");
     commandProcessor.begin(&networkManager, &monitorSystem);
     commandProcessor.setHeartbeatAnimation(&heartbeat);
@@ -140,11 +146,24 @@ void setup() {
     networkManager.begin();
     Serial.println("DEBUG: Network manager initialized");
     
-    // Initialize Logger system with NetworkManager
+    // Initialize Logger system with NetworkManager and apply config
     Serial.println("DEBUG: Initializing Logger system...");
     Logger::begin(&networkManager);
-    Logger::setLogLevel(LOG_INFO);  // Default to INFO level
-    Serial.println("DEBUG: Logger initialized");
+    
+    // Apply configuration settings
+    Serial.println("DEBUG: Applying configuration settings...");
+    Logger::setLogLevel(static_cast<LogLevel>(configManager.getLogLevel()));
+    
+    // Update NetworkManager with syslog settings if enabled
+    if (configManager.getLogToSyslog()) {
+        networkManager.setSyslogServer(
+            configManager.getSyslogServer(),
+            configManager.getSyslogPort()
+        );
+    }
+    
+    LOG_INFO("LogSplitter Monitor v1.0.0 starting up with persistent config");
+    Serial.println("DEBUG: Logger and configuration applied");
     
     // Show connecting message on LCD
     lcdDisplay.showConnectingMessage();
@@ -158,6 +177,7 @@ void setup() {
     Serial.println("DEBUG: Telnet connection info set");
     
     debugPrintf("System: All components initialized\n");
+    LOG_INFO("System initialization complete - transitioning to network connection");
     currentSystemState = SYS_CONNECTING;
     monitorSystem.setSystemState(SYS_CONNECTING);
     
@@ -184,6 +204,7 @@ void loop() {
         currentSystemState = SYS_MONITORING;
         monitorSystem.setSystemState(SYS_MONITORING);
         
+        LOG_INFO("Network connection established - telnet server started on port 23");
         debugPrintf("System: Network connected, telnet server started\n");
         Serial.println("Network connected! Telnet server running on port 23");
         Serial.print("IP Address: ");
@@ -243,6 +264,7 @@ void loop() {
     if (!networkManager.isWiFiConnected() && currentSystemState == SYS_MONITORING) {
         currentSystemState = SYS_CONNECTING;
         monitorSystem.setSystemState(SYS_CONNECTING);
+        LOG_ERROR("Network connection lost - attempting reconnection");
         debugPrintf("System: Network disconnected, entering connecting state\n");
     }
     

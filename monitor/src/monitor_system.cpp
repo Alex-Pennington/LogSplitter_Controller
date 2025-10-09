@@ -89,6 +89,8 @@ void MonitorSystem::begin() {
         // Enable filtering for stable readings
         weightSensor.enableFiltering(true, 10);
     } else {
+        LOG_ERROR("MonitorSystem: NAU7802 weight sensor initialization failed: %s", 
+            weightSensor.getStatusString());
         debugPrintf("MonitorSystem: NAU7802 weight sensor initialization failed: %s\n", 
             weightSensor.getStatusString());
     }
@@ -355,7 +357,18 @@ void MonitorSystem::readWeightSensor() {
     i2cMux.selectChannel(NAU7802_CHANNEL);
     
     if (!weightSensor.isConnected()) {
+        static bool wasConnected = true;  // Track previous state
+        if (wasConnected) {
+            LOG_CRITICAL("MonitorSystem: NAU7802 weight sensor disconnected during operation");
+            wasConnected = false;
+        }
         return;
+    } else {
+        static bool wasConnected = false;  // Track previous state
+        if (!wasConnected) {
+            LOG_INFO("MonitorSystem: NAU7802 weight sensor reconnected");
+            wasConnected = true;
+        }
     }
     
     if (weightSensor.dataAvailable()) {
@@ -442,6 +455,16 @@ void MonitorSystem::readPowerSensor() {
             debugPrintf("MonitorSystem: MQTT not connected, cannot publish power data\n");
         }
     } else {
+        static uint8_t powerReadErrorCount = 0;
+        powerReadErrorCount++;
+        
+        if (powerReadErrorCount >= 5) {
+            LOG_CRITICAL("MonitorSystem: Power sensor persistent failure (%d consecutive errors)", powerReadErrorCount);
+            powerReadErrorCount = 0;  // Reset counter after critical log
+        } else if (powerReadErrorCount == 1) {
+            LOG_WARN("MonitorSystem: Power sensor reading failed (attempt %d)", powerReadErrorCount);
+        }
+        
         debugPrintf("MonitorSystem: Power sensor reading failed\n");
     }
 }
@@ -481,6 +504,16 @@ void MonitorSystem::readAdcSensor() {
                 currentAdcRaw,
                 adcSensor.getResolution());
             g_networkManager->publish(TOPIC_MCP3421_STATUS, statusBuffer);
+        }
+    } else {
+        static uint8_t adcReadErrorCount = 0;
+        adcReadErrorCount++;
+        
+        if (adcReadErrorCount >= 5) {
+            LOG_CRITICAL("MonitorSystem: MCP3421 ADC sensor persistent failure (%d consecutive errors)", adcReadErrorCount);
+            adcReadErrorCount = 0;  // Reset counter after critical log
+        } else if (adcReadErrorCount == 1) {
+            LOG_WARN("MonitorSystem: MCP3421 ADC sensor reading failed (attempt %d)", adcReadErrorCount);
         }
     }
 }
@@ -714,6 +747,8 @@ bool MonitorSystem::calibrateWeightSensorZero() {
         debugPrintf("MonitorSystem: Weight sensor zero calibration completed\n");
         return true;
     } else {
+        LOG_ERROR("MonitorSystem: Weight sensor zero calibration failed: %s", 
+            weightSensor.getStatusString());
         debugPrintf("MonitorSystem: Weight sensor zero calibration failed: %s\n", 
             weightSensor.getStatusString());
         return false;
@@ -727,6 +762,8 @@ bool MonitorSystem::calibrateWeightSensorScale(float knownWeight) {
         debugPrintf("MonitorSystem: Weight sensor scale calibration completed\n");
         return true;
     } else {
+        LOG_ERROR("MonitorSystem: Weight sensor scale calibration failed: %s", 
+            weightSensor.getStatusString());
         debugPrintf("MonitorSystem: Weight sensor scale calibration failed: %s\n", 
             weightSensor.getStatusString());
         return false;
