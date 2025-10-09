@@ -42,7 +42,7 @@
 		{
 			"label": "🔧 Build Monitor Program",
 			"type": "shell",
-			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
 			"args": ["run"],
 			"options": {
 				"cwd": "${workspaceFolder}/monitor"
@@ -61,7 +61,7 @@
 		{
 			"label": "📤 Upload Monitor Program",
 			"type": "shell",
-			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
 			"args": ["run", "--target", "upload"],
 			"options": {
 				"cwd": "${workspaceFolder}/monitor"
