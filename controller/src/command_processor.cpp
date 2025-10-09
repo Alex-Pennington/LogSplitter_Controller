@@ -14,6 +14,7 @@
 #include "arduino_secrets.h"
 #include "logger.h"
 #include "constants.h"
+#include "ota_server.h"
 #include <ctype.h>
 
 // For system reset functionality on Arduino UNO R4 WiFi
@@ -167,11 +168,11 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, syslog, mqtt";
+    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], timing [report|reset|status|slowest|log], ota [start|stop|status|reboot|url], bypass, syslog, mqtt";
     if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
+        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck\n\nOTA Commands:\nota start - Start OTA server\nota status - Show OTA status\nota url - Show update URL", helpText);
     } else {
-        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\n\nTiming: timing report|status|slowest", helpText);
+        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\n\nTiming: timing report|status|slowest\nOTA: ota start|status|url", helpText);
     }
 }
 
@@ -1051,6 +1052,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleTiming(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "ota") == 0) {
+        char* param = strtok(NULL, " ");
+        handleOTA(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
@@ -1299,5 +1304,78 @@ void CommandProcessor::handleTiming(char* param, char* response, size_t response
     }
     else {
         snprintf(response, responseSize, "timing commands: report, reset, status, slowest, log, detailed");
+    }
+}
+
+void CommandProcessor::handleOTA(char* param, char* response, size_t responseSize) {
+    if (!param) {
+        snprintf(response, responseSize, 
+            "ota commands: start, stop, status, reboot, url");
+        return;
+    }
+    
+    if (strcasecmp(param, "start") == 0) {
+        if (otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server already running");
+        } else {
+            otaServer.begin(80);
+            if (otaServer.isServerRunning()) {
+                snprintf(response, responseSize, "OTA server started on port 80 - URL: http://%s/update", 
+                         WiFi.localIP().toString().c_str());
+                LOG_INFO("OTA: Server started via telnet command");
+            } else {
+                snprintf(response, responseSize, "Failed to start OTA server");
+            }
+        }
+    }
+    else if (strcasecmp(param, "stop") == 0) {
+        if (!otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server not running");
+        } else {
+            otaServer.stop();
+            snprintf(response, responseSize, "OTA server stopped");
+            LOG_INFO("OTA: Server stopped via telnet command");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        if (!otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server: STOPPED");
+        } else {
+            float progress = otaServer.getUpdateProgress();
+            const char* status = otaServer.getStatusString();
+            
+            if (otaServer.isUpdateInProgress()) {
+                snprintf(response, responseSize, 
+                    "OTA server: RUNNING\nStatus: %s (%.1f%%)\nUpdate URL: http://%s/update", 
+                    status, progress, WiFi.localIP().toString().c_str());
+            } else {
+                const char* lastError = otaServer.getLastError();
+                snprintf(response, responseSize, 
+                    "OTA server: RUNNING\nStatus: %s\nLast Error: %s\nUpdate URL: http://%s/update", 
+                    status, lastError, WiFi.localIP().toString().c_str());
+            }
+        }
+    }
+    else if (strcasecmp(param, "url") == 0) {
+        if (!otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server not running - use 'ota start' first");
+        } else {
+            snprintf(response, responseSize, 
+                "OTA Update URL: http://%s/update\n"
+                "Progress API: http://%s/progress\n"
+                "Command Line: curl -X POST -F \"firmware=@firmware.bin\" http://%s/update", 
+                WiFi.localIP().toString().c_str(),
+                WiFi.localIP().toString().c_str(),
+                WiFi.localIP().toString().c_str());
+        }
+    }
+    else if (strcasecmp(param, "reboot") == 0) {
+        snprintf(response, responseSize, "System reboot in 3 seconds...");
+        LOG_WARN("System reboot requested via OTA command");
+        delay(3000);
+        NVIC_SystemReset();
+    }
+    else {
+        snprintf(response, responseSize, "ota commands: start, stop, status, reboot, url");
     }
 }

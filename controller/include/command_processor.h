@@ -58,6 +58,7 @@ private:
     void handleMqtt(char* param, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
     void handleTiming(char* param, char* response, size_t responseSize);
+    void handleOTA(char* param, char* response, size_t responseSize);
     
 public:
     CommandProcessor() = default;

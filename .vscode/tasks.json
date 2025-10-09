@@ -4,10 +4,10 @@
 		{
 			"label": "🔧 Build Controller Program",
 			"type": "shell",
-			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
 			"args": ["run"],
 			"options": {
-				"cwd": "${workspaceFolder}"
+				"cwd": "${workspaceFolder}/controller"
 			},
 			"group": "build",
 			"presentation": {
@@ -23,10 +23,10 @@
 		{
 			"label": "📤 Upload Controller Program",
 			"type": "shell",
-			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
 			"args": ["run", "--target", "upload"],
 			"options": {
-				"cwd": "${workspaceFolder}"
+				"cwd": "${workspaceFolder}/controller"
 			},
 			"group": "build",
 			"presentation": {
@@ -80,10 +80,10 @@
 		{
 			"label": "🔍 Monitor Controller Serial",
 			"type": "shell",
-			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
 			"args": ["device", "monitor"],
 			"options": {
-				"cwd": "${workspaceFolder}"
+				"cwd": "${workspaceFolder}/controller"
 			},
 			"group": "test",
 			"presentation": {
@@ -99,7 +99,7 @@
 		{
 			"label": "🔍 Monitor Program Serial",
 			"type": "shell",
-			"command": "C:\\Users\\rayve\\.platformio\\penv\\Scripts\\platformio.exe",
+			"command": "C:\\Users\\USER\\.platformio\\penv\\Scripts\\platformio.exe",
 			"args": ["device", "monitor"],
 			"options": {
 				"cwd": "${workspaceFolder}/monitor"

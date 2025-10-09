@@ -9,13 +9,11 @@ public:
     CommandProcessor();
     
     void begin(NetworkManager* network, MonitorSystem* monitor);
-    void setHeartbeatAnimation(class HeartbeatAnimation* heartbeat) { heartbeatAnimation = heartbeat; }
     bool processCommand(char* commandBuffer, bool fromMqtt, char* response, size_t responseSize);
     
 private:
     NetworkManager* networkManager;
     MonitorSystem* monitorSystem;
-    class HeartbeatAnimation* heartbeatAnimation = nullptr;
     
     // Command handlers
     void handleHelp(char* response, size_t responseSize, bool fromMqtt);
@@ -35,7 +33,7 @@ private:
     void handleAdc(char* param, char* value, char* response, size_t responseSize);
     void handleLCD(char* param, char* value, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
-    void handleHeartbeat(char* param, char* response, size_t responseSize);
+    void handleOTA(char* param, char* response, size_t responseSize);
 };
 
 class CommandValidator {

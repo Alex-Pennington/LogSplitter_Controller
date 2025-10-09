@@ -1,7 +1,7 @@
 #include "command_processor.h"
 #include "lcd_display.h"
 #include "logger.h"
-#include "heartbeat_animation.h"
+#include "ota_server.h"
 #include "arduino_secrets.h"
 #include <ctype.h>
 #include <string.h>
@@ -155,9 +155,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* value = strtok(NULL, " ");
         handleLCD(param, value, response, responseSize);
     }
-    else if (strcasecmp(cmd, "heartbeat") == 0) {
+
+    else if (strcasecmp(cmd, "ota") == 0) {
         char* param = strtok(NULL, " ");
-        handleHeartbeat(param, response, responseSize);
+        handleOTA(param, response, responseSize);
     }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
@@ -209,13 +210,14 @@ void CommandProcessor::handleHelp(char* response, size_t responseSize, bool from
         "lcd on|off     - Turn LCD display on/off\r\n"
         "lcd backlight on|off - Control LCD backlight\r\n"
         "lcd clear      - Clear LCD display\r\n"
-        "heartbeat on|off - Control heartbeat animation\r\n"
-        "heartbeat rate <bpm> - Set heart rate (30-200 BPM)\r\n"
-        "heartbeat brightness <0-255> - Set brightness\r\n"
         "test network   - Test network connectivity\r\n"
         "syslog test    - Send test syslog message\r\n"
         "mqtt test      - Send test MQTT message\r\n"
         "mqtt status    - Show MQTT broker status\r\n"
+        "ota start      - Start OTA firmware update server\r\n"
+        "ota status     - Show OTA server status\r\n"
+        "ota url        - Show OTA update URLs\r\n"
+        "ota stop       - Stop OTA server\r\n"
         "reset system   - Restart the device");
 }
 
@@ -1324,93 +1326,77 @@ void CommandProcessor::handleLogLevel(const char* param, char* response, size_t 
     }
 }
 
-void CommandProcessor::handleHeartbeat(char* param, char* response, size_t responseSize) {
-    if (!heartbeatAnimation) {
-        snprintf(response, responseSize, "heartbeat animation not initialized");
+
+
+void CommandProcessor::handleOTA(char* param, char* response, size_t responseSize) {
+    if (!param) {
+        snprintf(response, responseSize, 
+            "ota commands: start, stop, status, reboot, url");
         return;
     }
-
-    if (!param || strcasecmp(param, "status") == 0) {
-        // Show heartbeat status
-        bool enabled = heartbeatAnimation->getEnabled();
-        uint16_t bpm = heartbeatAnimation->getHeartRate();
-        uint8_t brightness = heartbeatAnimation->getBrightness();
-        snprintf(response, responseSize, "Heartbeat: %s, %d BPM, brightness %d", 
-                 enabled ? "ENABLED" : "DISABLED", bpm, brightness);
-                 
-    } else if (strcasecmp(param, "on") == 0 || strcasecmp(param, "enable") == 0) {
-        heartbeatAnimation->enable();
-        snprintf(response, responseSize, "Heartbeat animation enabled");
-        
-    } else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "disable") == 0) {
-        heartbeatAnimation->disable();
-        snprintf(response, responseSize, "Heartbeat animation disabled");
-        
-    } else if (strncasecmp(param, "rate", 4) == 0) {
-        // Extract BPM value: "rate 72" or "rate72"
-        char* bpmStr = param + 4;
-        if (*bpmStr == ' ') bpmStr++; // Skip space if present
-        if (*bpmStr == '\0') {
-            // No value provided, get next token
-            bpmStr = strtok(NULL, " ");
-        }
-        
-        if (bpmStr) {
-            int bpm = atoi(bpmStr);
-            if (bpm >= 30 && bpm <= 200) {
-                heartbeatAnimation->setHeartRate(bpm);
-                snprintf(response, responseSize, "Heart rate set to %d BPM", bpm);
-            } else {
-                snprintf(response, responseSize, "Invalid heart rate (30-200 BPM)");
-            }
+    
+    if (strcasecmp(param, "start") == 0) {
+        if (otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server already running");
         } else {
-            snprintf(response, responseSize, "usage: heartbeat rate <30-200>");
-        }
-        
-    } else if (strncasecmp(param, "brightness", 10) == 0) {
-        // Extract brightness value: "brightness 128" or "brightness128"
-        char* brightnessStr = param + 10;
-        if (*brightnessStr == ' ') brightnessStr++; // Skip space if present
-        if (*brightnessStr == '\0') {
-            // No value provided, get next token
-            brightnessStr = strtok(NULL, " ");
-        }
-        
-        if (brightnessStr) {
-            int brightness = atoi(brightnessStr);
-            if (brightness >= 0 && brightness <= 255) {
-                heartbeatAnimation->setBrightness(brightness);
-                snprintf(response, responseSize, "Brightness set to %d", brightness);
+            otaServer.begin(80);
+            if (otaServer.isServerRunning()) {
+                snprintf(response, responseSize, "OTA server started on port 80 - URL: http://%s/update", 
+                         WiFi.localIP().toString().c_str());
+                LOG_INFO("OTA: Server started via telnet command");
             } else {
-                snprintf(response, responseSize, "Invalid brightness (0-255)");
+                snprintf(response, responseSize, "Failed to start OTA server");
             }
+        }
+    }
+    else if (strcasecmp(param, "stop") == 0) {
+        if (!otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server not running");
         } else {
-            snprintf(response, responseSize, "usage: heartbeat brightness <0-255>");
+            otaServer.stop();
+            snprintf(response, responseSize, "OTA server stopped");
+            LOG_INFO("OTA: Server stopped via telnet command");
         }
-        
-    } else if (strncasecmp(param, "frame", 5) == 0) {
-        // Extract frame number: "frame 2" or "frame2"
-        char* frameStr = param + 5;
-        if (*frameStr == ' ') frameStr++; // Skip space if present
-        if (*frameStr == '\0') {
-            // No value provided, get next token
-            frameStr = strtok(NULL, " ");
-        }
-        
-        if (frameStr) {
-            int frame = atoi(frameStr);
-            if (frame >= 0 && frame <= 3) {
-                heartbeatAnimation->displayFrame(frame);
-                snprintf(response, responseSize, "Displaying frame %d", frame);
+    }
+    else if (strcasecmp(param, "status") == 0) {
+        if (!otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server: STOPPED");
+        } else {
+            float progress = otaServer.getUpdateProgress();
+            const char* status = otaServer.getStatusString();
+            
+            if (otaServer.isUpdateInProgress()) {
+                snprintf(response, responseSize, 
+                    "OTA server: RUNNING\nStatus: %s (%.1f%%)\nUpdate URL: http://%s/update", 
+                    status, progress, WiFi.localIP().toString().c_str());
             } else {
-                snprintf(response, responseSize, "Invalid frame (0-3)");
+                const char* lastError = otaServer.getLastError();
+                snprintf(response, responseSize, 
+                    "OTA server: RUNNING\nStatus: %s\nLast Error: %s\nUpdate URL: http://%s/update", 
+                    status, lastError, WiFi.localIP().toString().c_str());
             }
-        } else {
-            snprintf(response, responseSize, "usage: heartbeat frame <0-3>");
         }
-        
-    } else {
-        snprintf(response, responseSize, 
-                "usage: heartbeat [on|off|rate <bpm>|brightness <0-255>|frame <0-3>|status]");
+    }
+    else if (strcasecmp(param, "url") == 0) {
+        if (!otaServer.isServerRunning()) {
+            snprintf(response, responseSize, "OTA server not running - use 'ota start' first");
+        } else {
+            snprintf(response, responseSize, 
+                "OTA Update URL: http://%s/update\n"
+                "Progress API: http://%s/progress\n"
+                "Command Line: curl -X POST -F \"firmware=@firmware.bin\" http://%s/update", 
+                WiFi.localIP().toString().c_str(),
+                WiFi.localIP().toString().c_str(),
+                WiFi.localIP().toString().c_str());
+        }
+    }
+    else if (strcasecmp(param, "reboot") == 0) {
+        snprintf(response, responseSize, "System reboot in 3 seconds...");
+        LOG_WARN("System reboot requested via OTA command");
+        delay(3000);
+        NVIC_SystemReset();
+    }
+    else {
+        snprintf(response, responseSize, "ota commands: start, stop, status, reboot, url");
     }
 }

@@ -35,6 +35,7 @@
 #include "command_processor.h"
 #include "system_test_suite.h"
 #include "subsystem_timing_monitor.h"
+#include "ota_server.h"
 #include "arduino_secrets.h"
 
 // ============================================================================
@@ -601,6 +602,8 @@ void loop() {
             publishTelemetry();
             processSerialCommands();
             processTelnetCommands();
+            // Handle OTA server updates
+            otaServer.update();
             break;
             
         case SYS_ERROR:
@@ -615,6 +618,8 @@ void loop() {
             safetySystem.update(pressureManager.getPressure());
             processSerialCommands();
             processTelnetCommands();
+            // OTA still available in safe mode for recovery
+            otaServer.update();
             delay(100);
             break;
             

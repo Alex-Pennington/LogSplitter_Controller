@@ -9,8 +9,8 @@
 #include "lcd_display.h"
 #include "mcp9600_sensor.h"
 #include "logger.h"
-#include "heartbeat_animation.h"
 #include "tca9548a_multiplexer.h"
+#include "ota_server.h"
 
 // Global instances
 ConfigManager configManager;
@@ -19,7 +19,6 @@ TelnetServer telnetServer;
 MonitorSystem monitorSystem;
 CommandProcessor commandProcessor;
 LCDDisplay lcdDisplay;
-HeartbeatAnimation heartbeat;
 
 // Global pointer for external access
 NetworkManager* g_networkManager = &networkManager;
@@ -216,19 +215,11 @@ void setup() {
         Serial.println("DEBUG: Could not access multiplexer for LCD initialization");
     }
     
-    Serial.println("DEBUG: Initializing heartbeat animation...");
-    heartbeat.begin();
-    heartbeat.setHeartRate(72); // Normal resting heart rate
-    heartbeat.setBrightness(128); // Medium brightness
-    heartbeat.enable();
-    Serial.println("DEBUG: Heartbeat animation started successfully");
-    
     monitorSystem.setSystemState(SYS_INITIALIZING);
     Serial.println("DEBUG: System state set to initializing");
     
     Serial.println("DEBUG: Initializing command processor...");
     commandProcessor.begin(&networkManager, &monitorSystem);
-    commandProcessor.setHeartbeatAnimation(&heartbeat);
     Serial.println("DEBUG: Command processor initialized");
     
     Serial.println("DEBUG: About to initialize network manager...");
@@ -266,9 +257,6 @@ void loop() {
     networkManager.update();
     monitorSystem.update();
     
-    // Update heartbeat animation (minimal CPU usage)
-    heartbeat.update();
-    
     // Start telnet server once network is connected
     if (networkManager.isWiFiConnected() && currentSystemState == SYS_CONNECTING) {
         telnetServer.begin(23);
@@ -279,11 +267,15 @@ void loop() {
         Serial.println("Network connected! Telnet server running on port 23");
         Serial.print("IP Address: ");
         Serial.println(WiFi.localIP());
+        Serial.println("For firmware updates, use USB connection or Arduino Cloud");
     }
     
     // Update telnet server
     if (networkManager.isWiFiConnected()) {
         telnetServer.update();
+        
+        // Update OTA server
+        otaServer.update();
         
         // Process telnet commands
         if (telnetServer.isConnected()) {
