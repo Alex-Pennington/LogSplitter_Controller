@@ -15,8 +15,8 @@ This guide provides step-by-step instructions for deploying the complete LogSpli
 - **Safety input switches** (digital pins)
 - **Status LED** (pin 13, built-in)
 
-#### Monitor Unit  
-- **Arduino UNO R4 WiFi** (monitoring unit)
+#### Integrated Controller  
+- **Arduino UNO R4 WiFi** (unified control and monitoring)
 - **NAU7802 Load Cell Amplifier** (I2C via Qwiic)
 - **Load cell** (weight measurement)
 - **LCD2004A Display** (20x4 I2C LCD)
@@ -101,7 +101,7 @@ $UDPServerAddress 0.0.0.0
 
 # LogSplitter specific logging
 :hostname, isequal, "LogSplitter" /var/log/logsplitter-controller.log
-:hostname, isequal, "LogMonitor" /var/log/logsplitter-monitor.log
+:hostname, isequal, "LogSplitter" /var/log/logsplitter.log
 & stop
 ```
 
@@ -124,7 +124,6 @@ cd LogSplitter
 
 # Configure WiFi credentials
 cp include/arduino_secrets.h.template include/arduino_secrets.h
-cp monitor/include/arduino_secrets.h.template monitor/include/arduino_secrets.h
 ```
 
 Edit secrets files:
@@ -167,32 +166,24 @@ Expected controller output:
 [3002] [INFO] System ready - entering main loop
 ```
 
-### 3. Build and Upload Monitor
+### 3. Monitor System Output
 
 ```bash
-cd ../monitor/
-
-# Build firmware
-pio run
-
-# Upload to Arduino (connect via USB)
-pio run --target upload
-
 # Monitor serial output
 pio device monitor
 ```
 
-Expected monitor output:
+Expected system output:
 ```
 [1234] [INFO] System initializing...
 [1456] [INFO] WiFi connecting to LogSplitter_Network
-[2345] [INFO] WiFi connected: 192.168.1.101
+[2345] [INFO] WiFi connected: 192.168.1.100
 [2567] [INFO] MQTT connecting to 192.168.1.238:1883
-[2789] [INFO] MQTT connected as LogMonitor-67890
-[3000] [INFO] NAU7802 initialized on Wire1
-[3100] [INFO] LCD display initialized
-[3200] [INFO] Temperature sensor initialized
-[3300] [INFO] System ready - entering monitoring loop
+[2789] [INFO] MQTT connected as LogSplitter-12345
+[3000] [INFO] TCA9548A initialized on Wire1
+[3100] [INFO] LCD display initialized on channel 7
+[3200] [INFO] Sensors initialized and operational
+[3300] [INFO] System ready - entering main loop
 ```
 
 ## System Verification
@@ -207,8 +198,8 @@ telnet 192.168.1.100 23
 > network
 wifi=OK mqtt=OK stable=YES disconnects=0 uptime=123s
 
-# Test monitor telnet  
-telnet 192.168.1.101 23
+# Test system telnet  
+telnet 192.168.1.100 23
 > network
 wifi=OK mqtt=OK stable=YES disconnects=0 uptime=456s
 ```
@@ -223,9 +214,9 @@ mosquitto_sub -h 192.168.1.238 -t "r4/+/+"
 
 # Should see periodic messages:
 r4/controller/heartbeat {"uptime": 123, "status": "OK"}
-r4/monitor/heartbeat {"uptime": 456, "status": "OK"}
-r4/monitor/temperature 23.5
-r4/monitor/weight 0.0
+r4/controller/heartbeat {"uptime": 456, "status": "OK"}
+r4/controller/temperature 23.5
+r4/controller/weight 0.0
 ```
 
 ### 3. Syslog Verification
@@ -234,12 +225,11 @@ Check syslog reception:
 
 ```bash
 # Monitor syslog files
-sudo tail -f /var/log/logsplitter-controller.log
-sudo tail -f /var/log/logsplitter-monitor.log
+sudo tail -f /var/log/logsplitter.log
 
 # Should see RFC 3164 formatted messages:
 <134>Oct  1 12:34:56 LogSplitter logsplitter: System ready - entering main loop
-<134>Oct  1 12:35:01 LogMonitor logmonitor: Temperature reading: 23.5C
+<134>Oct  1 12:35:01 LogSplitter logsplitter: Temperature reading: 23.5C
 ```
 
 ### 4. System Integration Test
@@ -255,7 +245,7 @@ telnet 192.168.1.100 23
 > loglevel 7        # Enable debug logging
 > show
 
-# Monitor tests
+# System tests
 telnet 192.168.1.101 23
 > test sensors
 > weight read
@@ -297,10 +287,6 @@ sudo mosquitto_passwd /etc/mosquitto/passwd logmonitor
 # /etc/mosquitto/acl
 user logsplitter
 topic write r4/controller/#
-topic read r4/monitor/#
-
-user logmonitor  
-topic write r4/monitor/#
 topic read r4/controller/#
 ```
 
@@ -346,7 +332,7 @@ sudo cp /etc/rsyslog.d/* /backup/logsplitter/
 
 # Backup firmware
 cp .pio/build/uno_r4_wifi/firmware.bin /backup/logsplitter/controller-firmware.bin
-cp monitor/.pio/build/uno_r4_wifi/firmware.bin /backup/logsplitter/monitor-firmware.bin
+cp .pio/build/uno_r4_wifi/firmware.bin /backup/logsplitter/controller-firmware.bin
 ```
 
 #### Recovery Procedures

@@ -1,39 +1,34 @@
 # LogSplitter Industrial Control System
 
-A distributed Arduino-based control system for industrial log splitting operations, featuring comprehensive monitoring, safety systems, and remote management capabilities.
+A comprehensive Arduino-based control system for industrial log splitting operations, featuring integrated safety systems, sensor monitoring, LCD display, and remote management capabilities.
 
 ## 🏗️ System Architecture
 
-The LogSplitter system consists of two coordinated Arduino UNO R4 WiFi units in a unified repository:
+The LogSplitter system is a unified Arduino UNO R4 WiFi controller that combines:
 
-- **Controller** (root directory) - Main control unit with safety systems and relay management
-- **[Monitor](monitor/)** - Remote monitoring with precision sensors, LCD display, and LED matrix heartbeat animation
+- **Industrial Control** - Main control unit with safety systems and relay management
+- **Integrated Monitoring** - Built-in sensor monitoring with 20x4 LCD display and comprehensive data visualization
+- **Network Integration** - WiFi connectivity with MQTT communication and telnet administration
 
-Both units share unified logging infrastructure and communicate via MQTT for real-time coordination.
-
-### Key Features of the Unified Architecture:
-- **Clean Separation**: Controller handles industrial control, Monitor handles displays and sensing
-- **Visual Feedback**: Monitor features 12x8 LED matrix with animated heartbeat (30-200 BPM)
-- **Shared Infrastructure**: Unified logging, MQTT communication, and command interfaces
-- **Coordinated Operation**: Both units work together for comprehensive system management
+### Key Features:
+- **Comprehensive Control**: Industrial relay control with integrated safety monitoring
+- **Real-time Display**: 4-line LCD showing sensor data, system status, and network connectivity
+- **Unified Architecture**: Single controller handles both control operations and sensor monitoring
+- **Network Management**: MQTT communication, syslog logging, and telnet administration
 
 ## ⚡ Quick Start
 
 ### 1. Controller Setup
+
 ```bash
-# Controller files are in the root directory
+# Build and upload the unified controller
 pio run --target upload
 ```
+
 See [README_REFACTORED.md](README_REFACTORED.md) for detailed controller setup.
 
-### 2. Monitor Setup
-```bash
-cd monitor/
-pio run --target upload
-```
-See [monitor/README.md](monitor/README.md) for detailed monitor setup.
+### 2. System Integration
 
-### 3. System Integration
 See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for complete system deployment.
 
 ## 🔧 Core Features

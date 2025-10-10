@@ -1,99 +1,145 @@
-# LogSplitter Unified Build System
+# Controller-Focused Makefile for LogSplitter Controller System
 
-.PHONY: help build-all build-controller build-monitor clean-all clean-controller clean-monitor test upload-controller upload-monitor monitor-controller monitor-monitor
+# Project configuration
+PROJECT_NAME = LogSplitter_Controller
+PLATFORMIO = C:/Users/rayve/.platformio/penv/Scripts/platformio.exe
+WORKSPACE = c:\\Users\\rayve\\OneDrive\\Documents\\PlatformIO\\Projects\\LogSplitter_Controller
+
+# Default environment (can be overridden)
+ENV ?= uno_r4_wifi
+
+.PHONY: help build upload monitor deploy clean check test debug deps secrets backup restore info validate
 
 # Default target
 help:
-	@echo "LogSplitter Build System"
+	@echo "LogSplitter Controller Development System"
 	@echo ""
-	@echo "Available targets:"
-	@echo "  build-all         - Build both controller and monitor"
-	@echo "  build-controller  - Build controller only"
-	@echo "  build-monitor     - Build monitor only"
-	@echo "  clean-all         - Clean both projects"
-	@echo "  clean-controller  - Clean controller build files"
-	@echo "  clean-monitor     - Clean monitor build files"
-	@echo "  upload-controller - Upload firmware to controller"
-	@echo "  upload-monitor    - Upload firmware to monitor"
-	@echo "  monitor-controller- Monitor controller serial output"
-	@echo "  monitor-monitor   - Monitor monitor serial output"
-	@echo "  test              - Run tests for both projects"
+	@echo "Controller Build Commands:"
+	@echo "  build       - Compile controller program"
+	@echo "  upload      - Upload controller firmware to Arduino Uno R4 WiFi"
+	@echo "  monitor     - Start serial monitor for controller debugging"
+	@echo "  deploy      - Complete build, upload, and monitor workflow"
 	@echo ""
-	@echo "Usage examples:"
-	@echo "  make build-all"
-	@echo "  make upload-controller"
-	@echo "  make monitor-monitor"
+	@echo "Development Tools:"
+	@echo "  clean       - Clean controller build artifacts"
+	@echo "  check       - Run static code analysis on controller"
+	@echo "  test        - Run controller system tests"
+	@echo "  debug       - Build with debug symbols and start monitor"
+	@echo ""
+	@echo "Configuration Management:"
+	@echo "  backup      - Backup controller configuration files"
+	@echo "  restore     - List available configuration backups"
+	@echo "  secrets     - Setup arduino_secrets.h from template"
+	@echo "  deps        - Install/update controller dependencies"
+	@echo ""
+	@echo "System Information:"
+	@echo "  info        - Show controller project information"
+	@echo "  validate    - Validate controller workspace setup"
+	@echo "  help        - Show this help message"
+	@echo ""
+	@echo "Quick Start Examples:"
+	@echo "  make deploy         # Complete controller deployment"
+	@echo "  make debug          # Debug controller with monitor"
+	@echo "  make check && make build # Analyze and build controller"
 
-# Build targets
-build-all: build-controller build-monitor
+# Build controller program
+build:
+	@echo "[Controller] Building controller program..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" run --environment $(ENV)
+	@echo "✓ Controller build completed successfully"
 
-build-controller:
-	@echo "Building controller..."
-	cd controller && pio run
+# Upload controller firmware
+upload:
+	@echo "[Controller] Uploading controller firmware to Arduino Uno R4 WiFi..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" run --environment $(ENV) --target upload
+	@echo "✓ Controller firmware uploaded successfully"
 
-build-monitor:
-	@echo "Building monitor..."
-	cd monitor && pio run
+# Start controller serial monitor
+monitor:
+	@echo "[Controller] Starting controller serial monitor..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" device monitor
 
-# Clean targets
-clean-all: clean-controller clean-monitor
+# Complete controller deployment workflow
+deploy: build upload
+	@echo "✓ Controller deployment completed - starting monitor..."
+	@$(MAKE) monitor
 
-clean-controller:
-	@echo "Cleaning controller..."
-	cd controller && pio run --target clean
+# Clean controller build artifacts
+clean:
+	@echo "[Controller] Cleaning controller build artifacts..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" run --target clean
+	@echo "✓ Controller build artifacts cleaned"
 
-clean-monitor:
-	@echo "Cleaning monitor..."
-	cd monitor && pio run --target clean
+# Run static code analysis on controller
+check:
+	@echo "[Controller] Running static code analysis on controller..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" check --verbose
+	@echo "✓ Controller code analysis completed"
 
-# Upload targets
-upload-controller:
-	@echo "Uploading controller firmware..."
-	cd controller && pio run --target upload
-
-upload-monitor:
-	@echo "Uploading monitor firmware..."
-	cd monitor && pio run --target upload
-
-# Monitor targets
-monitor-controller:
-	@echo "Monitoring controller serial output..."
-	cd controller && pio device monitor
-
-monitor-monitor:
-	@echo "Monitoring monitor serial output..."
-	cd monitor && pio device monitor
-
-# Test targets
+# Run controller system tests
 test:
-	@echo "Running controller tests..."
-	cd controller && pio test
-	@echo "Running monitor tests..."
-	cd monitor && pio test
+	@echo "[Controller] Running controller system tests..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" test
+	@echo "✓ Controller tests completed"
 
-# Development helpers
-check-deps:
-	@echo "Checking PlatformIO installation..."
-	@pio --version || (echo "PlatformIO not found. Install with: pip install platformio" && exit 1)
+# Debug build with monitor
+debug:
+	@echo "[Controller] Building controller with debug symbols..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" run --environment $(ENV) --target upload
+	@echo "✓ Debug build uploaded - starting monitor..."
+	@$(MAKE) monitor
 
-setup: check-deps
-	@echo "Setting up LogSplitter development environment..."
-	@echo "Checking arduino_secrets.h files..."
-	@test -f controller/include/arduino_secrets.h || (echo "Copy controller/include/arduino_secrets.h.template to controller/include/arduino_secrets.h and configure" && exit 1)
-	@test -f monitor/include/arduino_secrets.h || (echo "Copy monitor/include/arduino_secrets.h.template to monitor/include/arduino_secrets.h and configure" && exit 1)
-	@echo "Environment setup complete!"
+# Install/update controller dependencies
+deps:
+	@echo "[Controller] Installing/updating controller dependencies..."
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" lib install
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" platform update
+	@echo "✓ Controller dependencies updated"
 
-# Release management
-version:
-	@echo "LogSplitter System Version Information:"
-	@echo "Repository: $(shell git describe --always --dirty)"
-	@echo "Controller: $(shell cd controller && pio run | grep "Flash:" | head -1)"
-	@echo "Monitor: $(shell cd monitor && pio run | grep "Flash:" | head -1)"
+# Setup arduino_secrets.h from template
+secrets:
+	@echo "[Controller] Setting up arduino_secrets.h..."
+	@if not exist "include\\arduino_secrets.h" ( \
+		if exist "include\\arduino_secrets.h.template" ( \
+			copy "include\\arduino_secrets.h.template" "include\\arduino_secrets.h" && \
+			echo "✓ arduino_secrets.h created from template - please configure your WiFi and server settings" \
+		) else ( \
+			echo "✗ arduino_secrets.h.template not found" \
+		) \
+	) else ( \
+		echo "⚠ arduino_secrets.h already exists" \
+	)
 
-# Documentation
-docs:
-	@echo "Opening documentation..."
-	@echo "Main README: README.md"
-	@echo "Deployment Guide: docs/DEPLOYMENT_GUIDE.md"
-	@echo "Logging System: docs/LOGGING_SYSTEM.md"
-	@echo "Migration Guide: MIGRATION_GUIDE.md"
+# Create controller configuration backup
+backup:
+	@echo "[Controller] Creating controller configuration backup..."
+	@powershell -Command "if (!(Test-Path 'backups')) { New-Item -ItemType Directory -Name 'backups' }"
+	@powershell -Command "$$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'; Copy-Item 'include\\arduino_secrets.h' \"backups\\controller_secrets_$$timestamp.h.bak\" -ErrorAction SilentlyContinue"
+	@powershell -Command "$$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'; Copy-Item 'platformio.ini' \"backups\\controller_platformio_$$timestamp.ini.bak\" -ErrorAction SilentlyContinue"
+	@echo "✓ Controller configuration backup created"
+
+# List available backups
+restore:
+	@echo "[Controller] Available controller configuration backups:"
+	@powershell -Command "if (Test-Path 'backups') { Get-ChildItem 'backups\\controller_*.bak' | Sort-Object LastWriteTime -Descending | ForEach-Object { Write-Host \"  $$($_.Name) - $$($_.LastWriteTime)\" } } else { Write-Host '  No controller backups found' }"
+
+# Show controller project information
+info:
+	@echo "[Controller] Controller Project Information"
+	@echo "Project: $(PROJECT_NAME)"
+	@echo "Workspace: $(WORKSPACE)"
+	@echo "PlatformIO: $(PLATFORMIO)"
+	@echo "Target Environment: $(ENV)"
+	@echo "Focus: Arduino Uno R4 WiFi Controller Only"
+	@echo ""
+	@cd "$(WORKSPACE)" && "$(PLATFORMIO)" system info
+
+# Validate controller workspace setup
+validate:
+	@echo "[Controller] Validating controller workspace setup..."
+	@if not exist "$(WORKSPACE)" (echo "✗ Controller workspace directory not found" && exit 1)
+	@if not exist "$(PLATFORMIO)" (echo "✗ PlatformIO executable not found" && exit 1)
+	@if not exist "$(WORKSPACE)\\platformio.ini" (echo "✗ Controller platformio.ini not found" && exit 1)
+	@if not exist "$(WORKSPACE)\\src" (echo "✗ Controller src directory not found" && exit 1)
+	@if not exist "$(WORKSPACE)\\include" (echo "✗ Controller include directory not found" && exit 1)
+	@echo "✓ Controller workspace validation passed"
