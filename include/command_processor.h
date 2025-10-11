@@ -37,7 +37,6 @@ private:
     class NetworkManager* networkManager = nullptr;
     class SafetySystem* safetySystem = nullptr;
     class SystemErrorManager* systemErrorManager = nullptr;
-    class SystemTestSuite* systemTestSuite = nullptr;
     class InputManager* inputManager = nullptr;
     class SubsystemTimingMonitor* timingMonitor = nullptr;
     
@@ -53,7 +52,6 @@ private:
     void handleBypass(char* param, char* response, size_t responseSize);
     void handleReset(char* param, char* response, size_t responseSize);
     void handleError(char* param, char* value, char* response, size_t responseSize);
-    void handleTest(char* param, char* response, size_t responseSize);
     void handleSyslog(char* param, char* response, size_t responseSize);
     void handleMqtt(char* param, char* response, size_t responseSize);
     void handleLogLevel(const char* param, char* response, size_t responseSize);
@@ -71,7 +69,6 @@ public:
     void setNetworkManager(class NetworkManager* network) { networkManager = network; }
     void setSafetySystem(class SafetySystem* safety) { safetySystem = safety; }
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
-    void setSystemTestSuite(class SystemTestSuite* testSuite) { systemTestSuite = testSuite; }
     void setInputManager(class InputManager* input) { inputManager = input; }
     void setTimingMonitor(class SubsystemTimingMonitor* timing) { timingMonitor = timing; }
     

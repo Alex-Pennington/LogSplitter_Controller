@@ -277,11 +277,11 @@ void SubsystemTimingMonitor::checkHealthStatus() {
         } else {
             LOG_INFO("Subsystem timing health check: All systems nominal");
         }
-    }
-    
-    // Check for critical issues
-    if (hasAnyCriticalIssues()) {
-        LOG_ERROR("Critical timing issues detected in one or more subsystems");
+        
+        // Check for critical issues only during periodic reporting
+        if (hasAnyCriticalIssues()) {
+            LOG_ERROR("Critical timing issues detected in one or more subsystems");
+        }
     }
 }
 

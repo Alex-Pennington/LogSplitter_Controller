@@ -33,7 +33,6 @@
 #include "safety_system.h"
 #include "system_error_manager.h"
 #include "command_processor.h"
-#include "system_test_suite.h"
 #include "subsystem_timing_monitor.h"
 #include "arduino_secrets.h"
 
@@ -60,9 +59,6 @@ SafetySystem safetySystem;
 SystemErrorManager systemErrorManager;
 CommandProcessor commandProcessor;
 SubsystemTimingMonitor timingMonitor;
-
-// Use the global SystemTestSuite defined in system_test_suite.cpp
-extern SystemTestSuite systemTestSuite;
 
 // Global pointers for cross-module access
 NetworkManager* g_networkManager = &networkManager;
@@ -326,10 +322,6 @@ bool initializeSystem() {
     systemErrorManager.begin();
     systemErrorManager.setNetworkManager(&networkManager);
     
-    // Initialize system test suite
-    systemTestSuite.begin(&safetySystem, &relayController, &inputManager, 
-                          &pressureManager, &sequenceController, &networkManager);
-    
     // Initialize command processor
     commandProcessor.setConfigManager(&configManager);
     commandProcessor.setPressureManager(&pressureManager);  // FIXED: Connect pressure manager
@@ -337,7 +329,6 @@ bool initializeSystem() {
     commandProcessor.setRelayController(&relayController);
     commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
-    commandProcessor.setSystemTestSuite(&systemTestSuite);
     commandProcessor.setInputManager(&inputManager);
     commandProcessor.setSystemErrorManager(&systemErrorManager);
     commandProcessor.setTimingMonitor(&timingMonitor);

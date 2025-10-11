@@ -8,7 +8,6 @@
 #include "network_manager.h"
 #include "safety_system.h"
 #include "system_error_manager.h"
-#include "system_test_suite.h"
 #include "input_manager.h"
 #include "command_processor.h"
 #include "arduino_secrets.h"
@@ -167,7 +166,7 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, test, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, syslog, mqtt";
+    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, syslog, mqtt";
     if (!fromMqtt) {
         snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
     } else {
@@ -1031,10 +1030,6 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* value = strtok(NULL, " ");
         handleError(param, value, response, responseSize);
     }
-    else if (strcasecmp(cmd, "test") == 0) {
-        char* param = strtok(NULL, " ");
-        handleTest(param, response, responseSize);
-    }
     else if (strcasecmp(cmd, "syslog") == 0) {
         char* param = strtok(NULL, " ");
         handleSyslog(param, response, responseSize);
@@ -1057,56 +1052,6 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
     }
     
     return true;
-}
-
-void CommandProcessor::handleTest(char* param, char* response, size_t responseSize) {
-    if (!systemTestSuite) {
-        snprintf(response, responseSize, "test system not initialized");
-        return;
-    }
-    
-    if (!param) {
-        snprintf(response, responseSize, 
-            "test commands: all, safety, outputs, systems, report, status");
-        return;
-    }
-    
-    if (strcasecmp(param, "all") == 0) {
-        snprintf(response, responseSize, "starting complete system test suite...");
-        systemTestSuite->runAllTests();
-    }
-    else if (strcasecmp(param, "safety") == 0) {
-        snprintf(response, responseSize, "starting safety input tests...");
-        systemTestSuite->runTestCategory(SystemTestSuite::SAFETY_INPUTS);
-    }
-    else if (strcasecmp(param, "outputs") == 0) {
-        snprintf(response, responseSize, "starting output device tests...");
-        systemTestSuite->runTestCategory(SystemTestSuite::OUTPUT_DEVICES);
-    }
-    else if (strcasecmp(param, "systems") == 0) {
-        snprintf(response, responseSize, "starting integrated system tests...");
-        systemTestSuite->runTestCategory(SystemTestSuite::INTEGRATED_SYSTEMS);
-    }
-    else if (strcasecmp(param, "report") == 0) {
-        snprintf(response, responseSize, "generating test report...");
-        systemTestSuite->printTestReport();
-    }
-    else if (strcasecmp(param, "status") == 0) {
-        uint8_t completed = systemTestSuite->getCompletedTests();
-        SystemTestSuite::TestResult overall = systemTestSuite->getOverallResult();
-        snprintf(response, responseSize, 
-            "test status: %d/11 complete, overall: %s", 
-            completed, 
-            systemTestSuite->resultToString(overall));
-    }
-    else if (strcasecmp(param, "progress") == 0) {
-        snprintf(response, responseSize, "displaying test progress...");
-        systemTestSuite->displayProgress();
-    }
-    else {
-        snprintf(response, responseSize, 
-            "unknown test command: %s (try: all, safety, outputs, systems, report)", param);
-    }
 }
 
 void CommandProcessor::handleSyslog(char* param, char* response, size_t responseSize) {

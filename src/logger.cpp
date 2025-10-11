@@ -59,18 +59,16 @@ void Logger::log(LogLevel level, const char* fmt, ...) {
         syslogSent = networkManager->sendSyslog(logBuffer, level);
     }
     
-    // Fallback to Serial if syslog fails (for debugging connectivity issues)
-    // Always show CRITICAL and ERROR messages on Serial regardless of syslog status
-    if (!syslogSent || level <= LOG_ERROR) {
+    // Only fallback to Serial if syslog is not available or fails
+    // Once syslog is connected, all messages go through syslog only
+    if (!syslogSent) {
         unsigned long ts = millis();
         Serial.print("[");
         Serial.print(ts);
         Serial.print("] [");
         Serial.print(getLevelString(level));
         Serial.print("] ");
-        if (!syslogSent) {
-            Serial.print("[SYSLOG_FAIL] ");
-        }
+        Serial.print("[SYSLOG_FAIL] ");
         Serial.println(logBuffer);
     }
 }
