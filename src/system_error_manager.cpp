@@ -5,9 +5,9 @@
 extern void debugPrintf(const char* fmt, ...);
 
 void SystemErrorManager::begin() {
-    // Initialize the error LED pin
-    pinMode(SYSTEM_ERROR_LED_PIN, OUTPUT);
-    digitalWrite(SYSTEM_ERROR_LED_PIN, LOW);
+    // Initialize the mill lamp pin
+    pinMode(MILL_LAMP_PIN, OUTPUT);
+    digitalWrite(MILL_LAMP_PIN, LOW);
     
     // Initialize state
     activeErrors = 0;
@@ -101,12 +101,12 @@ void SystemErrorManager::updateLED() {
     
     switch (pattern) {
         case LED_OFF:
-            digitalWrite(SYSTEM_ERROR_LED_PIN, LOW);
+            digitalWrite(MILL_LAMP_PIN, LOW);
             ledState = false;
             break;
             
         case LED_SOLID:
-            digitalWrite(SYSTEM_ERROR_LED_PIN, HIGH);
+            digitalWrite(MILL_LAMP_PIN, HIGH);
             ledState = true;
             break;
             
@@ -114,7 +114,7 @@ void SystemErrorManager::updateLED() {
             // 0.25Hz blink (2000ms on, 2000ms off)
             if (currentTime - lastBlinkTime >= 2000) {
                 ledState = !ledState;
-                digitalWrite(SYSTEM_ERROR_LED_PIN, ledState ? HIGH : LOW);
+                digitalWrite(MILL_LAMP_PIN, ledState ? HIGH : LOW);
                 lastBlinkTime = currentTime;
             }
             break;
@@ -123,7 +123,7 @@ void SystemErrorManager::updateLED() {
             // 1Hz blink (500ms on, 500ms off)
             if (currentTime - lastBlinkTime >= 500) {
                 ledState = !ledState;
-                digitalWrite(SYSTEM_ERROR_LED_PIN, ledState ? HIGH : LOW);
+                digitalWrite(MILL_LAMP_PIN, ledState ? HIGH : LOW);
                 lastBlinkTime = currentTime;
             }
             break;

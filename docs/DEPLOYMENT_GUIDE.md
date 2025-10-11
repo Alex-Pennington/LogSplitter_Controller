@@ -131,11 +131,11 @@ Edit secrets files:
 // include/arduino_secrets.h
 #define SECRET_SSID "LogSplitter_Network"
 #define SECRET_PASS "your_wifi_password"
-#define MQTT_BROKER "192.168.1.238"
+#define MQTT_BROKER_HOST "192.168.1.155"
 #define MQTT_PORT 1883
 #define MQTT_USER "logsplitter"
 #define MQTT_PASS "mqtt_password"
-#define SYSLOG_SERVER "192.168.1.238"
+#define SYSLOG_SERVER_HOST "192.168.1.155"
 #define SYSLOG_PORT 514
 ```
 
@@ -159,7 +159,7 @@ Expected controller output:
 [1234] [INFO] System initializing...
 [1456] [INFO] WiFi connecting to LogSplitter_Network
 [2345] [INFO] WiFi connected: 192.168.1.100
-[2567] [INFO] MQTT connecting to 192.168.1.238:1883
+[2567] [INFO] MQTT connecting to 192.168.1.155:1883
 [2789] [INFO] MQTT connected as LogSplitter-12345
 [3000] [INFO] Telnet server started on port 23
 [3001] [INFO] Logger initialized with syslog server
@@ -178,7 +178,7 @@ Expected system output:
 [1234] [INFO] System initializing...
 [1456] [INFO] WiFi connecting to LogSplitter_Network
 [2345] [INFO] WiFi connected: 192.168.1.100
-[2567] [INFO] MQTT connecting to 192.168.1.238:1883
+[2567] [INFO] MQTT connecting to 192.168.1.155:1883
 [2789] [INFO] MQTT connected as LogSplitter-12345
 [3000] [INFO] TCA9548A initialized on Wire1
 [3100] [INFO] LCD display initialized on channel 7
@@ -210,7 +210,7 @@ Verify MQTT pub/sub:
 
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h 192.168.1.238 -t "r4/+/+"
+mosquitto_sub -h 192.168.1.155 -t "r4/+/+"
 
 # Should see periodic messages:
 r4/controller/heartbeat {"uptime": 123, "status": "OK"}
@@ -365,8 +365,8 @@ cd monitor && pio run --target upload
 #### MQTT Connection Issues
 ```bash
 # Test MQTT broker connectivity
-mosquitto_pub -h 192.168.1.238 -t test -m "hello"
-mosquitto_sub -h 192.168.1.238 -t test
+mosquitto_pub -h 192.168.1.155 -t test -m "hello"
+mosquitto_sub -h 192.168.1.155 -t test
 
 # Check firewall settings
 sudo ufw status

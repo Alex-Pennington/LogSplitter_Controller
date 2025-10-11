@@ -17,7 +17,7 @@ void RelayController::begin() {
     }
     
     // Power on the relay board (R9 OFF powers on the relay add-on board)
-    sendCommand(RELAY_POWER_PIN, false);
+    sendCommand(RELAY_POWER_CONTROL, false);
     boardPowered = true;
     
     LOG_INFO("RelayController initialized");
@@ -39,7 +39,7 @@ void RelayController::sendCommand(uint8_t relayNumber, bool on) {
     debugPrintf("Relay cmd -> %s\n", command);
     
     // Update power state tracking
-    if (relayNumber == RELAY_POWER_PIN) {
+    if (relayNumber == RELAY_POWER_CONTROL) {
         boardPowered = on;
     }
 }
@@ -104,7 +104,7 @@ bool RelayController::waitForOkResponse() {
 
 void RelayController::ensurePowerOn() {
     if (!boardPowered) {
-        sendCommand(RELAY_POWER_PIN, false); // R9 OFF powers on the board
+        sendCommand(RELAY_POWER_CONTROL, false); // R9 OFF powers on the board
         boardPowered = true;
         delay(100); // Give board time to power up
     }
@@ -143,7 +143,7 @@ void RelayController::setRelay(uint8_t relayNumber, bool on, bool isManualComman
     }
     
     // Safety check: prevent automatic relay activation during safety mode
-    if (safetyActive && on && relayNumber != RELAY_POWER_PIN && !isManualCommand) {
+    if (safetyActive && on && relayNumber != RELAY_POWER_CONTROL && !isManualCommand) {
         debugPrintf("Safety active - blocking automatic relay R%d ON (use manual override)\n", relayNumber);
         return;
     }
@@ -154,7 +154,7 @@ void RelayController::setRelay(uint8_t relayNumber, bool on, bool isManualComman
     }
     
     // Ensure power is on before sending commands (except for power relay itself)
-    if (relayNumber != RELAY_POWER_PIN) {
+    if (relayNumber != RELAY_POWER_CONTROL) {
         ensurePowerOn();
     }
     
@@ -180,25 +180,25 @@ void RelayController::allRelaysOff() {
     
     // Turn off all relays except power relay (R9)
     for (uint8_t i = 1; i <= MAX_RELAYS; i++) {
-        if (i != RELAY_POWER_PIN) {
+        if (i != RELAY_POWER_CONTROL) {
             setRelay(i, false);
         }
     }
 }
 
 void RelayController::powerOn() {
-    setRelay(RELAY_POWER_PIN, false); // R9 OFF = power ON (inverted logic)
+    setRelay(RELAY_POWER_CONTROL, false); // R9 OFF = power ON (inverted logic)
     boardPowered = true;
 }
 
 void RelayController::powerOff() {
     // Turn off all relays first
     for (uint8_t i = 1; i <= MAX_RELAYS; i++) {
-        if (i != RELAY_POWER_PIN) {
+        if (i != RELAY_POWER_CONTROL) {
             setRelay(i, false);
         }
     }
-    setRelay(RELAY_POWER_PIN, true); // R9 ON = power OFF (inverted logic)
+    setRelay(RELAY_POWER_CONTROL, true); // R9 ON = power OFF (inverted logic)
     boardPowered = false;
 }
 

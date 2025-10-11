@@ -21,7 +21,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | 6 | Digital In | Extend Limit Switch | Hydraulic cylinder extend limit | Active LOW |
 | 7 | Digital In | Retract Limit Switch | Hydraulic cylinder retract limit | Active LOW |
 | 8 | Digital In | Splitter Operator Signal | Splitter operator input for basket exchange | Active LOW |
-| 9 | Digital Out | System Error LED | Malfunction indicator lamp for non-critical faults | Active HIGH |
+| 9 | Digital Out | Mill Lamp (Yellow) | Mill lamp indicator controlled by Relay 9 | Active HIGH |
 | 10 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 11 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 12 | Digital In | **Emergency Stop (E-Stop)** | Emergency stop input | Active LOW |
@@ -123,17 +123,15 @@ This document provides comprehensive details of all pin assignments for the Ardu
 
 ### Digital Outputs
 
-#### Pin 9 - System Error LED (Malfunction Indicator Lamp)
-- **Function**: Indicates non-critical system faults requiring maintenance attention
-- **Configuration**: OUTPUT (external LED recommended)
+#### Pin 9 - Mill Lamp (Yellow)
+- **Function**: Mill lamp indicator controlled by Relay 9 (relay board power control)
+- **Configuration**: OUTPUT (drives mill lamp circuit)
 - **States**:
-  - **OFF**: No errors detected
-  - **Solid ON**: Single error (e.g., configuration issue)
-  - **Slow Blink (1Hz)**: Multiple errors present
-  - **Fast Blink (5Hz)**: Critical errors (EEPROM CRC, memory issues)
-- **Error Types**: EEPROM faults, sensor malfunctions, network issues, configuration errors, sequence timeouts
-- **MQTT**: Error details published to `r4/system/error` topic
-- **Acknowledgment**: Errors can be acknowledged but LED indicates until fault is cleared
+  - **OFF**: Normal operation, no mill lamp indication needed
+  - **ON**: Mill lamp activated (indicates operational status or alerts)
+- **Control**: Controlled via Relay 9 commands (`relay R9 ON/OFF`)
+- **Circuit**: Pin 9 controls Relay 9 which switches mill lamp power
+- **Purpose**: Visual indicator for mill operational status
 
 #### Pin 13 - Status LED
 - **Function**: System status indication
@@ -181,6 +179,7 @@ The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (
 | R6 | Reserved | TBD | No | OFF |
 | R7 | Splitter Operator Signal Buzzer | 12V DC Control Signal | No | OFF |
 | R8 | Engine Enable/Disable | 12V DC Control Signal | Yes | OFF |
+| R9 | Mill Lamp (Yellow) / Relay Board Power | Mill Lamp Circuit | No | OFF |
 
 ### Detailed Relay Descriptions
 

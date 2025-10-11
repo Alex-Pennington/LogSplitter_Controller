@@ -79,8 +79,8 @@ LogSplitter_Controller/
 ```cpp
 #define WIFI_SSID "YourWiFiNetwork"
 #define WIFI_PASSWORD "YourWiFiPassword"  
-#define SYSLOG_SERVER "192.168.1.100"
-#define MQTT_SERVER "192.168.1.100"
+#define SYSLOG_SERVER_HOST "192.168.1.155"
+#define MQTT_BROKER_HOST "192.168.1.155"
 ```
 
 ## Development Environment

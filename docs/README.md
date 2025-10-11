@@ -1,8 +1,17 @@
 # LogSplitter Controller v2.0 - Refactored
 
+## Project Scope
+
+**⚠️ Important**: This repository contains **CONTROLLER CODE ONLY**. The LogSplitter system consists of two separate components:
+
+- **🎛️ Controller** (this repository): Main control unit for hydraulic operations, safety systems, and relay management
+- **📺 Monitor** (separate repository): Remote monitoring unit with LCD display, sensors, and visual feedback systems
+
+Both components work together as a distributed control system but are developed and maintained separately.
+
 ## Overview
 
-This is a complete refactor of the original monolithic LogSplitter Controller code. The system has been redesigned with a modular architecture that improves maintainability, reliability, and performance.
+This is a complete refactor of the original monolithic LogSplitter Controller code. The controller system has been redesigned with a modular architecture that improves maintainability, reliability, and performance.
 
 ## Key Improvements
 
@@ -155,8 +164,8 @@ set filter median3               # Filter: none | median3 | ema
 set gain 1.02                    # Apply scalar gain to raw pressure (legacy single-sensor path)
 set offset -12.5                 # Apply offset (" ")
 set pinmode 6 NC                 # Configure limit / input as NO or NC
-set syslog 192.168.1.100         # Set rsyslog server IP address
-set syslog 192.168.1.100:514     # Set rsyslog server IP and port
+set syslog 192.168.1.155         # Set rsyslog server IP address  
+set syslog 192.168.1.155:514     # Set rsyslog server IP and port
 syslog test                      # Send test message to rsyslog server
 syslog status                    # Show rsyslog server status and connectivity
 R1 ON                            # Shorthand relay control (works over MQTT & Serial)

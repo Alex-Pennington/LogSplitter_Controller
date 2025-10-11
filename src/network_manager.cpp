@@ -156,7 +156,6 @@ bool NetworkManager::startMQTTConnection() {
         mqttRetries = 0;
         
         // Subscribe to control topics
-        subscribe(TOPIC_SUBSCRIBE);
         subscribe(TOPIC_CONTROL);
         return true;
     } else {

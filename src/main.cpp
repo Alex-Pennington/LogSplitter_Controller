@@ -463,9 +463,6 @@ void publishTelemetry() {
         // Publish individual relay values instead of status string
         relayController.publishIndividualValues();
         
-        // Publish heartbeat
-        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "Hello from LogSplitter at %lu", now);
-        networkManager.publish(TOPIC_PUBLISH, g_message_buffer);
     }
 }
 

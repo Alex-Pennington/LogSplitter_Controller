@@ -91,8 +91,8 @@ set loglevel 0              # Set log level using numeric value
 set loglevel 7              # Set to maximum debug level
 
 # Configure syslog server
-set syslog 192.168.1.238       # Default port 514
-set syslog 192.168.1.238:1514  # Custom port
+set syslog 192.168.1.155       # Default port 514
+set syslog 192.168.1.155:1514  # Custom port
 
 # Test syslog connectivity
 syslog test
@@ -101,7 +101,7 @@ syslog status
 
 ### Default Configuration
 
-- **Default Server**: `192.168.1.238:514`
+- **Default Server**: `192.168.1.155:514` (configure in arduino_secrets.h)
 - **Default Level**: `LOG_INFO`
 - **Hostname**: `LogSplitter`
 - **Application Tag**: `logsplitter`

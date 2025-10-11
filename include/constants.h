@@ -6,8 +6,8 @@
 const unsigned long WATCHDOG_TIMEOUT_MS = 15000;
 const unsigned long MAIN_LOOP_TIMEOUT_MS = 10000;
 
-// Network Constants
-const char* const BROKER_HOST = "159.203.138.46";
+// Network Constants - Default fallback values (configure in arduino_secrets.h)
+const char* const BROKER_HOST = "192.168.1.155";  // Default MQTT broker (override in secrets)
 const int BROKER_PORT = 1883;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 const unsigned long WIFI_CONNECT_CHECK_INTERVAL_MS = 500;
@@ -17,8 +17,8 @@ const uint8_t MAX_CONNECT_RETRIES = 3;
 const uint8_t MAX_WIFI_RETRIES = 3;
 const uint8_t MAX_MQTT_RETRIES = 3;
 
-// Syslog Constants
-const char* const SYSLOG_SERVER = "192.168.1.113";  // Default rsyslog server IP
+// Syslog Constants - Default fallback values (configure in arduino_secrets.h)
+const char* const SYSLOG_SERVER = "192.168.1.155";  // Default syslog server (override in secrets)
 const int SYSLOG_PORT = 514;                        // Standard syslog UDP port
 const char* const SYSLOG_HOSTNAME = "LogSplitter";  // Hostname for syslog messages
 const char* const SYSLOG_TAG = "logsplitter";       // Application tag for syslog
@@ -26,10 +26,8 @@ const int SYSLOG_FACILITY = 16;                     // Local use facility (local
 const int SYSLOG_SEVERITY = 6;                      // Info level (0=emergency, 6=info, 7=debug)
 
 // MQTT Topics - Hierarchical structure starting with /controller
-const char TOPIC_PUBLISH[] PROGMEM = "r4/example/pub";  // Legacy - kept for compatibility
-const char TOPIC_SUBSCRIBE[] PROGMEM = "r4/example/sub";  // Legacy - kept for compatibility
-const char TOPIC_CONTROL[] PROGMEM = "r4/control";  // Command input - kept as is
-const char TOPIC_CONTROL_RESP[] PROGMEM = "r4/control/resp";  // Command responses - kept as is
+const char TOPIC_CONTROL[] PROGMEM = "controller/control";  // Command input - kept as is
+const char TOPIC_CONTROL_RESP[] PROGMEM = "controller/control/resp";  // Command responses - kept as is
 
 // New hierarchical topic structure under /controller
 const char TOPIC_PRESSURE[] PROGMEM = "controller/pressure";
@@ -75,9 +73,6 @@ const char TOPIC_RELAYS_R2[] PROGMEM = "controller/relays/r2";
 const char TOPIC_RELAYS_R8[] PROGMEM = "controller/relays/r8";
 const char TOPIC_RELAYS_R9[] PROGMEM = "controller/relays/r9";
 
-// Legacy topics for backward compatibility (remove these later)
-const char TOPIC_PRESSURE_STATUS[] PROGMEM = "r4/pressure/status";
-const char TOPIC_SEQUENCE_STATUS[] PROGMEM = "r4/sequence/status";
 
 // Pin Configuration
 const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
@@ -98,14 +93,13 @@ const unsigned long BUTTON_DEBOUNCE_MS = 15;        // Pins 2,3,4,5 - Normal for
 const uint8_t RELAY_EXTEND = 1;       // Relay 1 - Cylinder extend (hydraulic valve)
 const uint8_t RELAY_RETRACT = 2;      // Relay 2 - Cylinder retract (hydraulic valve)
 const uint8_t RELAY_ENGINE_STOP = 8;  // Relay 8 - Engine stop relay (safety)
-// Note: RELAY_POWER_PIN = 9 (relay board power control)
+const uint8_t RELAY_POWER_CONTROL = 9; // Relay 9 - Relay board power control
 
 // Safety System Pin Configuration
-const uint8_t SYSTEM_ERROR_LED_PIN = 9; // Pin 9 - System Error LED (from PINS.md)
+const uint8_t MILL_LAMP_PIN = 9; // Pin 9 - Mill Lamp (Yellow) output
 
 // Relay Configuration
 const unsigned long RELAY_BAUD = 115200;
-const uint8_t RELAY_POWER_PIN = 9;
 const uint8_t MAX_RELAYS = 9;
 
 // Pressure Sensor Configuration

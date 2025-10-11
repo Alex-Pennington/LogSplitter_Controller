@@ -303,11 +303,11 @@ A5 offset set -10.500000
 - **syslog** - Configure rsyslog server IP address and port for centralized logging
   **Syntax**: `set syslog <ip>` or `set syslog <ip>:<port>`
   ```
-  > set syslog 192.168.1.238
-  syslog server set to 192.168.1.238:514
+  > set syslog 192.168.1.155
+  syslog server set to 192.168.1.155:514
   
-  > set syslog 192.168.1.100:1514
-  syslog server set to 192.168.1.100:1514
+  > set syslog 192.168.1.155:1514
+  syslog server set to 192.168.1.155:1514
   ```
   
   **Notes**:
@@ -320,8 +320,8 @@ A5 offset set -10.500000
 - **mqtt** - Configure MQTT broker host and port for real-time telemetry
   **Syntax**: `set mqtt <host>` or `set mqtt <host>:<port>`
   ```
-  > set mqtt 192.168.1.100
-  mqtt broker set to 192.168.1.100:1883
+  > set mqtt 192.168.1.155
+  mqtt broker set to 192.168.1.155:1883
   
   > set mqtt broker.example.com:8883
   mqtt broker set to broker.example.com:8883
@@ -347,10 +347,10 @@ A5 offset set -10.500000
 **Example**:
 ```
 > syslog test
-syslog test message sent successfully to 192.168.1.238:514
+syslog test message sent successfully to 192.168.1.155:514
 
 > syslog test
-syslog test message failed to send to 192.168.1.238:514
+syslog test message failed to send to 192.168.1.155:514
 ```
 
 ##### Check Syslog Status
@@ -360,11 +360,12 @@ syslog test message failed to send to 192.168.1.238:514
 **Example Output**:
 ```
 > syslog status
-syslog server: 192.168.1.238:514, wifi: connected, local IP: 192.168.1.100
+syslog server: 192.168.1.155:514, wifi: connected, local IP: 192.168.1.100
 ```
 
 **Syslog Configuration**:
-- **Default Server**: 192.168.1.238:514 (configured in constants.h)
+- **Primary Configuration**: Set `SYSLOG_SERVER_HOST` in `arduino_secrets.h`
+- **Default Fallback**: 192.168.1.155:514 (defined in constants.h)
 - **Protocol**: RFC 3164 compliant UDP syslog
 - **Facility**: Local0 (16) for custom application logs
 - **Severity**: Info (6) for normal operational messages
@@ -374,7 +375,7 @@ syslog server: 192.168.1.238:514, wifi: connected, local IP: 192.168.1.100
 **Debug Output Integration**:
 - All debugPrintf() messages are sent exclusively to the syslog server
 - No local debug output to Serial or Telnet (cleaner operation)
-- Configure syslog server with `set syslog <ip>` or `set syslog <ip>:<port>`
+- Runtime configuration: `set syslog <ip>` or `set syslog <ip>:<port>`
 - Test connectivity with `syslog test` command
 
 ### 9. MQTT
@@ -391,10 +392,10 @@ syslog server: 192.168.1.238:514, wifi: connected, local IP: 192.168.1.100
 **Example**:
 ```
 > mqtt test
-mqtt test message sent successfully to 159.203.138.46:1883
+mqtt test message sent successfully to 192.168.1.155:1883
 
 > mqtt test
-MQTT not connected to broker 159.203.138.46:1883
+MQTT not connected to broker 192.168.1.155:1883
 ```
 
 ##### Check MQTT Status
@@ -404,18 +405,19 @@ MQTT not connected to broker 159.203.138.46:1883
 **Example Output**:
 ```
 > mqtt status
-mqtt broker: 159.203.138.46:1883, wifi: connected, mqtt: connected, local IP: 192.168.1.100
+mqtt broker: 192.168.1.155:1883, wifi: connected, mqtt: connected, local IP: 192.168.1.100
 ```
 
 **MQTT Configuration**:
-- **Default Broker**: 159.203.138.46:1883 (configured in constants.h)
+- **Primary Configuration**: Set `MQTT_BROKER_HOST` in `arduino_secrets.h`
+- **Default Fallback**: 192.168.1.155:1883 (defined in constants.h)
 - **Protocol**: MQTT v3.1.1 over TCP
 - **Client ID**: Automatically generated from MAC address (format: r4-XXXXXX)
 - **Topics**: Hierarchical structure under `/controller` namespace
-- **Authentication**: Optional username/password support (if configured)
+- **Authentication**: Set `MQTT_USER`/`MQTT_PASS` in `arduino_secrets.h`
 
 **Runtime Configuration**:
-- Configure MQTT broker with `set mqtt <host>` or `set mqtt <host>:<port>`
+- Runtime override: `set mqtt <host>` or `set mqtt <host>:<port>`
 - Changes take effect immediately (disconnects and reconnects to new broker)
 - Test connectivity with `mqtt test` command
 - Monitor status with `mqtt status` command

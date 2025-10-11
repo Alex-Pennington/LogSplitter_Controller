@@ -127,14 +127,14 @@ Address 32+: MonitorConfig structure
 ### **Persistent Settings Examples**
 ```cpp
 // Syslog server configuration persists
-configManager.setSyslogServer("192.168.1.238");
+configManager.setSyslogServer("192.168.1.155");
 configManager.setSyslogPort(514);
 
 // Log levels persist across reboots
 configManager.setLogLevel(LOG_DEBUG);
 
 // MQTT broker settings persist
-configManager.setMqttBroker("192.168.1.100");
+configManager.setMqttBroker("192.168.1.155");
 configManager.setMqttPort(1883);
 ```
 

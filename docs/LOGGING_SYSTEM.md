@@ -37,7 +37,7 @@ The logging system consists of several integrated components:
                    │
         ┌──────────▼──────────┐
         │   Syslog Server     │
-        │  (192.168.1.238)    │
+        │  (192.168.1.155)    │
         │     Port 514        │
         └─────────────────────┘
 ```
