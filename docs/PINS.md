@@ -39,7 +39,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Circuit**: 24V supply → Sensor → 250Ω resistor → GND
 - **Sampling**: 100ms intervals with digital filtering
 - **Safety**: Critical for over-pressure protection
-- **MQTT Topic**: `r4/pressure/hydraulic_system`
+- **MQTT Topic**: `controller/pressure/hydraulic_system`
 
 #### A5 - Filter Hydraulic Pressure Sensor (0-5V Voltage Output)
 - **Function**: Hydraulic filter pressure monitoring  
@@ -48,7 +48,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Circuit**: Sensor power → 5V, Signal → A5, Ground → GND
 - **Sampling**: 100ms intervals with digital filtering
 - **Purpose**: Filter condition monitoring and diagnostics
-- **MQTT Topic**: `r4/pressure/hydraulic_filter`
+- **MQTT Topic**: `controller/pressure/hydraulic_filter`
 
 ### Digital Inputs
 
@@ -109,7 +109,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Configuration**: INPUT_PULLUP (normally open button or switch to ground)
 - **Active State**: LOW (button pressed/switch activated)
 - **Purpose**: Communication between splitter and loader operators
-- **MQTT**: Publishes immediate status changes to `r4/data/splitter_operator`
+- **MQTT**: Publishes immediate status changes to `controller/data/splitter_operator`
 - **Response**: Triggers MQTT notification and serial console message
 
 #### Pin 12 - Emergency Stop (E-Stop)
@@ -193,7 +193,7 @@ The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (
   - Emergency stop (Pin 12) immediately disables
 - **Manual Control**: Via `relay R1 ON/OFF` commands or Pin 2 manual extend button
 - **Automatic Control**: Controlled during hydraulic sequences
-- **MQTT Topic**: `r4/relays/R1` (status publishing)
+- **MQTT Topic**: `controller/relays/R1` (status publishing)
 
 #### Relay 2 (R2) - Hydraulic Retract  
 - **Function**: Controls hydraulic cylinder retraction valve
@@ -205,7 +205,7 @@ The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (
   - Emergency stop (Pin 12) immediately disables
 - **Manual Control**: Via `relay R2 ON/OFF` commands or Pin 3 manual retract button
 - **Automatic Control**: Controlled during hydraulic sequences
-- **MQTT Topic**: `r4/relays/R2` (status publishing)
+- **MQTT Topic**: `controller/relays/R2` (status publishing)
 
 #### Relay 8 (R8) - Engine Enable/Disable
 - **Function**: Controls engine enable/disable signal for log splitter engine
@@ -217,7 +217,7 @@ The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (
   - Integrated with hydraulic safety systems
 - **Control**: Via `relay R8 ON/OFF` commands for engine enable/disable
 - **Default State**: OFF (engine disabled) for safety
-- **MQTT Topic**: `r4/relays/R8` (status publishing)
+- **MQTT Topic**: `controller/relays/R8` (status publishing)
 
 #### Relays 3-6 (R3-R6) - Reserved
 
@@ -247,7 +247,7 @@ The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (
   3. After 10 seconds, if pressure still high, hydraulic system shuts down
   4. Buzzer continues until pressure drops below threshold or manual reset
 - **Default State**: OFF
-- **MQTT Topic**: `r4/relays/R7` (status publishing)
+- **MQTT Topic**: `controller/relays/R7` (status publishing)
 - **Configuration**: Warning pressure threshold configurable via `set pressure_warning_psi` command
 
 ### Relay Board Specifications
@@ -393,10 +393,10 @@ ALL RELAYS OFF
 Relays: R1=OFF(EXTEND) R2=OFF(RETRACT) R3=OFF R4=OFF R5=OFF R6=OFF R7=OFF(BUZZER) R8=OFF(ENGINE)
 
 # MQTT status topics
-r4/relays/R1 → 0 (OFF) or 1 (ON)
-r4/relays/R2 → 0 (OFF) or 1 (ON)
-r4/relays/R7 → 0 (OFF) or 1 (ON)
-r4/relays/R8 → 0 (OFF) or 1 (ON)
+controller/relays/R1 → 0 (OFF) or 1 (ON)
+controller/relays/R2 → 0 (OFF) or 1 (ON)
+controller/relays/R7 → 0 (OFF) or 1 (ON)
+controller/relays/R8 → 0 (OFF) or 1 (ON)
 
 # Pressure warning example
 > # When pressure exceeds warning threshold (automatic)
