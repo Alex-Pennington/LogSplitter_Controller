@@ -25,6 +25,7 @@ struct CalibrationData {
     uint32_t seqTimeoutMs;
     bool relayEcho;
     bool debugEnabled;
+    uint8_t logLevel;  // Log level (0-7, default 6=INFO)
     
     // Individual sensor parameters - A1 (System Pressure)
     float a1_maxPressurePsi;
@@ -89,6 +90,7 @@ public:
     void applyToPressureManager(class PressureManager& manager);
     void applyToSequenceController(SequenceController& controller);
     void applyToRelayController(RelayController& relay);
+    void applyToLogger();
     void loadFromPressureSensor(const PressureSensor& sensor);
     void loadFromSequenceController(const SequenceController& controller);
     void loadFromRelayController(const RelayController& relay);
@@ -120,11 +122,16 @@ public:
     bool getDebugEnabled() const { return config.debugEnabled; }
     void setDebugEnabled(bool enabled) { config.debugEnabled = enabled; }
     
+    // Log level configuration
+    uint8_t getLogLevel() const { return config.logLevel; }
+    void setLogLevel(uint8_t level) { config.logLevel = level; }
+    
     // Direct access for specific settings
     bool isConfigValid() const { return configValid; }
     
     // MQTT Configuration Publishing
     void publishAllConfigParameters();
+    bool queryMqttForDefaults(unsigned long timeoutMs = 10000);
     
     // Status
     void getStatusString(char* buffer, size_t bufferSize);

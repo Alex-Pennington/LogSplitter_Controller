@@ -168,9 +168,9 @@ bool CommandValidator::checkRateLimit() {
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
     const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, syslog, mqtt";
     if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
+        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nset mqtt_defaults - Query MQTT for config values\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
     } else {
-        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\n\nTiming: timing report|status|slowest", helpText);
+        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nset mqtt_defaults - Query MQTT for config values\n\nTiming: timing report|status|slowest", helpText);
     }
 }
 
@@ -570,6 +570,13 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
         }
         
         Logger::setLogLevel(static_cast<LogLevel>(level));
+        
+        // Save to EEPROM (this will also publish to MQTT with retain flag)
+        if (configManager) {
+            configManager->setLogLevel(static_cast<uint8_t>(level));
+            configManager->save();
+        }
+        
         snprintf(response, responseSize, "log level set to %d", level);
         LOG_INFO("Log level changed to %d", level);
     }
@@ -637,6 +644,27 @@ void CommandProcessor::handleSet(char* param, char* value, char* response, size_
             }
         } else {
             snprintf(response, responseSize, "Network manager not available");
+        }
+    }
+    else if (strcasecmp(param, "mqtt_defaults") == 0) {
+        if (!configManager || !networkManager) {
+            snprintf(response, responseSize, "Configuration or Network manager not available");
+            return;
+        }
+        
+        if (!networkManager->isMQTTConnected()) {
+            snprintf(response, responseSize, "MQTT not connected - cannot query for defaults");
+            return;
+        }
+        
+        // Query MQTT for retained configuration values
+        snprintf(response, responseSize, "Querying MQTT server for configuration defaults...");
+        
+        // Use the queryMqttForDefaults method (will implement next)
+        if (configManager->queryMqttForDefaults(10000)) { // 10 second timeout
+            snprintf(response, responseSize, "MQTT defaults loaded and saved to EEPROM");
+        } else {
+            snprintf(response, responseSize, "MQTT query failed or timed out - using firmware defaults");
         }
     }
     // Add more parameter handlers as needed

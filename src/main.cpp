@@ -308,6 +308,9 @@ bool initializeSystem() {
     // Initialize sequence controller
     configManager.applyToSequenceController(sequenceController);
     
+    // Apply saved log level configuration
+    configManager.applyToLogger();
+    
     // Initialize input manager
     inputManager.begin(&configManager);
     inputManager.setChangeCallback(onInputChange);
