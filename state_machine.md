@@ -366,8 +366,8 @@ Continuously published during operation:
 ### Hardware Interfaces
 
 **Input Pins**:
-- Pin 2: Manual extend button
-- Pin 3: Reserved (historically auto/manual select)
+- Pin 2: Manual retract button
+- Pin 3: Manual extend button
 - Pin 4: Safety clear button
 - Pin 5: Automatic sequence start button
 - Pin 6: Extend limit switch
