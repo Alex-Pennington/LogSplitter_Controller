@@ -1,5 +1,5 @@
 #include "logger.h"
-#include "network_manager.h"
+// NetworkManager include removed - non-networking version
 #include "constants.h"
 #include <stdarg.h>
 
