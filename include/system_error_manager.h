@@ -3,8 +3,7 @@
 #include <Arduino.h>
 #include "constants.h"
 
-// Forward declaration
-class NetworkManager;
+// NetworkManager removed - non-networking version
 
 // System error types
 enum SystemErrorType {
@@ -35,8 +34,7 @@ private:
     bool ledState = false;              // Current LED state
     unsigned long errorStartTime = 0;   // When first error occurred
     
-    // Network manager for MQTT publishing
-    NetworkManager* networkManager = nullptr;
+    // Network manager removed - non-networking version
     
     // LED control
     void updateLED();
@@ -51,7 +49,7 @@ public:
     
     // Initialization
     void begin();
-    void setNetworkManager(NetworkManager* netMgr) { networkManager = netMgr; }
+    // setNetworkManager removed - non-networking version
     
     // Error management
     void setError(SystemErrorType errorType, const char* description = nullptr);

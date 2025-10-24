@@ -156,16 +156,8 @@ ErrorLedPattern SystemErrorManager::getLedPattern() const {
 }
 
 void SystemErrorManager::publishError(SystemErrorType errorType, const char* description) {
-    if (networkManager && networkManager->isConnected()) {
-        char errorMsg[128];
-        snprintf(errorMsg, sizeof(errorMsg), "0x%02X: %s", errorType, description);
-        networkManager->publish("r4/system/error", errorMsg);
-        
-        // Also publish error count
-        char countMsg[32];
-        snprintf(countMsg, sizeof(countMsg), "%d", __builtin_popcount(activeErrors));
-        networkManager->publish("r4/system/error_count", countMsg);
-    }
+    // Error publishing removed - non-networking version
+    // Errors are logged via Logger and available through serial commands
 }
 
 const char* SystemErrorManager::getErrorDescription(SystemErrorType errorType) {
