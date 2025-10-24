@@ -1,6 +1,6 @@
 #include "config_manager.h"
 #include "pressure_manager.h"
-#include "network_manager.h"
+// NetworkManager include removed - non-networking version
 #include "system_error_manager.h"
 #include "logger.h"
 
