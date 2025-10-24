@@ -33,11 +33,7 @@ void SafetySystem::setEngineStop(bool stop) {
             debugPrintf("Engine control failed - relay controller not available\n");
         }
         
-        // Publish engine state change with new topic hierarchy
-        if (networkManager && networkManager->isConnected()) {
-            networkManager->publish("controller/engine/stopped", stop ? "true" : "false");
-            networkManager->publish("controller/engine/running", stop ? "false" : "true");
-        }
+        // Network publishing removed - non-networking version
     }
 }
 
@@ -100,9 +96,7 @@ void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
             // Safety system should only be cleared manually via safety clear button
             debugPrintf("Pressure normalized: %.1f PSI below threshold - safety remains active (manual clear required)\n", pressure);
             
-            if (networkManager && networkManager->isConnected()) {
-                networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: pressure normalized - manual clear required");
-            }
+            // Network publishing removed - non-networking version
             
             // DO NOT automatically clear safety - must be done via safety clear button
             // safetyActive remains true until manual intervention
@@ -121,12 +115,7 @@ void SafetySystem::activate(const char* reason) {
     // Emergency stop sequence
     emergencyStop(reason);
     
-    // Publish safety alert
-    if (networkManager && networkManager->isConnected()) {
-        char alert[64];
-        snprintf(alert, sizeof(alert), "SAFETY: activated - %s", reason ? reason : "unknown");
-        networkManager->publish(TOPIC_CONTROL_RESP, alert);
-    }
+    // Network publishing removed - non-networking version
 }
 
 void SafetySystem::emergencyStop(const char* reason) {
@@ -174,10 +163,7 @@ void SafetySystem::activateEStop() {
     // Emergency stop sequence with E-stop specific handling
     emergencyStop("e_stop_pressed");
     
-    // Publish E-stop alert
-    if (networkManager && networkManager->isConnected()) {
-        networkManager->publish(TOPIC_CONTROL_RESP, "E-STOP: ACTIVATED - System shutdown");
-    }
+    // Network publishing removed - non-networking version
 }
 
 void SafetySystem::clearEStop() {
@@ -201,10 +187,7 @@ void SafetySystem::clearEStop() {
         deactivate();
     }
     
-    // Publish E-stop clear
-    if (networkManager && networkManager->isConnected()) {
-        networkManager->publish(TOPIC_CONTROL_RESP, "E-STOP: Cleared - System restored");
-    }
+    // Network publishing removed - non-networking version
 }
 
 void SafetySystem::deactivate() {
@@ -222,18 +205,14 @@ void SafetySystem::deactivate() {
     setEngineStop(false);
     Serial.println("Engine restarted - safety system deactivated");
     
-    if (networkManager && networkManager->isConnected()) {
-        networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: deactivated");
-    }
+    // Network publishing removed - non-networking version
 }
 
 void SafetySystem::clearEmergencyStop() {
     if (safetyActive || eStopActive) {
         Serial.println("Safety system cleared via E-Stop reset");
         
-        if (networkManager && networkManager->isConnected()) {
-            networkManager->publish(TOPIC_CONTROL_RESP, "SAFETY: E-Stop cleared");
-        }
+        // Network publishing removed - non-networking version
         
         // Clear E-stop state first
         if (eStopActive) {
@@ -263,32 +242,6 @@ void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
 }
 
 void SafetySystem::publishIndividualValues() {
-    if (!networkManager || !networkManager->isConnected()) {
-        return;
-    }
-    
-    // Publish individual safety system values
-    networkManager->publish(TOPIC_SAFETY_ACTIVE, safetyActive ? "1" : "0");
-    networkManager->publish(TOPIC_SAFETY_ESTOP, eStopActive ? "1" : "0");
-    networkManager->publish(TOPIC_SAFETY_ENGINE, engineStopped ? "STOPPED" : "RUNNING");
-    
-    // Publish pressure values
-    char pressureBuffer[16];
-    snprintf(pressureBuffer, sizeof(pressureBuffer), "%.1f", lastPressure);
-    networkManager->publish(TOPIC_SAFETY_PRESSURE_CURRENT, pressureBuffer);
-    
-    snprintf(pressureBuffer, sizeof(pressureBuffer), "%.1f", SAFETY_THRESHOLD_PSI);
-    networkManager->publish(TOPIC_SAFETY_PRESSURE_THRESHOLD, pressureBuffer);
-    
-    // Publish high pressure monitoring status
-    networkManager->publish(TOPIC_SAFETY_HIGH_PRESSURE_ACTIVE, highPressureActive ? "1" : "0");
-    
-    if (highPressureActive && highPressureStartTime > 0) {
-        unsigned long elapsed = millis() - highPressureStartTime;
-        char elapsedBuffer[16];
-        snprintf(elapsedBuffer, sizeof(elapsedBuffer), "%lu", elapsed);
-        networkManager->publish(TOPIC_SAFETY_HIGH_PRESSURE_ELAPSED, elapsedBuffer);
-    } else {
-        networkManager->publish(TOPIC_SAFETY_HIGH_PRESSURE_ELAPSED, "0");
-    }
+    // Network publishing removed - non-networking version
+    // Safety status available via getStatusString() for serial output
 }

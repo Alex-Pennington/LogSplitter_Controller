@@ -220,10 +220,7 @@ bool ConfigManager::save() {
     
     Serial.println("ConfigManager: Configuration saved to EEPROM with CRC32 verification");
     
-    // Automatically publish configuration to MQTT if network is available
-    if (networkManager) {
-        publishAllConfigParameters();
-    }
+    // Network publishing removed - non-networking version
     
     return true;
 }
@@ -301,10 +298,7 @@ void ConfigManager::publishError(const char* errorMessage) {
         }
     }
     
-    // Publish to MQTT if network manager is available
-    if (networkManager && networkManager->isConnected()) {
-        networkManager->publish("r4/system/error", errorMessage);
-    }
+    // Network publishing removed - non-networking version
 }
 
 void ConfigManager::applyToSequenceController(SequenceController& controller) {
@@ -370,161 +364,14 @@ void ConfigManager::getStatusString(char* buffer, size_t bufferSize) {
 }
 
 void ConfigManager::publishAllConfigParameters() {
-    if (!networkManager || !configValid) {
-        debugPrintf("Cannot publish config: networkManager=%p configValid=%s\n", 
-                   networkManager, configValid ? "true" : "false");
-        return;
-    }
-    
-    debugPrintf("Publishing all configuration parameters to MQTT with retain flags...\n");
-    
-    char topic[64];
-    char payload[32];
-    bool allSuccess = true;
-    
-    // A1 (System Pressure) Sensor Parameters
-    snprintf(topic, sizeof(topic), "controller/config/a1_max_pressure");
-    snprintf(payload, sizeof(payload), "%.1f", config.a1_maxPressurePsi);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/a1_adc_vref");
-    snprintf(payload, sizeof(payload), "%.3f", config.a1_adcVref);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/a1_sensor_gain");
-    snprintf(payload, sizeof(payload), "%.6f", config.a1_sensorGain);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/a1_sensor_offset");
-    snprintf(payload, sizeof(payload), "%.6f", config.a1_sensorOffset);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // A5 (Filter Pressure) Sensor Parameters
-    snprintf(topic, sizeof(topic), "controller/config/a5_max_pressure");
-    snprintf(payload, sizeof(payload), "%.1f", config.a5_maxPressurePsi);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/a5_adc_vref");
-    snprintf(payload, sizeof(payload), "%.3f", config.a5_adcVref);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/a5_sensor_gain");
-    snprintf(payload, sizeof(payload), "%.6f", config.a5_sensorGain);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/a5_sensor_offset");
-    snprintf(payload, sizeof(payload), "%.6f", config.a5_sensorOffset);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // EMA Filter Parameter
-    snprintf(topic, sizeof(topic), "controller/config/ema_alpha");
-    snprintf(payload, sizeof(payload), "%.6f", config.emaAlpha);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Sequence Controller Parameters
-    snprintf(topic, sizeof(topic), "controller/config/seq_stable_ms");
-    snprintf(payload, sizeof(payload), "%lu", config.seqStableMs);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/seq_start_stable_ms");
-    snprintf(payload, sizeof(payload), "%lu", config.seqStartStableMs);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/seq_timeout_ms");
-    snprintf(payload, sizeof(payload), "%lu", config.seqTimeoutMs);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Relay Controller Parameters
-    snprintf(topic, sizeof(topic), "controller/config/relay_echo");
-    snprintf(payload, sizeof(payload), "%s", config.relayEcho ? "true" : "false");
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Debug Parameter
-    snprintf(topic, sizeof(topic), "controller/config/debug_enabled");
-    snprintf(payload, sizeof(payload), "%s", config.debugEnabled ? "true" : "false");
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Log Level Parameter
-    snprintf(topic, sizeof(topic), "controller/config/log_level");
-    snprintf(payload, sizeof(payload), "%u", config.logLevel);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Pin Mode Configuration (publish as bitmap for efficiency)
-    snprintf(topic, sizeof(topic), "controller/config/pin_modes_bitmap");
-    snprintf(payload, sizeof(payload), "%u", config.pinModesBitmap);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Individual pin modes for readability
-    for (size_t i = 0; i < WATCH_PIN_COUNT; i++) {
-        snprintf(topic, sizeof(topic), "controller/config/pin%d_mode", WATCH_PINS[i]);
-        snprintf(payload, sizeof(payload), "%s", pinIsNC[i] ? "NC" : "NO");
-        if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    }
-    
-    // Legacy parameters (for backward compatibility)
-    snprintf(topic, sizeof(topic), "controller/config/legacy_adc_vref");
-    snprintf(payload, sizeof(payload), "%.3f", config.adcVref);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/legacy_max_pressure");
-    snprintf(payload, sizeof(payload), "%.1f", config.maxPressurePsi);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Filter mode
-    snprintf(topic, sizeof(topic), "controller/config/filter_mode");
-    snprintf(payload, sizeof(payload), "%u", config.filterMode);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    // Configuration status
-    snprintf(topic, sizeof(topic), "controller/config/config_valid");
-    snprintf(payload, sizeof(payload), "%s", configValid ? "true" : "false");
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    snprintf(topic, sizeof(topic), "controller/config/config_magic");
-    snprintf(payload, sizeof(payload), "0x%08lX", config.magic);
-    if (!networkManager->publishWithRetain(topic, payload)) allSuccess = false;
-    
-    debugPrintf("Configuration publishing %s - %d parameters published\n", 
-               allSuccess ? "successful" : "had failures", 22);
+    // Network publishing removed - non-networking version
+    // Configuration is available via getStatusString() for serial output
+    debugPrintf("Configuration publishing disabled - non-networking version\n");
 }
 
 bool ConfigManager::queryMqttForDefaults(unsigned long timeoutMs) {
-    if (!networkManager || !networkManager->isMQTTConnected()) {
-        debugPrintf("ConfigManager: Cannot query MQTT - not connected\n");
-        return false;
-    }
-    
-    debugPrintf("ConfigManager: Querying MQTT broker for retained configuration values...\n");
-    
-    // Subscribe to configuration topics to receive retained values
-    const char* configTopics[] = {
-        "controller/config/a1_max_pressure",
-        "controller/config/a1_adc_vref", 
-        "controller/config/a1_sensor_gain",
-        "controller/config/a1_sensor_offset",
-        "controller/config/a5_max_pressure",
-        "controller/config/a5_adc_vref",
-        "controller/config/a5_sensor_gain", 
-        "controller/config/a5_sensor_offset",
-        "controller/config/ema_alpha",
-        "controller/config/seq_stable_ms",
-        "controller/config/seq_start_stable_ms",
-        "controller/config/seq_timeout_ms",
-        "controller/config/relay_echo",
-        "controller/config/debug_enabled",
-        "controller/config/log_level",
-        nullptr
-    };
-    
-    // For now, return false and use firmware defaults
-    // Full MQTT query implementation would require:
-    // 1. Temporary subscription to config topics
-    // 2. Message collection with timeout handling
-    // 3. Value parsing and validation
-    // 4. Configuration structure population
-    // 5. Cleanup of temporary subscriptions
-    
-    debugPrintf("ConfigManager: MQTT query not yet fully implemented - using firmware defaults\n");
+    // Network querying removed - non-networking version
+    debugPrintf("ConfigManager: MQTT query disabled - using firmware defaults\n");
     setDefaults();
     
     return save(); // Save the defaults to EEPROM

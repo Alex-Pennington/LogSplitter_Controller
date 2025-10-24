@@ -17,7 +17,7 @@ enum LogLevel {
 // Logger configuration
 class Logger {
 public:
-    static void begin(class NetworkManager* netMgr);
+    static void begin(); // NetworkManager removed - non-networking version
     static void setLogLevel(LogLevel minLevel);
     static LogLevel getLogLevel();
     
@@ -32,7 +32,7 @@ public:
     static void log(LogLevel level, const char* fmt, ...);
     
 private:
-    static class NetworkManager* networkManager;
+    // NetworkManager removed - non-networking version
     static LogLevel currentLogLevel;
     static char logBuffer[512];
     

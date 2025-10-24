@@ -51,8 +51,7 @@ private:
     // Pin mode configuration (true = NC, false = NO)
     bool pinIsNC[WATCH_PIN_COUNT] = {false};
     
-    // Network manager pointer for error publishing
-    class NetworkManager* networkManager = nullptr;
+    // NetworkManager removed - non-networking version
     
     // System error manager pointer for error LED indication
     class SystemErrorManager* systemErrorManager = nullptr;
@@ -72,7 +71,7 @@ public:
     
     // Initialization
     void begin();
-    void setNetworkManager(class NetworkManager* netMgr) { networkManager = netMgr; }
+    // setNetworkManager removed - non-networking version
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     
     // Load/Save

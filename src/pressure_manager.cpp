@@ -181,32 +181,8 @@ void PressureManager::update() {
 }
 
 void PressureManager::publishPressures() {
-    if (!networkManager || !networkManager->isConnected()) {
-        return;
-    }
-    
-    char buffer[64];
-    
-    // Publish individual pressure readings with clear labels (plus raw voltages)
-    if (sensors[SENSOR_HYDRAULIC].isReady()) {
-        snprintf(buffer, sizeof(buffer), "%.1f", getHydraulicPressure());
-        networkManager->publish(TOPIC_HYDRAULIC_SYSTEM_PRESSURE, buffer);
-        networkManager->publish(TOPIC_PRESSURE, buffer); // Backward compatibility
-        // Voltage (2 decimal precision for calibration insight)
-        snprintf(buffer, sizeof(buffer), "%.2f", sensors[SENSOR_HYDRAULIC].getVoltage());
-        networkManager->publish(TOPIC_HYDRAULIC_SYSTEM_VOLTAGE, buffer);
-    }
-    
-    if (sensors[SENSOR_HYDRAULIC_OIL].isReady()) {
-        snprintf(buffer, sizeof(buffer), "%.1f", getHydraulicOilPressure());
-        networkManager->publish(TOPIC_HYDRAULIC_FILTER_PRESSURE, buffer);
-        snprintf(buffer, sizeof(buffer), "%.2f", sensors[SENSOR_HYDRAULIC_OIL].getVoltage());
-        networkManager->publish(TOPIC_HYDRAULIC_FILTER_VOLTAGE, buffer);
-    }
-    
-    // Publish combined status
-    //getStatusString(buffer, sizeof(buffer));
-    //networkManager->publish(TOPIC_PRESSURE_STATUS, buffer);
+    // MQTT publishing removed - non-networking version
+    // Pressure data available via serial commands
 }
 
 void PressureManager::getStatusString(char* buffer, size_t bufferSize) {

@@ -76,8 +76,7 @@ private:
     unsigned long lastPublishTime = 0;
     const unsigned long publishInterval = 10000; // 10 seconds
     
-    // External dependencies
-    class NetworkManager* networkManager = nullptr;
+    // External dependencies removed - non-networking version
     
 public:
     PressureManager() = default;
@@ -85,8 +84,7 @@ public:
     // Initialization
     void begin();
     
-    // Dependency injection
-    void setNetworkManager(class NetworkManager* network) { networkManager = network; }
+    // Network dependency injection removed - non-networking version
     
     // Main update (call regularly)
     void update();

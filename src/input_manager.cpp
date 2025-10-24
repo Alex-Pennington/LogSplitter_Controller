@@ -1,9 +1,9 @@
 #include "input_manager.h"
-#include "network_manager.h"
+// NetworkManager include removed - non-networking version
 #include "config_manager.h"
 #include "logger.h"
 
-extern NetworkManager* g_networkManager;
+// NetworkManager extern removed - non-networking version
 extern void debugPrintf(const char* fmt, ...);
 
 void InputManager::begin(ConfigManager* config) {
@@ -141,21 +141,7 @@ void InputManager::update() {
                     );
                 }
                 
-                // Publish to MQTT with individual values
-                if (g_networkManager && g_networkManager->isConnected()) {
-                    char topic[64];
-                    char payload[16];
-                    
-                    // Publish individual state value
-                    snprintf(topic, sizeof(topic), "controller/inputs/%d/state", pin);
-                    snprintf(payload, sizeof(payload), "%d", pinStates[i] ? 1 : 0);
-                    g_networkManager->publish(topic, payload);
-                    
-                    // Publish human readable value  
-                    snprintf(topic, sizeof(topic), "controller/inputs/%d/active", pin);
-                    snprintf(payload, sizeof(payload), "%s", pinStates[i] ? "true" : "false");
-                    g_networkManager->publish(topic, payload);
-                }
+                // Network publishing removed - non-networking version
                 
                 // Notify callback if set
                 if (inputChangeCallback) {

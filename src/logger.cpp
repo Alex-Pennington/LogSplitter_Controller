@@ -3,13 +3,12 @@
 #include "constants.h"
 #include <stdarg.h>
 
-// Static member definitions
-NetworkManager* Logger::networkManager = nullptr;
+// Static member definitions - NetworkManager removed
 LogLevel Logger::currentLogLevel = LOG_INFO;  // Default to INFO level
 char Logger::logBuffer[512];
 
-void Logger::begin(NetworkManager* netMgr) {
-    networkManager = netMgr;
+void Logger::begin() {
+    // NetworkManager removed - non-networking version
     // Default log level can be overridden by configuration
     currentLogLevel = LOG_INFO;
 }
@@ -53,15 +52,9 @@ void Logger::log(LogLevel level, const char* fmt, ...) {
     vsnprintf(logBuffer, sizeof(logBuffer), fmt, args);
     va_end(args);
     
-    // Send to syslog server if network is available
-    bool syslogSent = false;
-    if (networkManager && networkManager->isWiFiConnected()) {
-        syslogSent = networkManager->sendSyslog(logBuffer, level);
-    }
-    
-    // Only fallback to Serial if syslog is not available or fails
-    // Once syslog is connected, all messages go through syslog only
-    if (!syslogSent) {
+    // Network logging removed - non-networking version
+    // All logging goes to Serial only
+    {
         unsigned long ts = millis();
         Serial.print("[");
         Serial.print(ts);

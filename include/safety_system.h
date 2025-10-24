@@ -17,9 +17,8 @@ private:
     const unsigned long HIGH_PRESSURE_TIMEOUT_MS = 10000; // 10 seconds
     const float HIGH_PRESSURE_ESTOP_THRESHOLD = 2300.0f;  // PSI threshold for E-stop
     
-    // External dependencies (set by main)
+    // External dependencies (set by main) - networking removed
     class RelayController* relayController = nullptr;
-    class NetworkManager* networkManager = nullptr;
     class SequenceController* sequenceController = nullptr;
     
 public:
@@ -28,9 +27,8 @@ public:
     // Initialization
     void begin();
     
-    // Dependency injection
+    // Dependency injection - networking removed
     void setRelayController(class RelayController* relay) { relayController = relay; }
-    void setNetworkManager(class NetworkManager* network) { networkManager = network; }
     void setSequenceController(class SequenceController* seq) { sequenceController = seq; }
     
     // Safety checks

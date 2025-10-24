@@ -4,7 +4,7 @@
 #include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
-extern NetworkManager* g_networkManager;
+// NetworkManager extern removed - non-networking version
 
 void RelayController::begin() {
     // Initialize Serial1 for relay board communication
@@ -250,27 +250,6 @@ void RelayController::getStatusString(char* buffer, size_t bufferSize) {
 }
 
 void RelayController::publishIndividualValues() {
-    if (!g_networkManager || !g_networkManager->isConnected()) {
-        return;
-    }
-    
-    char topic[64];
-    char value[16];
-    
-    // Publish individual relay states
-    for (int i = 1; i <= MAX_RELAYS; i++) {
-        snprintf(topic, sizeof(topic), "controller/relays/%d/state", i);
-        snprintf(value, sizeof(value), "%d", relayStates[i] ? 1 : 0);
-        g_networkManager->publish(topic, value);
-        
-        snprintf(topic, sizeof(topic), "controller/relays/%d/active", i);
-        snprintf(value, sizeof(value), "%s", relayStates[i] ? "true" : "false");
-        g_networkManager->publish(topic, value);
-    }
-    
-    // Publish board power status
-    g_networkManager->publish("controller/relays/board_powered", boardPowered ? "true" : "false");
-    
-    // Publish safety mode status
-    g_networkManager->publish("controller/relays/safety_mode", safetyActive ? "true" : "false");
+    // Network publishing removed - non-networking version
+    // Relay status available via getStatusString() for serial output
 }
