@@ -73,7 +73,13 @@ SystemState currentSystemState = SYS_INITIALIZING;
 unsigned long lastPublishTime = 0;
 unsigned long lastWatchdogReset = 0;
 unsigned long systemStartTime = 0;
-const unsigned long publishInterval = 5000; // 5 seconds
+const unsigned long publishInterval = 30000; // 30 seconds for fallback metrics
+
+// State tracking for event-driven telemetry
+static SequenceState lastSequenceState = SEQ_IDLE;
+static bool lastSafetyActive = false;
+static bool lastEStopActive = false;
+static bool lastEngineRunning = true;
 
 // Telnet tracking removed - non-networking version
 
@@ -130,6 +136,23 @@ void debugPrintf(const char* fmt, ...) {
     
     // Route to new logging system as DEBUG level
     Logger::log(LOG_DEBUG, "%s", g_message_buffer);
+}
+
+// Helper function for readable sequence state names
+const char* getSequenceStateName(SequenceState state) {
+    switch (state) {
+        case SEQ_IDLE: return "IDLE";
+        case SEQ_WAIT_START_DEBOUNCE: return "START_WAIT";
+        case SEQ_STAGE1_ACTIVE: return "EXTENDING";
+        case SEQ_STAGE1_WAIT_LIMIT: return "WAIT_EXTEND_LIMIT";
+        case SEQ_STAGE2_ACTIVE: return "RETRACTING";
+        case SEQ_STAGE2_WAIT_LIMIT: return "WAIT_RETRACT_LIMIT";
+        case SEQ_COMPLETE: return "COMPLETE";
+        case SEQ_ABORT: return "ABORTED";
+        case SEQ_MANUAL_EXTEND_ACTIVE: return "MANUAL_EXTEND";
+        case SEQ_MANUAL_RETRACT_ACTIVE: return "MANUAL_RETRACT";
+        default: return "UNKNOWN";
+    }
 }
 
 // ============================================================================
@@ -373,8 +396,55 @@ void updateSystem() {
 }
 
 void publishTelemetry() {
-    // Telemetry publishing removed - non-networking version
-    // All telemetry now available via serial commands only
+    // Event-driven telemetry - log metrics on state changes or periodically as fallback
+    unsigned long now = millis();
+    bool forceUpdate = (now - lastPublishTime >= publishInterval);
+    
+    // Check for sequence state changes
+    SequenceState currentSequenceState = sequenceController.getState();
+    if (currentSequenceState != lastSequenceState || forceUpdate) {
+        if (currentSequenceState != lastSequenceState) {
+            // Sequence state changed - log pressure metrics
+            float hydraulicPressure = pressureManager.getHydraulicPressure();
+            float oilPressure = pressureManager.getHydraulicOilPressure();
+            LOG_INFO("SEQUENCE: %s -> %s | PRESSURE: Hydraulic=%.1f PSI, Oil=%.1f PSI", 
+                getSequenceStateName(lastSequenceState),
+                getSequenceStateName(currentSequenceState),
+                hydraulicPressure, oilPressure);
+        }
+        lastSequenceState = currentSequenceState;
+    }
+    
+    // Check for safety state changes
+    bool currentSafetyActive = safetySystem.isActive();
+    bool currentEStopActive = safetySystem.isEStopActive();
+    bool currentEngineRunning = !safetySystem.isEngineStopped();
+    
+    if (currentSafetyActive != lastSafetyActive || currentEStopActive != lastEStopActive || 
+        currentEngineRunning != lastEngineRunning || forceUpdate) {
+        
+        if (currentSafetyActive != lastSafetyActive || currentEStopActive != lastEStopActive || 
+            currentEngineRunning != lastEngineRunning) {
+            // Safety state changed - log safety metrics
+            LOG_INFO("SAFETY: Active=%s, E-Stop=%s, Engine=%s", 
+                currentSafetyActive ? "YES" : "NO",
+                currentEStopActive ? "ACTIVE" : "OK", 
+                currentEngineRunning ? "RUNNING" : "STOPPED");
+        }
+        
+        lastSafetyActive = currentSafetyActive;
+        lastEStopActive = currentEStopActive;
+        lastEngineRunning = currentEngineRunning;
+    }
+    
+    // Periodic fallback - log basic status every 30 seconds
+    if (forceUpdate) {
+        lastPublishTime = now;
+        LOG_INFO("STATUS: Uptime=%lu min, Pressure=%.1f PSI, Sequence=%s", 
+            (now - systemStartTime) / 60000,
+            pressureManager.getHydraulicPressure(),
+            getSequenceStateName(currentSequenceState));
+    }
 }
 
 void processSerialCommands() {
