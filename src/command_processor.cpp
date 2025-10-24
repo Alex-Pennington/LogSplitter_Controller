@@ -5,7 +5,6 @@
 #include "pressure_manager.h"
 #include "sequence_controller.h"
 #include "relay_controller.h"
-#include "network_manager.h"
 #include "safety_system.h"
 #include "system_error_manager.h"
 #include "input_manager.h"
@@ -166,12 +165,8 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, network [status|reconnect|mqtt_reconnect|syslog_test], reset, error, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, syslog, mqtt";
-    if (!fromMqtt) {
-        snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nset mqtt_defaults - Query MQTT for config values\nnetwork reconnect - Reconnect WiFi\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
-    } else {
-        snprintf(response, responseSize, "%s, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nLive Network Config:\nset syslog <server[:port]> - Apply immediately\nset mqtt <broker[:port]> - Apply immediately\nset mqtt_defaults - Query MQTT for config values\n\nTiming: timing report|status|slowest", helpText);
-    }
+    const char* helpText = "Commands: help, show, debug, reset, error, loglevel [0-7], timing [report|reset|status|slowest|log], bypass";
+    snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
 }
 
 void CommandProcessor::handleShow(char* response, size_t responseSize, bool fromMqtt) {

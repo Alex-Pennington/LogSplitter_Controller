@@ -34,7 +34,6 @@ private:
     class PressureManager* pressureManager = nullptr;
     class SequenceController* sequenceController = nullptr;
     class RelayController* relayController = nullptr;
-    class NetworkManager* networkManager = nullptr;
     class SafetySystem* safetySystem = nullptr;
     class SystemErrorManager* systemErrorManager = nullptr;
     class InputManager* inputManager = nullptr;
@@ -66,7 +65,6 @@ public:
     void setPressureManager(class PressureManager* pm) { pressureManager = pm; }
     void setSequenceController(class SequenceController* seq) { sequenceController = seq; }
     void setRelayController(class RelayController* relay) { relayController = relay; }
-    void setNetworkManager(class NetworkManager* network) { networkManager = network; }
     void setSafetySystem(class SafetySystem* safety) { safetySystem = safety; }
     void setSystemErrorManager(class SystemErrorManager* errorMgr) { systemErrorManager = errorMgr; }
     void setInputManager(class InputManager* input) { inputManager = input; }

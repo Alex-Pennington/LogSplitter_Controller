@@ -1,30 +1,24 @@
 /**
- * LogSplitter Controller - Refactored Arduino UNO R4 WiFi Implementation
+ * LogSplitter Controller - Non-Networking Version
  * 
  * A modular, robust industrial control system featuring:
- * - WiFi/MQTT connectivity with auto-reconnection
+ * - Serial communication for control and monitoring
  * - Pressure monitoring with safety systems
  * - Complex sequence control with state machine
  * - Input debouncing and relay control
  * - EEPROM configuration management
  * - Command validation and security
  * 
- * Author: Refactored from original monolithic design
+ * Author: Refactored from original networked design
  * Date: 2025
  */
 
 #include <Arduino.h>
-#include <WiFiS3.h>
-#include <ArduinoMqttClient.h>
 #include <EEPROM.h>
-
-// Include telnet server
-#include "telnet_server.h"
 
 // Module includes
 #include "constants.h"
 #include "logger.h"
-#include "network_manager.h"
 #include "pressure_manager.h"
 #include "sequence_controller.h"
 #include "relay_controller.h"
@@ -49,7 +43,6 @@ char g_response_buffer[SHARED_BUFFER_SIZE];
 // System Components
 // ============================================================================
 
-NetworkManager networkManager;
 PressureManager pressureManager;
 SequenceController sequenceController;
 RelayController relayController;
@@ -61,7 +54,6 @@ CommandProcessor commandProcessor;
 SubsystemTimingMonitor timingMonitor;
 
 // Global pointers for cross-module access
-NetworkManager* g_networkManager = &networkManager;
 RelayController* g_relayController = &relayController;
 
 // Global limit switch states for safety system
@@ -83,8 +75,7 @@ unsigned long lastWatchdogReset = 0;
 unsigned long systemStartTime = 0;
 const unsigned long publishInterval = 5000; // 5 seconds
 
-// Track if telnet connection info has been set
-static bool telnetInfoSet = false;
+// Telnet tracking removed - non-networking version
 
 // Serial command line buffer
 static uint8_t serialLinePos = 0;
@@ -115,12 +106,7 @@ void checkSystemHealth() {
         LOG_CRITICAL("=== TIMEOUT TIMING REPORT ===");
         timingMonitor.logTimingReport();
         
-        // Try to enable network bypass as emergency measure
-        if (!networkManager.isNetworkBypassed()) {
-            Serial.println("EMERGENCY: Enabling network bypass due to system timeout");
-            LOG_CRITICAL("Emergency network bypass enabled due to system timeout");
-            networkManager.enableNetworkBypass(true);
-        }
+        // Emergency timeout detected - no network bypass needed in non-networking version
         
         safetySystem.emergencyStop("main_loop_timeout");
         
@@ -250,28 +236,7 @@ void onInputChange(uint8_t pin, bool state, const bool* allStates) {
     }
 }
 
-void onMqttMessage(int messageSize) {
-    // Read message into global buffer
-    int idx = 0;
-    while (networkManager.getMqttClient().available() && idx < SHARED_BUFFER_SIZE - 1) {
-        g_message_buffer[idx++] = (char)networkManager.getMqttClient().read();
-    }
-    g_message_buffer[idx] = '\0';
-    
-    debugPrintf("MQTT message received: %s\n", g_message_buffer);
-    
-    // Process command
-    bool success = commandProcessor.processCommand(g_message_buffer, true, g_response_buffer, SHARED_BUFFER_SIZE);
-    
-    // Send response if we have one
-    if (strlen(g_response_buffer) > 0) {
-        networkManager.publish(TOPIC_CONTROL_RESP, g_response_buffer);
-    }
-    
-    if (!success) {
-        debugPrintf("Command processing failed\n");
-    }
-}
+// MQTT callback removed - non-networking version
 
 // ============================================================================
 // System Initialization
@@ -298,7 +263,7 @@ bool initializeSystem() {
     
     // Initialize pressure sensor
     pressureManager.begin();
-    pressureManager.setNetworkManager(&networkManager);
+    // Network manager removed - non-networking version
     // Note: Individual sensor configuration can be added via pressureManager.getSensor() if needed
     
     // Initialize relay controller
@@ -317,20 +282,17 @@ bool initializeSystem() {
     
     // Initialize safety system
     safetySystem.setRelayController(&relayController);
-    safetySystem.setNetworkManager(&networkManager);
     safetySystem.setSequenceController(&sequenceController);
     safetySystem.begin();  // Initialize engine relay to running state
     
     // Initialize system error manager
     systemErrorManager.begin();
-    systemErrorManager.setNetworkManager(&networkManager);
     
     // Initialize command processor
     commandProcessor.setConfigManager(&configManager);
     commandProcessor.setPressureManager(&pressureManager);  // FIXED: Connect pressure manager
     commandProcessor.setSequenceController(&sequenceController);
     commandProcessor.setRelayController(&relayController);
-    commandProcessor.setNetworkManager(&networkManager);
     commandProcessor.setSafetySystem(&safetySystem);
     commandProcessor.setInputManager(&inputManager);
     commandProcessor.setSystemErrorManager(&systemErrorManager);
@@ -343,24 +305,15 @@ bool initializeSystem() {
     
     Serial.println("Core systems initialized");
     
-    // Initialize networking (non-blocking)
-    currentSystemState = SYS_CONNECTING;
-    networkManager.begin();  // Always succeeds - connection happens asynchronously
-    networkManager.setMessageCallback(onMqttMessage);
-    Serial.println("Network initialization started (non-blocking)");
-    
-    // Initialize logger after network manager is available
-    Logger::begin(&networkManager);
+    // Initialize logger (serial only in non-networking version)
+    currentSystemState = SYS_RUNNING;
+    Logger::begin(nullptr);  // No network manager - serial only
     Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
-    LOG_INFO("Logger initialized with network manager");
+    LOG_INFO("Logger initialized (serial only mode)");
     
     // Initialize timing monitor
     timingMonitor.begin();
     LOG_INFO("Subsystem timing monitor initialized");
-    
-    // Initialize telnet server (will work once WiFi connects)
-    telnet.begin();
-    Serial.println("Telnet server initialized");
     
     currentSystemState = SYS_RUNNING;
     lastPublishTime = millis();
@@ -380,25 +333,7 @@ void updateSystem() {
     resetWatchdog();
     
     // Update all subsystems with timing monitoring
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::NETWORK_MANAGER);
-        networkManager.update();
-    }
-    
-    // Set telnet connection info when network first connects
-    if (!telnetInfoSet && networkManager.isWiFiConnected()) {
-        String ipStr = WiFi.localIP().toString();
-        telnet.setConnectionInfo(networkManager.getHostname(), ipStr.c_str());
-        telnetInfoSet = true;
-        debugPrintf("Telnet connection info set: %s @ %s\n", 
-                   networkManager.getHostname(), ipStr.c_str());
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::TELNET_SERVER);
-        telnet.update(); // Update telnet server
-    }
-    resetWatchdog(); // Reset after network operations (potential blocking)
+    // Network manager and telnet removed in non-networking version
     
     {
         TIME_SUBSYSTEM(&timingMonitor, SubsystemID::PRESSURE_MANAGER);
@@ -438,26 +373,8 @@ void updateSystem() {
 }
 
 void publishTelemetry() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::TELEMETRY_PUBLISHING);
-    unsigned long now = millis();
-    
-    if (now - lastPublishTime >= publishInterval && networkManager.isConnected()) {
-        lastPublishTime = now;
-        
-        // Publish pressure
-        // Pressure publishing now handled by PressureManager.publishPressures()
-        // Individual pressures are automatically published via MQTT
-        
-        // Publish individual sequence values instead of status string
-        sequenceController.publishIndividualData();
-        
-        // Publish individual safety values instead of status string
-        safetySystem.publishIndividualValues();
-        
-        // Publish individual relay values instead of status string
-        relayController.publishIndividualValues();
-        
-    }
+    // Telemetry publishing removed - non-networking version
+    // All telemetry now available via serial commands only
 }
 
 void processSerialCommands() {
@@ -483,11 +400,7 @@ void processSerialCommands() {
                     Serial.println("Command failed. Type 'help' for available commands.");
                 }
                 
-                // Also send response via MQTT if connected
-                if (strlen(g_response_buffer) > 0 && networkManager.isConnected()) {
-                    snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "cli: %s", g_response_buffer);
-                    networkManager.publish(TOPIC_CONTROL_RESP, g_message_buffer);
-                }
+                // MQTT response removed - non-networking version
             }
         } else {
             if (serialLinePos < COMMAND_BUFFER_SIZE - 1) {
@@ -497,77 +410,7 @@ void processSerialCommands() {
     }
 }
 
-void processTelnetCommands() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_TELNET);
-    static char telnetCommandBuffer[COMMAND_BUFFER_SIZE];
-    static size_t telnetLinePos = 0;
-    static bool inTelnetCommand = false;
-    
-    while (telnet.available()) {
-        int c = telnet.read();
-        if (c == -1) break; // No more data
-        
-        // Handle telnet protocol commands (IAC = 255)
-        if (c == 255) { // IAC (Interpret As Command)
-            inTelnetCommand = true;
-            continue;
-        }
-        
-        if (inTelnetCommand) {
-            // Skip telnet command bytes (WILL, WONT, DO, DONT, etc.)
-            if (c >= 240 && c <= 254) {
-                // Multi-byte command, need to read one more byte
-                if (telnet.available()) {
-                    telnet.read(); // consume the option byte
-                }
-            }
-            inTelnetCommand = false;
-            continue;
-        }
-        
-        if (c == '\r') continue; // Ignore CR
-        
-        if (c == '\n') {
-            telnetCommandBuffer[telnetLinePos] = '\0';
-            telnetLinePos = 0;
-            
-            if (strlen(telnetCommandBuffer) > 0) {
-                // Trim whitespace from beginning and end
-                char* start = telnetCommandBuffer;
-                while (*start && (*start == ' ' || *start == '\t')) start++;
-                
-                char* end = start + strlen(start) - 1;
-                while (end > start && (*end == ' ' || *end == '\t' || *end == '\'' || *end == '"')) end--;
-                *(end + 1) = '\0';
-                
-                if (strlen(start) > 0) {
-                    // Process command (allow all commands via telnet including pins)
-                    bool success = commandProcessor.processCommand(start, false, g_response_buffer, SHARED_BUFFER_SIZE);
-                    
-                    if (strlen(g_response_buffer) > 0) {
-                        telnet.print("Response: ");
-                        telnet.println(g_response_buffer);
-                    }
-                    
-                    if (!success) {
-                        telnet.println("Command failed. Type 'help' for available commands.");
-                    }
-                    
-                    // Also send response via MQTT if connected
-                    if (strlen(g_response_buffer) > 0 && networkManager.isConnected()) {
-                        snprintf(g_message_buffer, SHARED_BUFFER_SIZE, "telnet: %s", g_response_buffer);
-                        networkManager.publish(TOPIC_CONTROL_RESP, g_message_buffer);
-                    }
-                }
-            }
-        } else if (c >= 32 && c <= 126 && c != '\'' && c != '"') { // Only accept printable ASCII, exclude quotes
-            if (telnetLinePos < COMMAND_BUFFER_SIZE - 1) {
-                telnetCommandBuffer[telnetLinePos++] = (char)c;
-            }
-        }
-        // Ignore all other characters (control characters, escape sequences, quotes, etc.)
-    }
-}
+// Telnet command processing removed - non-networking version
 
 // ============================================================================
 // Arduino Main Functions
@@ -591,7 +434,6 @@ void loop() {
             updateSystem();
             publishTelemetry();
             processSerialCommands();
-            processTelnetCommands();
             break;
             
         case SYS_ERROR:
@@ -605,7 +447,6 @@ void loop() {
             relayController.update();
             safetySystem.update(pressureManager.getPressure());
             processSerialCommands();
-            processTelnetCommands();
             delay(100);
             break;
             
