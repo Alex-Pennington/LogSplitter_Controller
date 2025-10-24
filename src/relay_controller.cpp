@@ -1,6 +1,6 @@
 #include "relay_controller.h"
 #include "system_error_manager.h"
-#include "network_manager.h"
+// NetworkManager include removed - non-networking version
 #include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);

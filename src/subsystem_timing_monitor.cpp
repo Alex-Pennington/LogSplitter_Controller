@@ -21,11 +21,8 @@ void SubsystemTimingMonitor::begin() {
         subsystemThresholds[i] = globalThresholds;
     }
     
-    // Set specific thresholds for known slow operations
-    setThreshold(SubsystemID::NETWORK_MANAGER, 200, 1000);  // Network can be slower
-    setThreshold(SubsystemID::TELNET_SERVER, 50, 200);      // Telnet should be fast
+    // Set specific thresholds for known slow operations - networking removed
     setThreshold(SubsystemID::COMMAND_PROCESSING_SERIAL, 150, 500);
-    setThreshold(SubsystemID::COMMAND_PROCESSING_TELNET, 150, 500);
     setThreshold(SubsystemID::MAIN_LOOP_TOTAL, 5000, 8000); // Main loop total time
     
     resetStatistics();
@@ -221,7 +218,7 @@ void SubsystemTimingMonitor::analyzeTimeout(char* analysis, size_t bufferSize) {
 }
 
 SubsystemID SubsystemTimingMonitor::getSlowestSubsystem() {
-    SubsystemID slowest = SubsystemID::NETWORK_MANAGER;
+    SubsystemID slowest = SubsystemID::MAIN_LOOP_TOTAL;  // Use a valid default
     unsigned long maxTime = 0;
     
     for (int i = 0; i < static_cast<int>(SubsystemID::COUNT); i++) {

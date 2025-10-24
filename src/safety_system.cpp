@@ -1,6 +1,6 @@
 #include "safety_system.h"
 #include "relay_controller.h"
-#include "network_manager.h"
+// NetworkManager include removed - non-networking version
 #include "sequence_controller.h"
 #include "logger.h"
 

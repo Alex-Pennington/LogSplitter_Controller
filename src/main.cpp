@@ -307,7 +307,7 @@ bool initializeSystem() {
     
     // Initialize logger (serial only in non-networking version)
     currentSystemState = SYS_RUNNING;
-    Logger::begin(nullptr);  // No network manager - serial only
+    Logger::begin();  // No network manager - serial only
     Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
     LOG_INFO("Logger initialized (serial only mode)");
     

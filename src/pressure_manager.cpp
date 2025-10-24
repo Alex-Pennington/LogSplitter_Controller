@@ -1,5 +1,5 @@
 #include "pressure_manager.h"
-#include "network_manager.h"
+// NetworkManager include removed - non-networking version
 
 extern void debugPrintf(const char* fmt, ...);
 
