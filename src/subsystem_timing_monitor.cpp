@@ -36,8 +36,6 @@ void SubsystemTimingMonitor::begin() {
 
 void SubsystemTimingMonitor::initializeSubsystemData() {
     const char* names[] = {
-        "NetworkManager",
-        "TelnetServer", 
         "PressureManager",
         "SequenceController",
         "RelayController",
@@ -45,8 +43,6 @@ void SubsystemTimingMonitor::initializeSubsystemData() {
         "SystemErrorManager",
         "SafetySystem",
         "CommandProcessing_Serial",
-        "CommandProcessing_Telnet",
-        "TelemetryPublishing",
         "MainLoop_Total"
     };
     

@@ -1,15 +1,13 @@
 #include "sequence_controller.h"
 #include "relay_controller.h"
-#include "network_manager.h"
 #include "pressure_manager.h"
 #include "system_error_manager.h"
 #include "input_manager.h"
 #include "logger.h"
 #include "constants.h"
 
-// External references for relay control and network publishing
+// External references for relay control (network manager removed)
 extern RelayController* g_relayController;
-extern NetworkManager* g_networkManager;
 extern void debugPrintf(const char* fmt, ...);
 // Limit switch states maintained in main
 extern bool g_limitExtendActive;   // Pin 6 - fully extended
@@ -27,10 +25,7 @@ void SequenceController::enterState(SequenceState newState) {
         // Reset limit change timer on state entry
         lastLimitChangeTime = 0;
 
-        // Publish immediate pressure snapshot on every sequence state change
-        if (g_networkManager && g_networkManager->isConnected()) {
-            pressureManager.publishPressures();
-        }
+        // Pressure publishing removed - non-networking version
     }
 }
 
@@ -93,13 +88,7 @@ void SequenceController::abortSequence(const char* reason) {
         LOG_WARN("SEQ: Sequence controller DISABLED due to timeout - requires safety clear to re-enable");
     }
     
-    // Publish abort event
-    if (g_networkManager && g_networkManager->isConnected()) {
-        char event[64];
-        snprintf(event, sizeof(event), "aborted_%s", reason ? reason : "unknown");
-        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, event);
-        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "abort");
-    }
+    // MQTT publishing removed - non-networking version
 }
 
 bool SequenceController::areStartButtonsActive(const bool* pinStates) {
@@ -174,11 +163,7 @@ void SequenceController::update() {
                 debugPrintf("[SEQ] Start confirmed; stable windows: limit=%lums start=%lums\n", 
                     stableTimeMs, startStableTimeMs);
                 
-                // Publish sequence start
-                if (g_networkManager && g_networkManager->isConnected()) {
-                    g_networkManager->publish(TOPIC_SEQUENCE_STATE, "start");
-                    g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "started_R1");
-                }
+                // MQTT publishing removed - non-networking version
             }
             break;
             
@@ -222,9 +207,7 @@ void SequenceController::update() {
                         g_relayController->setRelay(RELAY_RETRACT, true);
                     }
                     lastLimitChangeTime = 0; // reset for next stage
-                    if (g_networkManager && g_networkManager->isConnected()) {
-                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "switched_to_R2_pressure_or_limit");
-                    }
+                    // MQTT publishing removed - non-networking version
                 }
             } else {
                 if (lastLimitChangeTime != 0) {
@@ -266,10 +249,7 @@ void SequenceController::update() {
                     enterState(SEQ_IDLE);
                     allowButtonRelease = false;
                     lastLimitChangeTime = 0;
-                    if (g_networkManager && g_networkManager->isConnected()) {
-                        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "complete_pressure_or_limit");
-                        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "complete");
-                    }
+                    // MQTT publishing removed - non-networking version
                 }
             } else {
                 if (lastLimitChangeTime != 0) {
@@ -404,21 +384,8 @@ void SequenceController::getStatusString(char* buffer, size_t bufferSize) {
 }
 
 void SequenceController::publishIndividualData() {
-    if (!g_networkManager || !g_networkManager->isConnected()) {
-        return;
-    }
-    
-    char buffer[16];
-    
-    // Publish individual sequence values for database integration
-    snprintf(buffer, sizeof(buffer), "%u", getStage());
-    g_networkManager->publish(TOPIC_SEQUENCE_STAGE, buffer);
-    
-    snprintf(buffer, sizeof(buffer), "%d", (currentState != SEQ_IDLE) ? 1 : 0);
-    g_networkManager->publish(TOPIC_SEQUENCE_ACTIVE, buffer);
-    
-    snprintf(buffer, sizeof(buffer), "%lu", getElapsedTime());
-    g_networkManager->publish(TOPIC_SEQUENCE_ELAPSED, buffer);
+    // MQTT publishing removed - non-networking version
+    // Individual sequence data available via serial commands
 }
 
 // Manual operation methods
@@ -461,11 +428,7 @@ bool SequenceController::startManualExtend() {
     
     LOG_INFO("SEQ: Manual extend sequence started");
     
-    // Publish manual extend start
-    if (g_networkManager && g_networkManager->isConnected()) {
-        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "manual_extend");
-        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_extend_started");
-    }
+    // MQTT publishing removed - non-networking version
     
     return true;
 }
@@ -508,11 +471,7 @@ bool SequenceController::startManualRetract() {
     
     LOG_INFO("SEQ: Manual retract sequence started");
     
-    // Publish manual retract start
-    if (g_networkManager && g_networkManager->isConnected()) {
-        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "manual_retract");
-        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_retract_started");
-    }
+    // MQTT publishing removed - non-networking version
     
     return true;
 }
@@ -536,10 +495,7 @@ bool SequenceController::stopManualOperation() {
     enterState(SEQ_IDLE);
     
     // Publish manual stop
-    if (g_networkManager && g_networkManager->isConnected()) {
-        g_networkManager->publish(TOPIC_SEQUENCE_STATE, "stopped");
-        g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_stopped");
-    }
+    // MQTT publishing removed - non-networking version
     
     return true;
 }
@@ -574,11 +530,7 @@ void SequenceController::handleManualExtend() {
         sequenceType = SEQ_TYPE_AUTOMATIC;
         enterState(SEQ_IDLE);
         
-        // Publish manual extend complete
-        if (g_networkManager && g_networkManager->isConnected()) {
-            g_networkManager->publish(TOPIC_SEQUENCE_STATE, "limit_reached");
-            g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_extend_limit_reached");
-        }
+        // MQTT publishing removed - non-networking version
         return;
     }
     
@@ -616,11 +568,7 @@ void SequenceController::handleManualRetract() {
         sequenceType = SEQ_TYPE_AUTOMATIC;
         enterState(SEQ_IDLE);
         
-        // Publish manual retract complete
-        if (g_networkManager && g_networkManager->isConnected()) {
-            g_networkManager->publish(TOPIC_SEQUENCE_STATE, "limit_reached");
-            g_networkManager->publish(TOPIC_SEQUENCE_EVENT, "manual_retract_limit_reached");
-        }
+        // MQTT publishing removed - non-networking version
         return;
     }
     

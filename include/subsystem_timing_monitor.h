@@ -3,10 +3,8 @@
 #include <Arduino.h>
 #include "logger.h"
 
-// Subsystem identifiers for timing monitoring
+// Subsystem identifiers for timing monitoring (non-networking version)
 enum class SubsystemID {
-    NETWORK_MANAGER,
-    TELNET_SERVER,
     PRESSURE_MANAGER,
     SEQUENCE_CONTROLLER,
     RELAY_CONTROLLER,
@@ -14,8 +12,6 @@ enum class SubsystemID {
     SYSTEM_ERROR_MANAGER,
     SAFETY_SYSTEM,
     COMMAND_PROCESSING_SERIAL,
-    COMMAND_PROCESSING_TELNET,
-    TELEMETRY_PUBLISHING,
     MAIN_LOOP_TOTAL,
     COUNT  // Keep this last - used for array sizing
 };
