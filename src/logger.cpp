@@ -61,7 +61,6 @@ void Logger::log(LogLevel level, const char* fmt, ...) {
         Serial.print("] [");
         Serial.print(getLevelString(level));
         Serial.print("] ");
-        Serial.print("[SYSLOG_FAIL] ");
         Serial.println(logBuffer);
     }
 }
