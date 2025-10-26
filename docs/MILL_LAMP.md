@@ -277,7 +277,7 @@ The mill lamp operates independently of critical safety functions:
 **Checks**:
 1. Verify pin 9 configuration: `pins` command
 2. Check LED wiring and current limiting resistor
-3. Test pin output: `set pinmode 9 OUTPUT` + `relay R9 ON` (if supported)
+3. Test pin output: `set pinmode 9 OUTPUT` + `set pin 9 ON` 
 4. Check error manager initialization in system startup
 
 #### Incorrect Blink Pattern

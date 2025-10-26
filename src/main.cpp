@@ -20,6 +20,7 @@
 // Module includes
 #include "constants.h"
 #include "logger.h"
+#include "telemetry_manager.h"
 #include "pressure_manager.h"
 #include "sequence_controller.h"
 #include "relay_controller.h"
@@ -53,6 +54,7 @@ SafetySystem safetySystem;
 SystemErrorManager systemErrorManager;
 CommandProcessor commandProcessor;
 SubsystemTimingMonitor timingMonitor;
+TelemetryManager telemetryManager;
 
 // Telemetry output port (A4=TX, A5=RX) - A5 not used but required by constructor
 SoftwareSerial telemetrySerial(A5, A4);  // RX, TX pins
@@ -279,6 +281,9 @@ bool initializeSystem() {
     // Initialize telemetry serial port (A4=TX, A5=RX)
     telemetrySerial.begin(115200);
     
+    // Initialize telemetry manager (use existing telemetrySerial to avoid conflicts)
+    telemetryManager.begin(&telemetrySerial);
+    
     Serial.println();
     Serial.println("=== LogSplitter Controller v2.0 ===");
     Serial.println("Initializing system...");
@@ -336,12 +341,12 @@ bool initializeSystem() {
     
     Serial.println("Core systems initialized");
     
-    // Initialize logger (telemetry via SoftwareSerial)
+    // Initialize logger (Serial only - NO telemetry to maximize protobuf throughput)
     currentSystemState = SYS_RUNNING;
     Logger::begin();
-    Logger::setTelemetryStream(&telemetrySerial);  // Route telemetry to A4/A5 pins
+    // Logger::setTelemetryStream(&telemetrySerial);  // DISABLED: telemetrySerial is protobuf-only
     Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
-    LOG_INFO("Logger initialized (telemetry on pins A4/A5)");
+    Serial.println("Logger initialized (protobuf-only telemetry on pins A4/A5)");
     
     // Initialize timing monitor
     timingMonitor.begin();
@@ -405,22 +410,23 @@ void updateSystem() {
 }
 
 void publishTelemetry() {
-    // Check if telemetry is enabled
-    if (!Logger::isTelemetryEnabled()) return;
-    
+    // Protobuf telemetry is always active for maximum throughput
     unsigned long now = millis();
     
-    // ===== IMMEDIATE SEQUENCE UPDATES =====
+    // Send telemetry heartbeat every 30 seconds
+    static unsigned long lastHeartbeat = 0;
+    if (now - lastHeartbeat >= 30000) {
+        telemetryManager.sendSystemStatus();
+        lastHeartbeat = now;
+    }
+    
+    // ===== IMMEDIATE SEQUENCE UPDATES (PROTOBUF ONLY) =====
     // Only output sequence data when it actually changes
     SequenceState currentSequenceState = sequenceController.getState();
     if (currentSequenceState != lastSequenceState) {
-        // Sequence state changed - output immediately with pressure context
-        float hydraulicPressure = pressureManager.getHydraulicPressure();
-        float oilPressure = pressureManager.getHydraulicOilPressure();
-        LOG_INFO("Sequence: %s -> %s", 
-            getSequenceStateName(lastSequenceState),
-            getSequenceStateName(currentSequenceState));
-        LOG_INFO("Pressure: A1=%.1fpsi A5=%.1fpsi", hydraulicPressure, oilPressure);
+        // Send telemetry for sequence state change - NO ASCII logging for maximum throughput
+        telemetryManager.sendSequenceEvent((uint8_t)currentSequenceState, 0, (uint16_t)(millis() - systemStartTime));
+        
         lastSequenceState = currentSequenceState;
     }
     
@@ -461,27 +467,21 @@ void processSerialCommands() {
     while (Serial.available()) {
         char c = Serial.read();
         
-        // Handle Ctrl+K (ASCII 11) to toggle debug/telemetry output
+        // Handle Ctrl+K (ASCII 11) to toggle echo mode (protobuf telemetry always active)
         if (c == 11) { // Ctrl+K
-            Logger::setTelemetryEnabled(!Logger::isTelemetryEnabled());
-            g_echoEnabled = !Logger::isTelemetryEnabled(); // Enable echo when telemetry off
+            g_echoEnabled = !g_echoEnabled; // Just toggle echo mode
             
             // Send feedback to user console (Serial)
-            Serial.print("\r\n*** TELEMETRY/DEBUG OUTPUT ");
-            Serial.print(Logger::isTelemetryEnabled() ? "ENABLED" : "DISABLED");
-            Serial.println(" (Ctrl+K to toggle) ***");
-            if (!Logger::isTelemetryEnabled()) {
+            Serial.print("\r\n*** ECHO MODE ");
+            Serial.print(g_echoEnabled ? "ENABLED" : "DISABLED");
+            Serial.println(" (protobuf telemetry always active) ***");
+            if (g_echoEnabled) {
                 Serial.println("Interactive mode: keystrokes will be echoed");
                 Serial.print("> ");
             }
             
-            // Send control message to monitor Arduino (telemetrySerial)
-            telemetrySerial.print("*** TELEMETRY/DEBUG OUTPUT ");
-            telemetrySerial.print(Logger::isTelemetryEnabled() ? "ENABLED" : "DISABLED");
-            telemetrySerial.println(" (Ctrl+K to toggle) ***");
-            if (!Logger::isTelemetryEnabled()) {
-                telemetrySerial.println("Interactive mode: keystrokes will be echoed");
-            }
+            // Send protobuf system status instead of ASCII
+            telemetryManager.sendSystemStatus();
             
             continue;
         }

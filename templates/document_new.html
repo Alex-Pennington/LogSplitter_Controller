@@ -1,0 +1,192 @@
+{% extends "base_new.html" %}
+
+{% block title %}{{ document.name }} - LogSplitter Docs{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Document Header -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <div class="card-header">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1 class="card-title" style="margin-bottom: 0.5rem;">
+                        {% if document.category == 'Emergency' %}
+                        <i class="fas fa-exclamation-triangle" style="color: var(--error-color);"></i>
+                        {% elif document.category == 'Hardware' %}
+                        <i class="fas fa-microchip" style="color: var(--warning-color);"></i>
+                        {% elif document.category == 'Operations' %}
+                        <i class="fas fa-cog" style="color: var(--success-color);"></i>
+                        {% elif document.category == 'Monitoring' %}
+                        <i class="fas fa-chart-line" style="color: var(--primary-color);"></i>
+                        {% elif document.category == 'Development' %}
+                        <i class="fas fa-code" style="color: var(--accent-color);"></i>
+                        {% else %}
+                        <i class="fas fa-book" style="color: var(--secondary-color);"></i>
+                        {% endif %}
+                        {{ document.name }}
+                    </h1>
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <span style="background: {{ category_info[document.category].color }}; color: white; padding: 0.25rem 0.75rem; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight: 600;">
+                            {{ category_info[document.category].icon }} {{ document.category }}
+                        </span>
+                        <span style="color: var(--text-muted); font-size: 0.875rem;">
+                            <i class="fas fa-file"></i> {{ document.size_kb }} KB
+                        </span>
+                        <span style="color: var(--text-muted); font-size: 0.875rem;">
+                            <i class="fas fa-calendar"></i> Modified {{ document.modified.strftime('%B %d, %Y at %I:%M %p') }}
+                        </span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <a href="{{ url_for('view_raw', filename=document.filename) }}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-code"></i>
+                        View Source
+                    </a>
+                    <button onclick="window.print()" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-print"></i>
+                        Print
+                    </button>
+                    <button onclick="copyToClipboard('{{ url_for('view_document', doc_path=document.url_safe_name, _external=True) }}')" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1fr 300px; gap: 2rem; align-items: start;">
+        <!-- Main Content -->
+        <div class="card">
+            <div class="card-content">
+                <div class="document-content">
+                    {{ content | safe }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Table of Contents (if available) -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title" style="font-size: 1rem;">
+                        <i class="fas fa-list"></i>
+                        Quick Actions
+                    </h3>
+                </div>
+                <div class="card-content">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-home"></i>
+                            Back to Home
+                        </a>
+                        <a href="{{ url_for('search') }}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-search"></i>
+                            Search Docs
+                        </a>
+                        {% if document.category == 'Emergency' %}
+                        <a href="{{ url_for('search') }}?q=troubleshooting" class="btn btn-emergency btn-sm">
+                            <i class="fas fa-wrench"></i>
+                            More Troubleshooting
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Related Documents -->
+            {% if related_docs %}
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title" style="font-size: 1rem;">
+                        <i class="fas fa-link"></i>
+                        Related Documents
+                    </h3>
+                    <p class="card-subtitle" style="font-size: 0.75rem;">Other {{ document.category }} docs</p>
+                </div>
+                <div class="card-content">
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        {% for doc in related_docs %}
+                        <li style="margin-bottom: 0.75rem;">
+                            <a href="{{ url_for('view_document', doc_path=doc.url_safe_name) }}" 
+                               style="color: var(--text-primary); text-decoration: none; font-size: 0.875rem; display: block; padding: 0.5rem; border-radius: var(--radius-sm); transition: var(--transition);"
+                               onmouseover="this.style.background='var(--bg-secondary)'"
+                               onmouseout="this.style.background='transparent'">
+                                {{ doc.name }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Document Info -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title" style="font-size: 1rem;">
+                        <i class="fas fa-info-circle"></i>
+                        Document Info
+                    </h3>
+                </div>
+                <div class="card-content">
+                    <div style="display: grid; gap: 0.75rem; font-size: 0.875rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>File:</span>
+                            <span style="color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem;">{{ document.filename }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Path:</span>
+                            <span style="color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem;">{{ document.relative_path }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Size:</span>
+                            <span style="color: var(--text-secondary);">{{ document.size_kb }} KB</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Category:</span>
+                            <span style="color: {{ category_info[document.category].color }};">{{ document.category }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show temporary feedback
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.style.background = 'var(--success-color)';
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.style.background = '';
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Could not copy text: ', err);
+    });
+}
+
+// Responsive sidebar for mobile
+window.addEventListener('resize', function() {
+    const grid = document.querySelector('.grid');
+    if (window.innerWidth < 768) {
+        grid.style.gridTemplateColumns = '1fr';
+    } else {
+        grid.style.gridTemplateColumns = '1fr 300px';
+    }
+});
+
+// Initial check
+if (window.innerWidth < 768) {
+    document.querySelector('.grid').style.gridTemplateColumns = '1fr';
+}
+</script>
+{% endblock %}

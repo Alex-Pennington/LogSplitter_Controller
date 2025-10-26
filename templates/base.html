@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LCARS Documentation System{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('serve_assets', filename='css/lcars.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- LCARS Header -->
+    <div class="lcars-header">
+        <div class="lcars-header-left">
+            <div class="lcars-bracket-left"></div>
+            <div class="lcars-title">LCARS</div>
+        </div>
+        <div class="lcars-header-center">
+            <div class="lcars-status-bar">
+                <span class="lcars-blink">●</span> DOCUMENTATION SERVER OPERATIONAL
+            </div>
+        </div>
+        <div class="lcars-header-right">
+            <div class="lcars-stardate">STARDATE {{ stardate }}</div>
+            <div class="lcars-bracket-right"></div>
+        </div>
+    </div>
+
+    <div class="lcars-container">
+        <!-- Left Panel -->
+        <div class="lcars-left-panel">
+            <div class="lcars-button-stack">
+                <a href="{{ url_for('index') }}" class="lcars-button lcars-button-critical">
+                    <span class="lcars-button-text">🚨 EMERGENCY</span>
+                </a>
+                <a href="{{ url_for('search') }}" class="lcars-button lcars-button-primary">
+                    <span class="lcars-button-text">🔍 SEARCH</span>
+                </a>
+                <a href="/emergency" class="lcars-button lcars-button-secondary">
+                    <span class="lcars-button-text">⚡ QUICK ACCESS</span>
+                </a>
+                <a href="{{ url_for('system_status') }}" class="lcars-button lcars-button-tertiary">
+                    <span class="lcars-button-text">📊 STATUS</span>
+                </a>
+            </div>
+            
+            <div class="lcars-system-info">
+                <div class="lcars-info-panel">
+                    <div class="lcars-panel-header">SYSTEM</div>
+                    <div class="lcars-panel-content">
+                        <div>LOGSPLITTER</div>
+                        <div>CONTROLLER</div>
+                        <div>DOCUMENTATION</div>
+                    </div>
+                </div>
+                
+                <div class="lcars-info-panel">
+                    <div class="lcars-panel-header">STATUS</div>
+                    <div class="lcars-panel-content">
+                        <div class="lcars-status-online">ONLINE</div>
+                        <div>NON-NETWORKING</div>
+                        <div>VERSION</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="lcars-main-content">
+            <div class="lcars-content-header">
+                <div class="lcars-breadcrumb">
+                    {% block breadcrumb %}
+                    <span class="lcars-breadcrumb-item">MAIN COMPUTER</span>
+                    {% endblock %}
+                </div>
+            </div>
+            
+            <div class="lcars-content-body">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="lcars-right-panel">
+            <div class="lcars-right-controls">
+                <div class="lcars-control-group">
+                    <div class="lcars-control-header">🔧 REPAIR ACCESS</div>
+                    <a href="/doc/ERROR" class="lcars-mini-button lcars-emergency-link">🚨 ERRORS</a>
+                    <a href="/doc/PINS" class="lcars-mini-button">📍 HARDWARE</a>
+                    <a href="/doc/MILL_LAMP" class="lcars-mini-button">⚠️ SAFETY</a>
+                    <a href="/doc/SYSTEM_TEST_SUITE" class="lcars-mini-button">🔧 TESTS</a>
+                    <a href="/doc/PRESSURE_SCHEMA" class="lcars-mini-button">📈 PRESSURE</a>
+                    <a href="/doc/COMMANDS" class="lcars-mini-button">⌨️ COMMANDS</a>
+                </div>
+                
+                <div class="lcars-control-group">
+                    <div class="lcars-control-header">DIAGNOSTICS</div>
+                    <div class="lcars-diagnostic">
+                        <span class="lcars-status-good">●</span> DOCS AVAILABLE
+                    </div>
+                    <div class="lcars-diagnostic">
+                        <span class="lcars-status-good">●</span> SERVER ACTIVE
+                    </div>
+                    <div class="lcars-diagnostic">
+                        <span class="lcars-status-good">●</span> INTERFACE STABLE
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LCARS Footer -->
+    <div class="lcars-footer">
+        <div class="lcars-footer-left">
+            <div class="lcars-footer-bracket"></div>
+        </div>
+        <div class="lcars-footer-center">
+            <span>LCARS DOCUMENTATION INTERFACE</span>
+            <span class="lcars-separator">●</span>
+            <span>STARFLEET COMMAND</span>
+            <span class="lcars-separator">●</span>
+            <span>NCC-2371</span>
+        </div>
+        <div class="lcars-footer-right">
+            <div class="lcars-footer-bracket"></div>
+        </div>
+    </div>
+
+    <script>
+        // LCARS sound effects and interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click sound to buttons
+            const buttons = document.querySelectorAll('.lcars-button, .lcars-mini-button');
+            buttons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Visual feedback
+                    this.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 100);
+                });
+            });
+            
+            // Update stardate periodically
+            setInterval(function() {
+                const now = new Date();
+                const stardate = now.getFullYear().toString().substr(-2) + 
+                                String(Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000)).padStart(3, '0') + 
+                                '.' + String(now.getHours()).padStart(2, '0');
+                const stardateEl = document.querySelector('.lcars-stardate');
+                if (stardateEl) {
+                    stardateEl.textContent = 'STARDATE ' + stardate;
+                }
+            }, 60000); // Update every minute
+        });
+    </script>
+</body>
+</html>

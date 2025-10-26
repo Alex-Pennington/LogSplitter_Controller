@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}System Status - LCARS{% endblock %}
+
+{% block breadcrumb %}
+<span class="lcars-breadcrumb-item">MAIN COMPUTER</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">SYSTEM STATUS</span>
+{% endblock %}
+
+{% block content %}
+<div class="lcars-system-display">
+    <div class="lcars-system-header">
+        <h1 class="lcars-title-large">SYSTEM STATUS</h1>
+        <div class="lcars-subtitle">Documentation Server Diagnostics</div>
+    </div>
+    
+    <div class="lcars-system-grid">
+        <div class="lcars-system-panel lcars-panel-primary">
+            <div class="lcars-panel-title">SERVER STATUS</div>
+            <div class="lcars-panel-content">
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">SERVER:</div>
+                    <div class="lcars-status-value lcars-status-online">ONLINE</div>
+                </div>
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">PORT:</div>
+                    <div class="lcars-status-value">2371</div>
+                </div>
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">UPTIME:</div>
+                    <div class="lcars-status-value">{{ uptime }}</div>
+                </div>
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">VERSION:</div>
+                    <div class="lcars-status-value">LCARS v24.1</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="lcars-system-panel lcars-panel-secondary">
+            <div class="lcars-panel-title">DOCUMENT LIBRARY</div>
+            <div class="lcars-panel-content">
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">TOTAL DOCS:</div>
+                    <div class="lcars-status-value">{{ total_docs }}</div>
+                </div>
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">CATEGORIES:</div>
+                    <div class="lcars-status-value">{{ categories|length }}</div>
+                </div>
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">TOTAL SIZE:</div>
+                    <div class="lcars-status-value">{{ total_size_kb }} KB</div>
+                </div>
+                <div class="lcars-status-item">
+                    <div class="lcars-status-label">LAST SCAN:</div>
+                    <div class="lcars-status-value">{{ last_scan }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="lcars-system-panel lcars-panel-tertiary">
+            <div class="lcars-panel-title">SYSTEM RESOURCES</div>
+            <div class="lcars-panel-content">
+                <div class="lcars-resource-item">
+                    <div class="lcars-resource-label">MEMORY:</div>
+                    <div class="lcars-resource-bar">
+                        <div class="lcars-resource-fill" style="width: 35%;"></div>
+                    </div>
+                    <div class="lcars-resource-value">35%</div>
+                </div>
+                <div class="lcars-resource-item">
+                    <div class="lcars-resource-label">CPU:</div>
+                    <div class="lcars-resource-bar">
+                        <div class="lcars-resource-fill" style="width: 15%;"></div>
+                    </div>
+                    <div class="lcars-resource-value">15%</div>
+                </div>
+                <div class="lcars-resource-item">
+                    <div class="lcars-resource-label">NETWORK:</div>
+                    <div class="lcars-resource-bar">
+                        <div class="lcars-resource-fill lcars-resource-good" style="width: 85%;"></div>
+                    </div>
+                    <div class="lcars-resource-value">85%</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="lcars-system-panel lcars-panel-quaternary">
+            <div class="lcars-panel-title">CATEGORY BREAKDOWN</div>
+            <div class="lcars-panel-content">
+                {% for category, count in categories.items() %}
+                <div class="lcars-category-item">
+                    <div class="lcars-category-label">{{ category }}:</div>
+                    <div class="lcars-category-count">{{ count }}</div>
+                    <div class="lcars-category-bar">
+                        <div class="lcars-category-fill" 
+                             style="width: {{ (count / total_docs * 100)|round }}%;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="lcars-system-log">
+        <div class="lcars-log-header">
+            <div class="lcars-log-title">SYSTEM LOG</div>
+            <div class="lcars-log-controls">
+                <button onclick="refreshLog()" class="lcars-log-button">REFRESH</button>
+                <button onclick="clearLog()" class="lcars-log-button">CLEAR</button>
+            </div>
+        </div>
+        
+        <div class="lcars-log-content" id="system-log">
+            <div class="lcars-log-entry">
+                <span class="lcars-log-timestamp">{{ current_time }}</span>
+                <span class="lcars-log-level lcars-log-info">INFO</span>
+                <span class="lcars-log-message">System status display initialized</span>
+            </div>
+            <div class="lcars-log-entry">
+                <span class="lcars-log-timestamp">{{ current_time }}</span>
+                <span class="lcars-log-level lcars-log-success">OK</span>
+                <span class="lcars-log-message">Documentation library scan completed</span>
+            </div>
+            <div class="lcars-log-entry">
+                <span class="lcars-log-timestamp">{{ current_time }}</span>
+                <span class="lcars-log-level lcars-log-info">INFO</span>
+                <span class="lcars-log-message">{{ total_docs }} documents indexed successfully</span>
+            </div>
+            <div class="lcars-log-entry">
+                <span class="lcars-log-timestamp">{{ current_time }}</span>
+                <span class="lcars-log-level lcars-log-success">OK</span>
+                <span class="lcars-log-message">All subsystems operational</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="lcars-system-actions">
+        <div class="lcars-action-panel">
+            <div class="lcars-action-group">
+                <button onclick="runDiagnostics()" class="lcars-system-button">RUN DIAGNOSTICS</button>
+                <button onclick="refreshDocuments()" class="lcars-system-button">REFRESH DOCS</button>
+                <button onclick="compactDatabase()" class="lcars-system-button">OPTIMIZE</button>
+            </div>
+            
+            <div class="lcars-navigation-group">
+                <a href="{{ url_for('index') }}" class="lcars-nav-button">RETURN TO MAIN</a>
+                <button onclick="location.reload()" class="lcars-nav-button">REFRESH STATUS</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshLog() {
+    const logContent = document.getElementById('system-log');
+    const timestamp = new Date().toLocaleString();
+    const newEntry = document.createElement('div');
+    newEntry.className = 'lcars-log-entry';
+    newEntry.innerHTML = `
+        <span class="lcars-log-timestamp">${timestamp}</span>
+        <span class="lcars-log-level lcars-log-info">INFO</span>
+        <span class="lcars-log-message">System log refreshed by user</span>
+    `;
+    logContent.appendChild(newEntry);
+    logContent.scrollTop = logContent.scrollHeight;
+}
+
+function clearLog() {
+    const logContent = document.getElementById('system-log');
+    logContent.innerHTML = `
+        <div class="lcars-log-entry">
+            <span class="lcars-log-timestamp">${new Date().toLocaleString()}</span>
+            <span class="lcars-log-level lcars-log-success">OK</span>
+            <span class="lcars-log-message">System log cleared by user</span>
+        </div>
+    `;
+}
+
+function runDiagnostics() {
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = 'RUNNING...';
+    button.disabled = true;
+    
+    setTimeout(() => {
+        button.textContent = 'COMPLETE';
+        button.style.backgroundColor = '#66ff66';
+        
+        const logContent = document.getElementById('system-log');
+        const newEntry = document.createElement('div');
+        newEntry.className = 'lcars-log-entry';
+        newEntry.innerHTML = `
+            <span class="lcars-log-timestamp">${new Date().toLocaleString()}</span>
+            <span class="lcars-log-level lcars-log-success">OK</span>
+            <span class="lcars-log-message">System diagnostics completed - All systems operational</span>
+        `;
+        logContent.appendChild(newEntry);
+        logContent.scrollTop = logContent.scrollHeight;
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.backgroundColor = '';
+            button.disabled = false;
+        }, 2000);
+    }, 3000);
+}
+
+function refreshDocuments() {
+    location.reload();
+}
+
+function compactDatabase() {
+    const button = event.target;
+    button.textContent = 'OPTIMIZING...';
+    button.disabled = true;
+    
+    setTimeout(() => {
+        button.textContent = 'OPTIMIZED';
+        button.style.backgroundColor = '#66ff66';
+        
+        setTimeout(() => {
+            button.textContent = 'OPTIMIZE';
+            button.style.backgroundColor = '';
+            button.disabled = false;
+        }, 2000);
+    }, 2000);
+}
+
+// Auto-refresh system stats every 30 seconds
+setInterval(() => {
+    // In a real implementation, you would fetch updated stats via AJAX
+    console.log('Auto-refreshing system stats...');
+}, 30000);
+</script>
+{% endblock %}

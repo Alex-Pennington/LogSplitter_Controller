@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}LCARS Documentation Index{% endblock %}
+
+{% block breadcrumb %}
+<span class="lcars-breadcrumb-item">MAIN COMPUTER</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">DOCUMENTATION INDEX</span>
+{% endblock %}
+
+{% block content %}
+<div class="lcars-main-display">
+    <div class="lcars-display-header">
+        <h1 class="lcars-title-large">EMERGENCY OPERATIONS DASHBOARD</h1>
+        <div class="lcars-subtitle">Quick Access for Breakdowns & Repairs</div>
+    </div>
+    
+    <!-- Emergency Search Bar -->
+    <div class="lcars-search-bar lcars-emergency-search">
+        <form action="{{ url_for('search') }}" method="GET" class="lcars-search-form">
+            <input type="text" name="q" placeholder="EMERGENCY SEARCH - ENTER PROBLEM/COMPONENT..." class="lcars-search-input" autofocus>
+            <button type="submit" class="lcars-search-button lcars-emergency-button">FIND NOW</button>
+        </form>
+    </div>
+
+    <!-- Critical Access Panel -->
+    <div class="lcars-emergency-panel">
+        <div class="lcars-emergency-header">
+            <div class="lcars-emergency-title">CRITICAL DOCUMENTATION ACCESS</div>
+            <div class="lcars-emergency-status">
+                <span class="lcars-status-critical">●</span> EMERGENCY MODE ACTIVE
+            </div>
+        </div>
+        
+        {% for category, docs in critical_docs.items() %}
+        <div class="lcars-critical-section">
+            <div class="lcars-critical-category">{{ category }}</div>
+            <div class="lcars-critical-docs">
+                {% for doc in docs %}
+                <a href="{{ url_for('view_document', filename=doc.filename) }}" class="lcars-critical-link">
+                    <div class="lcars-critical-card">
+                        <div class="lcars-critical-title">{{ doc.name }}</div>
+                        <div class="lcars-critical-preview">{{ doc.content_preview[:80] }}...</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Recently Modified Panel -->
+    {% if recent_docs %}
+    <div class="lcars-recent-panel">
+        <div class="lcars-recent-header">RECENTLY MODIFIED</div>
+        <div class="lcars-recent-docs">
+            {% for doc in recent_docs %}
+            <div class="lcars-recent-item">
+                <a href="{{ url_for('view_document', filename=doc.filename) }}">{{ doc.name }}</a>
+                <span class="lcars-recent-time">{{ doc.modified }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Full Documentation Index (Collapsible) -->
+    <div class="lcars-full-index" id="fullIndex">
+        <div class="lcars-index-toggle">
+            <button onclick="toggleFullIndex()" class="lcars-toggle-button">
+                ▼ SHOW FULL DOCUMENTATION INDEX ({{ total_docs }} DOCS)
+            </button>
+        </div>
+        
+        <div class="lcars-index-content" style="display: none;">
+            {% for category, docs in categories.items() %}
+            <div class="lcars-document-category">
+                <div class="lcars-category-header">
+                    <div class="lcars-category-title">{{ category.upper() }}</div>
+                    <div class="lcars-category-count">{{ docs|length }} DOCUMENTS</div>
+                </div>
+                
+                <div class="lcars-document-grid">
+                    {% for doc in docs %}
+                    <div class="lcars-document-card">
+                        <div class="lcars-card-header">
+                            <div class="lcars-card-title">
+                                <a href="{{ url_for('view_document', filename=doc.filename) }}">
+                                    {{ doc.name }}
+                                </a>
+                            </div>
+                            <div class="lcars-card-status">
+                                <span class="lcars-status-indicator">●</span>
+                                {{ doc.size_kb }} KB
+                            </div>
+                        </div>
+                        
+                        <div class="lcars-card-meta">
+                            <div class="lcars-card-modified">
+                                Modified: {{ doc.modified }}
+                            </div>
+                            <div class="lcars-card-actions">
+                                <a href="{{ url_for('view_document', filename=doc.filename) }}" class="lcars-action-button">VIEW</a>
+                                <a href="{{ url_for('view_raw', filename=doc.filename) }}" class="lcars-action-button">SOURCE</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="lcars-system-summary">
+        <div class="lcars-summary-panel">
+            <div class="lcars-summary-title">SYSTEM SUMMARY</div>
+            <div class="lcars-summary-content">
+                <div class="lcars-summary-item">
+                    <span class="lcars-summary-label">TOTAL DOCUMENTS:</span>
+                    <span class="lcars-summary-value">{{ total_docs }}</span>
+                </div>
+                <div class="lcars-summary-item">
+                    <span class="lcars-summary-label">CATEGORIES:</span>
+                    <span class="lcars-summary-value">{{ categories | length }}</span>
+                </div>
+                <div class="lcars-summary-item">
+                    <span class="lcars-summary-label">LAST SCAN:</span>
+                    <span class="lcars-summary-value">{{ scan_time if scan_time else 'NEVER' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleFullIndex() {
+    const content = document.querySelector('.lcars-index-content');
+    const button = document.querySelector('.lcars-toggle-button');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        button.innerHTML = '▲ HIDE FULL DOCUMENTATION INDEX';
+    } else {
+        content.style.display = 'none';
+        button.innerHTML = '▼ SHOW FULL DOCUMENTATION INDEX ({{ total_docs }} DOCS)';
+    }
+}
+
+// Auto-focus search on page load for emergency use
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.querySelector('.lcars-search-input');
+    if (searchInput) {
+        searchInput.focus();
+    }
+});
+</script>
+{% endblock %}

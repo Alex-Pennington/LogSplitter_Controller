@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LogSplitter Documentation{% endblock %}</title>
+    
+    <!-- Modern CSS Framework -->
+    <link rel="stylesheet" href="{{ url_for('serve_assets', filename='css/modern.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <a href="{{ url_for('index') }}">
+                        <i class="fas fa-cogs"></i>
+                        <span>LogSplitter Docs</span>
+                    </a>
+                </div>
+                
+                <nav class="nav">
+                    <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                    <a href="{{ url_for('search') }}" class="nav-link {% if request.endpoint == 'search' %}active{% endif %}">
+                        <i class="fas fa-search"></i> Search
+                    </a>
+                    <a href="{{ url_for('emergency_diagnostic') }}" class="nav-link emergency-link">
+                        <i class="fas fa-exclamation-triangle"></i> Emergency
+                    </a>
+                </nav>
+                
+                <div class="header-actions">
+                    <form action="{{ url_for('search') }}" method="GET" class="search-form">
+                        <input type="text" name="q" placeholder="Quick search..." class="search-input">
+                        <button type="submit" class="search-btn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>LogSplitter Controller</h3>
+                    <p>Technical documentation and operational guides for the Arduino R4 WiFi based log splitting controller system.</p>
+                </div>
+                
+                <div class="footer-section">
+                    <h3>Quick Links</h3>
+                    <ul>
+                        <li><a href="/doc/README">System Overview</a></li>
+                        <li><a href="/doc/PINS">Hardware Pins</a></li>
+                        <li><a href="/doc/ERROR">Error Codes</a></li>
+                        <li><a href="/doc/COMMANDS">Commands</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h3>System Status</h3>
+                    <div class="status-indicators">
+                        <div class="status-item">
+                            <i class="fas fa-circle status-green"></i>
+                            <span>Documentation Online</span>
+                        </div>
+                        <div class="status-item">
+                            <i class="fas fa-circle status-blue"></i>
+                            <span>Last Updated: {{ moment().format('MMM D, YYYY') if moment else 'Recently' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2025 LogSplitter Controller Documentation. Built for operational efficiency.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // Emergency diagnostic access
+        document.addEventListener('DOMContentLoaded', function() {
+            // Emergency button now goes directly to interactive diagnostic wizard
+            // No toggle needed - direct navigation to /emergency
+            
+            // Keyboard shortcuts
+            const searchInput = document.querySelector('.search-input');
+            document.addEventListener('keydown', function(e) {
+                // Ctrl/Cmd + K for search
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    searchInput.focus();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

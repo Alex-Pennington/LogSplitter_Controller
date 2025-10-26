@@ -1,0 +1,231 @@
+{% extends "base_new.html" %}
+
+{% block title %}Search Documentation - LogSplitter Docs{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Search Documentation</h1>
+        <p class="page-subtitle">Find technical information, troubleshooting guides, and system specifications.</p>
+    </div>
+
+    <!-- Advanced Search Interface -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <div class="card-content">
+            <form action="{{ url_for('search') }}" method="GET">
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: end;">
+                    <div>
+                        <label for="search-query" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Search Query</label>
+                        <input type="text" 
+                               id="search-query" 
+                               name="q" 
+                               value="{{ query }}" 
+                               placeholder="Enter keywords, problem description, or component name..."
+                               class="search-input"
+                               style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 1rem;"
+                               autofocus>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-search"></i>
+                        Search
+                    </button>
+                </div>
+                
+                {% if categories %}
+                <div style="margin-top: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Filter by Category (optional)</label>
+                    <select name="category" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-primary);">
+                        <option value="">All Categories</option>
+                        {% for category, info in categories.items() %}
+                        <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>
+                            {{ info.icon }} {{ category }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- Search Results -->
+    {% if query %}
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">
+                <i class="fas fa-search"></i>
+                Search Results
+            </h2>
+            <p class="card-subtitle">
+                Found {{ results|length }} result{{ 's' if results|length != 1 }} for "{{ query }}"
+                {% if category_filter %} in {{ category_filter }}{% endif %}
+            </p>
+        </div>
+        <div class="card-content">
+            {% if results %}
+                {% for result in results %}
+                <div class="card" style="margin-bottom: 1.5rem; {% if result.doc.category == 'Emergency' %}border-left: 4px solid var(--error-color);{% endif %}">
+                    <div class="card-header" style="{% if result.doc.category == 'Emergency' %}background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));{% endif %}">
+                        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
+                            <div>
+                                <h3 class="card-title" style="margin-bottom: 0.5rem;">
+                                    {% if result.doc.category == 'Emergency' %}
+                                    <i class="fas fa-exclamation-triangle" style="color: var(--error-color);"></i>
+                                    {% endif %}
+                                    <a href="{{ url_for('view_document', doc_path=result.doc.url_safe_name) }}" 
+                                       style="text-decoration: none; color: inherit;">
+                                        {{ result.doc.name }}
+                                    </a>
+                                    {% if result.title_match %}
+                                    <span style="background: var(--success-color); color: white; padding: 0.125rem 0.5rem; border-radius: var(--radius-sm); font-size: 0.75rem; margin-left: 0.5rem;">
+                                        TITLE MATCH
+                                    </span>
+                                    {% endif %}
+                                </h3>
+                                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                                    <span style="background: {{ categories[result.doc.category].color }}; color: white; padding: 0.25rem 0.75rem; border-radius: var(--radius-lg); font-size: 0.75rem;">
+                                        {{ categories[result.doc.category].icon }} {{ result.doc.category }}
+                                    </span>
+                                    <span style="color: var(--text-muted); font-size: 0.875rem;">
+                                        {{ result.doc.size_kb }} KB
+                                    </span>
+                                    <span style="color: var(--text-muted); font-size: 0.875rem;">
+                                        Modified {{ result.doc.modified.strftime('%b %d, %Y') }}
+                                    </span>
+                                    <span style="color: var(--text-muted); font-size: 0.875rem;">
+                                        Relevance: {{ result.score }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <a href="{{ url_for('view_document', doc_path=result.doc.url_safe_name) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye"></i>
+                                    View
+                                </a>
+                                <a href="{{ url_for('view_raw', filename=result.doc.filename) }}" class="btn btn-secondary btn-sm">
+                                    <i class="fas fa-code"></i>
+                                    Source
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if result.matches %}
+                    <div class="card-content">
+                        <h4 style="margin-bottom: 1rem; color: var(--text-primary); font-size: 0.875rem; text-transform: uppercase; font-weight: 600;">
+                            Content Matches ({{ result.matches|length }})
+                        </h4>
+                        {% for match in result.matches %}
+                        <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: var(--radius-md); border-left: 3px solid var(--primary-color);">
+                            <div style="margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.75rem;">
+                                <i class="fas fa-map-marker-alt"></i> Line {{ match.line }}: 
+                                <strong>{{ match.text[:80] }}{% if match.text|length > 80 %}...{% endif %}</strong>
+                            </div>
+                            <pre style="background: var(--bg-tertiary); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.875rem; line-height: 1.4; overflow-x: auto; margin: 0;">{{ match.context }}</pre>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="card-content">
+                        <p style="color: var(--text-secondary); font-style: italic;">
+                            {{ result.doc.content_preview }}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <!-- No Results -->
+                <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">
+                        <i class="fas fa-search-minus"></i>
+                    </div>
+                    <h3 style="margin-bottom: 1rem;">No Results Found</h3>
+                    <p style="margin-bottom: 2rem;">
+                        No documents match your search for "{{ query }}"
+                        {% if category_filter %} in {{ category_filter }}{% endif %}.
+                    </p>
+                    
+                    <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+                        <a href="{{ url_for('search') }}" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                            New Search
+                        </a>
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="fas fa-home"></i>
+                            Browse All Docs
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <!-- Search Help -->
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-lightbulb"></i>
+                    Search Tips
+                </h2>
+            </div>
+            <div class="card-content">
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin-bottom: 1rem;">
+                        <strong>🚨 Emergency:</strong> "error", "safety", "mill_lamp", "fault"
+                    </li>
+                    <li style="margin-bottom: 1rem;">
+                        <strong>🔧 Hardware:</strong> "pins", "pressure", "arduino", "relay"
+                    </li>
+                    <li style="margin-bottom: 1rem;">
+                        <strong>⚙️ Operations:</strong> "setup", "commands", "install", "deploy"
+                    </li>
+                    <li style="margin-bottom: 1rem;">
+                        <strong>📊 Monitoring:</strong> "monitor", "test", "telemetry", "logs"
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-rocket"></i>
+                    Quick Searches
+                </h2>
+            </div>
+            <div class="card-content">
+                <div style="display: grid; gap: 0.75rem;">
+                    <a href="{{ url_for('search') }}?q=error" class="btn btn-emergency btn-sm">
+                        🚨 System Errors
+                    </a>
+                    <a href="{{ url_for('search') }}?q=pins" class="btn btn-secondary btn-sm">
+                        📍 Hardware Pins
+                    </a>
+                    <a href="{{ url_for('search') }}?q=pressure" class="btn btn-secondary btn-sm">
+                        📈 Pressure System
+                    </a>
+                    <a href="{{ url_for('search') }}?q=setup" class="btn btn-secondary btn-sm">
+                        ⚙️ Setup Guide
+                    </a>
+                    <a href="{{ url_for('search') }}?q=commands" class="btn btn-secondary btn-sm">
+                        ⌨️ System Commands
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Auto-expand search input on focus
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search-query');
+    if (searchInput && !searchInput.value) {
+        searchInput.focus();
+    }
+});
+</script>
+{% endblock %}

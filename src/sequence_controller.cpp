@@ -3,11 +3,13 @@
 #include "pressure_manager.h"
 #include "system_error_manager.h"
 #include "input_manager.h"
+#include "telemetry_manager.h"
 #include "logger.h"
 #include "constants.h"
 
 // External references for relay control (network manager removed)
 extern RelayController* g_relayController;
+extern TelemetryManager telemetryManager;
 extern void debugPrintf(const char* fmt, ...);
 // Limit switch states maintained in main
 extern bool g_limitExtendActive;   // Pin 6 - fully extended
@@ -17,8 +19,11 @@ extern PressureManager pressureManager;
 
 void SequenceController::enterState(SequenceState newState) {
     if (currentState != newState) {
-        LOG_INFO("SEQ: State change %d -> %d (type: %d)", (int)currentState, (int)newState, (int)sequenceType);
         debugPrintf("[SEQ] State change: %d -> %d (type: %d)\n", (int)currentState, (int)newState, (int)sequenceType);
+        
+        // Send telemetry for sequence state change
+        telemetryManager.sendSequenceEvent((uint8_t)newState, 0, (uint16_t)(millis() - stateEntryTime));
+        
         currentState = newState;
         stateEntryTime = millis();
         
@@ -61,12 +66,15 @@ bool SequenceController::checkStableLimit(uint8_t pin, bool active) {
 
 void SequenceController::abortSequence(const char* reason) {
     // Use appropriate log level based on reason
+    const char* abortReason = reason ? reason : "unknown";
     if (reason && strcmp(reason, "timeout") == 0) {
-        LOG_CRITICAL("SEQ: Sequence TIMEOUT - aborting operation (type: %d)", (int)sequenceType);
+        debugPrintf("SEQ: Sequence TIMEOUT - aborting operation (type: %d)\n", (int)sequenceType);
     } else {
-        LOG_INFO("SEQ: Aborting sequence: %s (type: %d)", reason ? reason : "unknown", (int)sequenceType);
+        debugPrintf("[SEQ] Aborting sequence: %s (type: %d)\n", abortReason, (int)sequenceType);
     }
-    debugPrintf("[SEQ] Aborting sequence: %s (type: %d)\n", reason ? reason : "unknown", (int)sequenceType);
+    
+    // Send telemetry for sequence abort
+    telemetryManager.sendSequenceEvent(255, 0, (uint16_t)(millis() - stateEntryTime)); // 255 = abort event
     
     // Turn off all hydraulic relays involved in sequence
     if (g_relayController) {

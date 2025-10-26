@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Search Documentation - LCARS{% endblock %}
+
+{% block breadcrumb %}
+<span class="lcars-breadcrumb-item">MAIN COMPUTER</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item"><a href="{{ url_for('index') }}">DOCUMENTATION</a></span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">SEARCH</span>
+{% endblock %}
+
+{% block content %}
+<div class="lcars-search-display">
+    <div class="lcars-search-header">
+        <h1 class="lcars-title-large">DOCUMENTATION SEARCH</h1>
+        <div class="lcars-subtitle">Computer Database Search Interface</div>
+    </div>
+    
+    <div class="lcars-search-interface">
+        <form action="{{ url_for('search') }}" method="GET" class="lcars-search-form-large">
+            <div class="lcars-input-group">
+                <label for="search-query" class="lcars-input-label">SEARCH QUERY:</label>
+                <input type="text" id="search-query" name="q" value="{{ query }}" 
+                       placeholder="Enter search terms..." class="lcars-search-input-large">
+                <button type="submit" class="lcars-search-button-large">EXECUTE SEARCH</button>
+            </div>
+        </form>
+    </div>
+    
+    {% if query %}
+    <div class="lcars-search-results">
+        <div class="lcars-results-header">
+            <div class="lcars-results-title">SEARCH RESULTS</div>
+            <div class="lcars-results-count">
+                {{ results|length }} DOCUMENTS FOUND FOR "{{ query }}"
+            </div>
+        </div>
+        
+        {% if results %}
+            {% for result in results %}
+            <div class="lcars-result-card {% if result.doc.priority == 1 %}lcars-emergency-result{% endif %}">
+                <div class="lcars-result-header">
+                    <div class="lcars-result-title">
+                        {% if result.doc.priority == 1 %}🚨{% endif %}
+                        <a href="{{ url_for('view_document', filename=result.doc.filename) }}">
+                            {{ result.doc.name }}
+                        </a>
+                        {% if result.score > 5 %}
+                        <span class="lcars-match-badge">HIGH RELEVANCE</span>
+                        {% endif %}
+                    </div>
+                    <div class="lcars-result-meta">
+                        <span class="lcars-result-category {% if result.doc.priority == 1 %}lcars-emergency-category{% endif %}">
+                            {{ result.doc.category }}
+                        </span>
+                        <span class="lcars-result-size">{{ result.doc.size_kb }} KB</span>
+                        <span class="lcars-result-score">Score: {{ result.score }}</span>
+                    </div>
+                </div>
+                
+                {% for match in result.matches %}
+                <div class="lcars-result-snippet">
+                    <div class="lcars-snippet-header">
+                        Line {{ match.line_num }}: <strong>{{ match.matched_line[:100] }}...</strong>
+                    </div>
+                    <pre class="lcars-code-snippet">{{ match.context }}</pre>
+                </div>
+                {% endfor %}
+                
+                <div class="lcars-result-actions">
+                    <a href="{{ url_for('view_document', filename=result.doc.filename) }}" 
+                       class="lcars-result-button">VIEW DOCUMENT</a>
+                    <a href="{{ url_for('view_raw', filename=result.doc.filename) }}" 
+                       class="lcars-result-button">VIEW SOURCE</a>
+                    {% if result.doc.priority == 1 %}
+                    <span class="lcars-emergency-label">CRITICAL DOC</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="lcars-no-results">
+                <div class="lcars-no-results-icon">⚠</div>
+                <div class="lcars-no-results-text">
+                    <div class="lcars-no-results-title">NO MATCHES FOUND</div>
+                    <div class="lcars-no-results-message">
+                        No documents contain the search term "{{ query }}".
+                        <br>Try different keywords or check the main index.
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="lcars-search-help">
+        <div class="lcars-help-panel">
+            <div class="lcars-help-title">SEARCH TIPS</div>
+            <div class="lcars-help-content">
+                <ul class="lcars-help-list">
+                    <li><strong>Emergency Searches:</strong> "pressure not working", "relay stuck", "safety error"</li>
+                    <li><strong>Component Names:</strong> pins, commands, pressure, safety, mill_lamp</li>
+                    <li><strong>Problem Types:</strong> error, fault, broken, stuck, overheating</li>
+                    <li><strong>Smart Search:</strong> Automatically expands terms (e.g., "pressure" finds sensor, psi, pneumatic)</li>
+                    <li><strong>Priority Results:</strong> Emergency/safety docs appear first with 🚨 indicators</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

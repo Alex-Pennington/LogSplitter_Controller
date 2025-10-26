@@ -1,9 +1,11 @@
 #include "relay_controller.h"
 #include "system_error_manager.h"
+#include "telemetry_manager.h"
 // NetworkManager include removed - non-networking version
 #include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
+extern TelemetryManager telemetryManager;
 // NetworkManager extern removed - non-networking version
 
 void RelayController::begin() {
@@ -163,6 +165,10 @@ void RelayController::setRelay(uint8_t relayNumber, bool on, bool isManualComman
         relayStates[relayNumber] = on;
         debugPrintf("[RelayController] R%d -> %s %s\n", relayNumber, on ? "ON" : "OFF", 
                    isManualCommand ? "(manual)" : "(auto)");
+        
+        // Send telemetry for relay state change
+        Telemetry::RelayType relayType = (Telemetry::RelayType)relayNumber; // Direct mapping for now
+        telemetryManager.sendRelayEvent(relayNumber, on, isManualCommand, true, relayType);
     } else {
         debugPrintf("Failed to set relay R%d to %s - state not updated\n", relayNumber, on ? "ON" : "OFF");
     }

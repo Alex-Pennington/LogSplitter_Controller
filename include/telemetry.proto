@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package logsplitter;
+
+// Unified telemetry message for all system events
+message TelemetryMessage {
+  uint64 timestamp_ms = 1;        // Milliseconds since boot
+  uint32 sequence_id = 2;         // Message sequence number
+  
+  oneof payload {
+    DigitalInputEvent digital_input = 10;
+    DigitalOutputEvent digital_output = 11;
+    RelayEvent relay_event = 12;
+    PressureReading pressure = 13;
+    SystemError system_error = 14;
+    SafetyEvent safety_event = 15;
+    SystemStatus system_status = 16;
+    SequenceEvent sequence_event = 17;
+  }
+}
+
+// Digital input state changes (DI2-DI12)
+message DigitalInputEvent {
+  uint32 pin = 1;                 // Pin number (2-12)
+  bool state = 2;                 // true=ACTIVE, false=INACTIVE
+  bool is_debounced = 3;          // true=debounced, false=raw
+  uint32 debounce_time_ms = 4;    // Time spent debouncing (if applicable)
+  InputType input_type = 5;       // Type of input
+  
+  enum InputType {
+    UNKNOWN = 0;
+    MANUAL_EXTEND = 1;            // Pin 2
+    MANUAL_RETRACT = 2;           // Pin 3
+    SAFETY_CLEAR = 3;             // Pin 4
+    SEQUENCE_START = 4;           // Pin 5
+    LIMIT_EXTEND = 5;             // Pin 6
+    LIMIT_RETRACT = 6;            // Pin 7
+    SPLITTER_OPERATOR = 7;        // Pin 8
+    EMERGENCY_STOP = 8;           // Pin 12
+  }
+}
+
+// Digital output state changes (DO9, DO13)
+message DigitalOutputEvent {
+  uint32 pin = 1;                 // Pin number (9, 13)
+  bool state = 2;                 // true=HIGH, false=LOW
+  OutputType output_type = 3;     // Type of output
+  string pattern = 4;             // For mill lamp: "solid", "slow_blink", "fast_blink", "off"
+  
+  enum OutputType {
+    UNKNOWN = 0;
+    MILL_LAMP = 1;                // Pin 9
+    STATUS_LED = 2;               // Pin 13
+  }
+}
+
+// Relay board events (R1-R9)
+message RelayEvent {
+  uint32 relay_number = 1;        // Relay number (1-9)
+  bool state = 2;                 // true=ON, false=OFF
+  bool is_manual = 3;             // true=manual command, false=automatic
+  RelayType relay_type = 4;       // Type of relay
+  bool command_success = 5;       // true=command succeeded, false=failed
+  
+  enum RelayType {
+    UNKNOWN = 0;
+    HYDRAULIC_EXTEND = 1;         // R1
+    HYDRAULIC_RETRACT = 2;        // R2
+    RESERVED_3 = 3;               // R3
+    RESERVED_4 = 4;               // R4
+    RESERVED_5 = 5;               // R5
+    RESERVED_6 = 6;               // R6
+    OPERATOR_BUZZER = 7;          // R7
+    ENGINE_STOP = 8;              // R8
+    POWER_CONTROL = 9;            // R9
+  }
+}
+
+// Pressure sensor readings
+message PressureReading {
+  uint32 sensor_pin = 1;          // Analog pin (A0, A1, A2, A3)
+  float pressure_psi = 2;         // Pressure in PSI
+  uint32 raw_value = 3;           // Raw ADC reading
+  PressureType pressure_type = 4; // Type of pressure sensor
+  bool is_fault = 5;              // Sensor fault detected
+  
+  enum PressureType {
+    UNKNOWN = 0;
+    SYSTEM_PRESSURE = 1;          // A1 - Main hydraulic pressure
+    TANK_PRESSURE = 2;            // A0 - Tank/reservoir pressure
+    LOAD_PRESSURE = 3;            // A2 - Load pressure
+    AUXILIARY = 4;                // A3 - Auxiliary pressure
+  }
+}
+
+// System error events (mill lamp related)
+message SystemError {
+  uint32 error_code = 1;          // Error code (0x01-0x80)
+  string description = 2;         // Human readable description
+  ErrorSeverity severity = 3;     // Error severity level
+  bool is_acknowledged = 4;       // Has been acknowledged by operator
+  bool is_active = 5;             // Currently active error
+  
+  enum ErrorSeverity {
+    INFO = 0;
+    WARNING = 1;
+    ERROR = 2;
+    CRITICAL = 3;
+  }
+}
+
+// Safety system events
+message SafetyEvent {
+  SafetyEventType event_type = 1; // Type of safety event
+  bool is_active = 2;             // Current safety state
+  string reason = 3;              // Reason for safety activation
+  
+  enum SafetyEventType {
+    SAFETY_ACTIVATED = 0;
+    SAFETY_CLEARED = 1;
+    EMERGENCY_STOP_ACTIVATED = 2;
+    EMERGENCY_STOP_CLEARED = 3;
+    LIMIT_SWITCH_TRIGGERED = 4;
+    PRESSURE_SAFETY = 5;
+  }
+}
+
+// Periodic system status heartbeat
+message SystemStatus {
+  uint64 uptime_ms = 1;           // System uptime in milliseconds
+  uint32 loop_frequency_hz = 2;   // Main loop frequency
+  uint32 free_memory_bytes = 3;   // Available memory
+  uint32 active_error_count = 4;  // Number of active errors
+  string mill_lamp_pattern = 5;   // Current mill lamp pattern
+  SequenceState sequence_state = 6; // Current sequence state
+  bool safety_active = 7;         // Safety system active
+  bool estop_active = 8;          // Emergency stop active
+  
+  enum SequenceState {
+    IDLE = 0;
+    EXTENDING = 1;
+    EXTENDED = 2;
+    RETRACTING = 3;
+    RETRACTED = 4;
+    PAUSED = 5;
+    ERROR_STATE = 6;
+  }
+}
+
+// Sequence operation events
+message SequenceEvent {
+  SequenceEventType event_type = 1; // Type of sequence event
+  uint32 step_number = 2;           // Current step in sequence
+  uint32 elapsed_time_ms = 3;       // Time in current step
+  
+  enum SequenceEventType {
+    SEQUENCE_STARTED = 0;
+    SEQUENCE_STEP_COMPLETE = 1;
+    SEQUENCE_COMPLETE = 2;
+    SEQUENCE_PAUSED = 3;
+    SEQUENCE_RESUMED = 4;
+    SEQUENCE_ABORTED = 5;
+    SEQUENCE_TIMEOUT = 6;
+  }
+}

@@ -1,6 +1,7 @@
 #include "system_error_manager.h"
 // NetworkManager include removed - non-networking version
 #include "logger.h"
+#include "telemetry_manager.h"
 
 extern void debugPrintf(const char* fmt, ...);
 
@@ -46,6 +47,10 @@ void SystemErrorManager::setError(SystemErrorType errorType, const char* descrip
     // Also log to debug for backward compatibility
     debugPrintf("SystemErrorManager: ERROR 0x%02X - %s\n", errorType, errorDesc);
     
+    // Send telemetry for system error
+    Telemetry::ErrorSeverity severity = getSeverityFromErrorType(errorType);
+    telemetryManager.sendSystemError(errorType, errorDesc, severity, false, true);
+    
     // Publish to MQTT
     publishError(errorType, errorDesc);
     
@@ -59,6 +64,11 @@ void SystemErrorManager::clearError(SystemErrorType errorType) {
         acknowledgedErrors &= ~errorType;  // Clear acknowledgment too
         
         debugPrintf("SystemErrorManager: Cleared error 0x%02X\n", errorType);
+        
+        // Send telemetry for error cleared
+        Telemetry::ErrorSeverity severity = getSeverityFromErrorType(errorType);
+        const char* errorDesc = getErrorDescription(errorType);
+        telemetryManager.sendSystemError(errorType, errorDesc, severity, false, false);
         
         // If no more errors, reset error start time
         if (activeErrors == 0) {
@@ -101,13 +111,21 @@ void SystemErrorManager::updateLED() {
     
     switch (pattern) {
         case LED_OFF:
-            digitalWrite(MILL_LAMP_PIN, LOW);
-            ledState = false;
+            if (ledState != false) {  // Only send telemetry on state change
+                digitalWrite(MILL_LAMP_PIN, LOW);
+                ledState = false;
+                // No ASCII logging - protobuf only for maximum throughput
+                telemetryManager.sendDigitalOutput(MILL_LAMP_PIN, false, Telemetry::OUTPUT_MILL_LAMP, "off");
+            }
             break;
             
         case LED_SOLID:
-            digitalWrite(MILL_LAMP_PIN, HIGH);
-            ledState = true;
+            if (ledState != true) {  // Only send telemetry on state change
+                digitalWrite(MILL_LAMP_PIN, HIGH);
+                ledState = true;
+                // No ASCII logging - protobuf only for maximum throughput
+                telemetryManager.sendDigitalOutput(MILL_LAMP_PIN, true, Telemetry::OUTPUT_MILL_LAMP, "solid");
+            }
             break;
             
         case LED_SLOW_BLINK:
@@ -115,6 +133,8 @@ void SystemErrorManager::updateLED() {
             if (currentTime - lastBlinkTime >= 2000) {
                 ledState = !ledState;
                 digitalWrite(MILL_LAMP_PIN, ledState ? HIGH : LOW);
+                // No ASCII logging - protobuf only for maximum throughput
+                telemetryManager.sendDigitalOutput(MILL_LAMP_PIN, ledState, Telemetry::OUTPUT_MILL_LAMP, ledState ? "slow" : "slow");
                 lastBlinkTime = currentTime;
             }
             break;
@@ -124,6 +144,8 @@ void SystemErrorManager::updateLED() {
             if (currentTime - lastBlinkTime >= 500) {
                 ledState = !ledState;
                 digitalWrite(MILL_LAMP_PIN, ledState ? HIGH : LOW);
+                // No ASCII logging - protobuf only for maximum throughput  
+                telemetryManager.sendDigitalOutput(MILL_LAMP_PIN, ledState, Telemetry::OUTPUT_MILL_LAMP, ledState ? "fast" : "fast");
                 lastBlinkTime = currentTime;
             }
             break;
@@ -171,6 +193,25 @@ const char* SystemErrorManager::getErrorDescription(SystemErrorType errorType) {
         case ERROR_HARDWARE_FAULT:     return "General hardware fault";
         case ERROR_SEQUENCE_TIMEOUT:   return "Sequence operation timeout";
         default:                       return "Unknown error";
+    }
+}
+
+Telemetry::ErrorSeverity SystemErrorManager::getSeverityFromErrorType(SystemErrorType errorType) {
+    switch (errorType) {
+        case ERROR_EEPROM_CRC:
+        case ERROR_MEMORY_LOW:
+        case ERROR_HARDWARE_FAULT:
+            return Telemetry::SEVERITY_CRITICAL;
+            
+        case ERROR_EEPROM_SAVE:
+        case ERROR_SENSOR_FAULT:
+        case ERROR_NETWORK_PERSISTENT:
+        case ERROR_CONFIG_INVALID:
+        case ERROR_SEQUENCE_TIMEOUT:
+            return Telemetry::SEVERITY_ERROR;
+            
+        default:
+            return Telemetry::SEVERITY_ERROR;
     }
 }
 

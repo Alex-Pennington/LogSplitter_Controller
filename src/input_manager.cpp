@@ -2,9 +2,14 @@
 // NetworkManager include removed - non-networking version
 #include "config_manager.h"
 #include "logger.h"
+#include "telemetry_manager.h"
 
 // NetworkManager extern removed - non-networking version
 extern void debugPrintf(const char* fmt, ...);
+extern TelemetryManager telemetryManager;
+
+// Forward declaration for helper function
+Telemetry::InputType getInputTypeFromPin(uint8_t pin);
 
 void InputManager::begin(ConfigManager* config) {
     configManager = config;
@@ -27,11 +32,11 @@ void InputManager::begin(ConfigManager* config) {
         
         lastDebounceTime[i] = millis();
         
-        LOG_INFO("INPUT: Pin %d configured as %s, initial state: %s", 
+        LOG_INFO("DI%d configured as %s, initial state: %s", 
                    pin, 
                    (configManager && configManager->isPinNC(i)) ? "NC" : "NO",
                    pinStates[i] ? "ACTIVE" : "INACTIVE");
-        debugPrintf("Pin %d configured as %s, initial state: %s\n", 
+        debugPrintf("DI%d configured as %s, initial state: %s\n", 
                    pin, 
                    (configManager && configManager->isPinNC(i)) ? "NC" : "NO",
                    pinStates[i] ? "ACTIVE" : "INACTIVE");
@@ -83,12 +88,11 @@ void InputManager::update() {
             
             // Debug raw changes for limit switches (if enabled)
             if (debugPinChanges && (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN)) {
-                LOG_INFO("INPUT: Pin %d RAW: digitalRead()=%s -> %s (starting debounce)", 
-                    pin, 
-                    digitalRead(pin) == HIGH ? "HIGH" : "LOW",
-                    reading ? "ACTIVE" : "INACTIVE"
-                );
-                debugPrintf("[INPUT] Pin %d RAW: digitalRead()=%s -> %s (starting debounce)\n", 
+                // Send telemetry for raw input change (before debouncing)
+                Telemetry::InputType inputType = getInputTypeFromPin(pin);
+                telemetryManager.sendDigitalInput(pin, reading, false, 0, inputType);
+                
+                debugPrintf("[DI%d] RAW: digitalRead()=%s -> %s (starting debounce)\n", 
                     pin, 
                     digitalRead(pin) == HIGH ? "HIGH" : "LOW",
                     reading ? "ACTIVE" : "INACTIVE"
@@ -115,26 +119,19 @@ void InputManager::update() {
                 pinStates[i] = lastReadings[i];
                 
                 // Enhanced debug for limit switches
+                // Send telemetry for debounced input change
+                Telemetry::InputType inputType = getInputTypeFromPin(pin);
+                telemetryManager.sendDigitalInput(pin, pinStates[i], true, debounceDelay, inputType);
+                
                 if (pin == LIMIT_EXTEND_PIN || pin == LIMIT_RETRACT_PIN) {
-                    LOG_INFO("INPUT: Pin %d: %s -> %s (debounced in %lums)", 
-                        pin, 
-                        oldState ? "ACTIVE" : "INACTIVE",
-                        pinStates[i] ? "ACTIVE" : "INACTIVE",
-                        debounceDelay
-                    );
-                    debugPrintf("[INPUT] Pin %d: %s -> %s (debounced in %lums)\n", 
+                    debugPrintf("[DI%d] %s -> %s (debounced in %lums)\n", 
                         pin, 
                         oldState ? "ACTIVE" : "INACTIVE",
                         pinStates[i] ? "ACTIVE" : "INACTIVE",
                         debounceDelay
                     );
                 } else {
-                    LOG_INFO("INPUT: Pin %d: %s -> %s", 
-                        pin, 
-                        oldState ? "ACTIVE" : "INACTIVE",
-                        pinStates[i] ? "ACTIVE" : "INACTIVE"
-                    );
-                    debugPrintf("[INPUT] Pin %d: %s -> %s\n", 
+                    debugPrintf("[DI%d] %s -> %s\n", 
                         pin, 
                         oldState ? "ACTIVE" : "INACTIVE",
                         pinStates[i] ? "ACTIVE" : "INACTIVE"
@@ -200,4 +197,19 @@ const char* InputManager::getPinDebounceLevel(uint8_t pin) const {
     if (ms <= 2) return "LOW";
     else if (ms <= 5) return "MED"; 
     else return "HIGH";
+}
+
+// Helper function to map pin numbers to telemetry input types
+Telemetry::InputType getInputTypeFromPin(uint8_t pin) {
+    switch (pin) {
+        case 2: return Telemetry::INPUT_MANUAL_EXTEND;
+        case 3: return Telemetry::INPUT_MANUAL_RETRACT;
+        case 4: return Telemetry::INPUT_SAFETY_CLEAR;
+        case 5: return Telemetry::INPUT_SEQUENCE_START;
+        case 6: return Telemetry::INPUT_LIMIT_EXTEND;
+        case 7: return Telemetry::INPUT_LIMIT_RETRACT;
+        case 8: return Telemetry::INPUT_SPLITTER_OPERATOR;
+        case 12: return Telemetry::INPUT_EMERGENCY_STOP;
+        default: return Telemetry::INPUT_UNKNOWN;
+    }
 }

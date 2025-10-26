@@ -1,0 +1,3 @@
+{"timestamp": "2025-10-26T19:22:12.673631", "session_id": "wizard_1761520932431", "event_type": "start", "data": {"timestamp": "2025-10-26T23:22:12.582Z", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}}
+{"timestamp": "2025-10-26T19:22:12.892861", "session_id": "wizard_1761520932431", "event_type": "command", "data": {"command": "show", "is_auto": true, "is_hydraulic": false, "timestamp": "2025-10-26T23:22:12.590Z"}}
+{"timestamp": "2025-10-26T19:22:13.044620", "session_id": "wizard_1761520932431", "event_type": "command_result", "data": {"command": "show", "success": false, "execution_time": 402, "output_length": 0}}

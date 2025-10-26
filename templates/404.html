@@ -1,0 +1,54 @@
+{% extends "base_new.html" %}
+
+{% block title %}Document Not Found - LogSplitter Docs{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header" style="text-align: center; padding: 4rem 0;">
+        <div style="font-size: 4rem; color: var(--text-muted); margin-bottom: 1rem;">
+            <i class="fas fa-file-times"></i>
+        </div>
+        <h1 class="page-title">Document Not Found</h1>
+        <p class="page-subtitle">
+            The document "{{ doc_path }}" could not be found in the documentation system.
+        </p>
+        
+        <div style="margin: 2rem 0;">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-home"></i>
+                Return Home
+            </a>
+            <a href="{{ url_for('search') }}" class="btn btn-secondary">
+                <i class="fas fa-search"></i>
+                Search Documentation
+            </a>
+        </div>
+    </div>
+
+    <!-- Suggestions -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">
+                <i class="fas fa-lightbulb"></i>
+                Suggestions
+            </h2>
+        </div>
+        <div class="card-content">
+            <ul style="list-style: none; padding: 0;">
+                <li style="margin-bottom: 1rem;">
+                    <strong>Check the spelling:</strong> Make sure the document name is correct
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>Browse categories:</strong> Use the main page to explore available documentation
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>Use search:</strong> Try searching for keywords related to what you're looking for
+                </li>
+                <li>
+                    <strong>Emergency access:</strong> Click the Emergency button if this is urgent
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

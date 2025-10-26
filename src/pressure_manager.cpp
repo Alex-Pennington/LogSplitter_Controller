@@ -1,7 +1,9 @@
 #include "pressure_manager.h"
+#include "telemetry_manager.h"
 // NetworkManager include removed - non-networking version
 
 extern void debugPrintf(const char* fmt, ...);
+extern TelemetryManager telemetryManager;
 
 // ============================================================================
 // PressureSensorChannel Implementation
@@ -182,6 +184,18 @@ void PressureManager::update() {
 
 void PressureManager::publishPressures() {
     // MQTT publishing removed - non-networking version
+    
+    // Send telemetry for pressure readings
+    float hydraulicPressure = getHydraulicPressure();
+    float hydraulicOilPressure = getHydraulicOilPressure();
+    
+    // Convert pressure to raw ADC-like values (0-1023 range based on voltage)
+    uint16_t hydraulicRaw = (uint16_t)(sensors[SENSOR_HYDRAULIC].getVoltage() / 5.0 * 1023);
+    uint16_t hydraulicOilRaw = (uint16_t)(sensors[SENSOR_HYDRAULIC_OIL].getVoltage() / 5.0 * 1023);
+    
+    telemetryManager.sendPressureReading(A1, hydraulicPressure, hydraulicRaw, SENSOR_HYDRAULIC, false);
+    telemetryManager.sendPressureReading(A5, hydraulicOilPressure, hydraulicOilRaw, SENSOR_HYDRAULIC_OIL, false);
+    
     // Pressure data available via serial commands
 }
 

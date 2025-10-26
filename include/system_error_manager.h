@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "constants.h"
+#include "telemetry_manager.h"
 
 // NetworkManager removed - non-networking version
 
@@ -43,6 +44,7 @@ private:
     // Error reporting
     void publishError(SystemErrorType errorType, const char* description);
     const char* getErrorDescription(SystemErrorType errorType);
+    Telemetry::ErrorSeverity getSeverityFromErrorType(SystemErrorType errorType);
     
 public:
     SystemErrorManager() = default;

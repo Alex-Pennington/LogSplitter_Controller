@@ -1,0 +1,1957 @@
+{% extends "base_new.html" %}
+
+{% block title %}🚨 Emergency Diagnostic Wizard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="emergency-header">
+        <h1 class="emergency-title">🚨 EMERGENCY DIAGNOSTIC WIZARD</h1>
+        <p class="emergency-subtitle">Mill Lamp + Engine Shutdown Interactive Guide</p>
+    </div>
+
+    <!-- Step 1: Initial Assessment -->
+    <div id="step1" class="diagnostic-step active">
+        <div class="step-header">
+            <h2>Step 1: What Do You See Right Now?</h2>
+        </div>
+        
+        <div class="status-grid">
+            <div class="status-card critical">
+                <h3>🟡 Mill Lamp Status</h3>
+                <div class="button-group">
+                    <button class="btn-emergency" onclick="setMillLamp('off')">🔵 OFF (No Light)</button>
+                    <button class="btn-emergency" onclick="setMillLamp('solid')">🔴 SOLID ON</button>
+                    <button class="btn-emergency" onclick="setMillLamp('slow')">🟠 SLOW BLINK (2 sec)</button>
+                    <button class="btn-emergency" onclick="setMillLamp('fast')">🔴 FAST BLINK (0.5 sec)</button>
+                </div>
+            </div>
+            
+            <div class="status-card critical">
+                <h3>🚨 Engine Status</h3>
+                <div class="button-group">
+                    <button class="btn-emergency" onclick="setEngine('running')">✅ Engine Running</button>
+                    <button class="btn-emergency" onclick="setEngine('stopped')">❌ Engine Stopped</button>
+                    <button class="btn-emergency" onclick="setEngine('unknown')">❓ Don't Know</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="next-section" id="step1-next" style="display: none;">
+            <button class="btn-next" onclick="goToStep(2)">Continue Diagnosis →</button>
+        </div>
+    </div>
+
+    <!-- Step 2: Diagnosis Results -->
+    <div id="step2" class="diagnostic-step">
+        <div class="step-header">
+            <h2>Step 2: Emergency Diagnosis</h2>
+        </div>
+        
+        <div id="diagnosis-result" class="diagnosis-card">
+            <!-- Dynamic content will be inserted here -->
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn-emergency" onclick="goToStep(3)">Start Troubleshooting →</button>
+            <button class="btn-secondary" onclick="goToStep(1)">← Back to Assessment</button>
+        </div>
+    </div>
+
+    <!-- Step 3: Interactive Commands -->
+    <div id="step3" class="diagnostic-step">
+        <div class="step-header">
+            <h2>Step 3: Run Diagnostic Commands</h2>
+            <p class="step-subtitle">Connect to controller via USB/Serial (115200 baud) and run these commands:</p>
+        </div>
+        
+        <div class="command-interface">
+            <div class="command-section">
+                <h3>🔍 Check System Status</h3>
+                <div class="command-card">
+                    <div class="command-header">
+                        <span class="command-prompt">></span>
+                        <code class="command-text">show</code>
+                        <button class="btn-copy" onclick="copyCommand('show')">📋 Copy</button>
+                        <button class="btn-run" onclick="runCommand('show', this)">▶️ Run Now</button>
+                    </div>
+                    <div class="command-description">
+                        Shows complete system status including errors and mill lamp state
+                    </div>
+                    <div class="command-expected">
+                        <strong>Look for:</strong> <code>errors=X led=PATTERN</code> in the output
+                    </div>
+                </div>
+            </div>
+
+            <div id="next-commands" class="command-section">
+                <!-- Dynamic commands based on diagnosis -->
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn-emergency" onclick="goToStep(4)">Commands Complete →</button>
+            <button class="btn-secondary" onclick="goToStep(2)">← Back to Diagnosis</button>
+        </div>
+    </div>
+
+    <!-- Step 4: Resolution Actions -->
+    <div id="step4" class="diagnostic-step">
+        <div class="step-header">
+            <h2>Step 4: Resolution Actions</h2>
+        </div>
+        
+        <div id="resolution-actions" class="resolution-card">
+            <!-- Dynamic content based on diagnosis -->
+        </div>
+        
+        <div class="final-actions">
+            <button class="btn-success" onclick="testSolution()">✅ Test Solution</button>
+            <button class="btn-warning" onclick="escalate()">🆘 Need Help</button>
+            <button class="btn-secondary" onclick="startOver()">🔄 Start Over</button>
+        </div>
+    </div>
+
+    <!-- Step 5: Verification -->
+    <div id="step5" class="diagnostic-step">
+        <div class="step-header">
+            <h2>Step 5: Solution Verification</h2>
+        </div>
+        
+        <div class="verification-card">
+            <h3>🔍 Check if problem is resolved:</h3>
+            <div class="verification-checklist">
+                <div class="check-item">
+                    <input type="checkbox" id="check1">
+                    <label for="check1">Mill lamp is now OFF or shows expected pattern</label>
+                </div>
+                <div class="check-item">
+                    <input type="checkbox" id="check2">
+                    <label for="check2">Engine can be started (if applicable)</label>
+                </div>
+                <div class="check-item">
+                    <input type="checkbox" id="check3">
+                    <label for="check3">System responds to commands normally</label>
+                </div>
+                <div class="check-item">
+                    <input type="checkbox" id="check4">
+                    <label for="check4">No error messages in system status</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="final-actions">
+            <button class="btn-success" onclick="completeDiagnosis()">✅ Problem Solved</button>
+            <button class="btn-warning" onclick="goToStep(2)">🔄 Try Different Solution</button>
+        </div>
+    </div>
+
+    <!-- Emergency Contact Info -->
+    <div class="emergency-contact">
+        <h3>🆘 Emergency Contact</h3>
+        <p>If this wizard doesn't resolve the issue:</p>
+        <ul>
+            <li><strong>Safety First:</strong> Use Emergency Stop (Pin 12) if unsure</li>
+            <li><strong>Manual Control:</strong> Relay commands still work for pressure relief</li>
+            <li><strong>Contact:</strong> System maintenance personnel</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+let millLampState = '';
+let engineState = '';
+let sessionId = 'wizard_' + Date.now();
+let sessionLog = [];
+let autoCommandsComplete = false;
+let diagnosticResults = {};
+
+// Initialize wizard session
+function initWizardSession() {
+    logWizardEvent('start', {
+        timestamp: new Date().toISOString(),
+        user_agent: navigator.userAgent
+    });
+    
+    // Start background auto-diagnostics
+    runBackgroundDiagnostics();
+}
+
+// Background connectivity and initial status check
+async function runBackgroundDiagnostics() {
+    showStatus('🔍 Running initial diagnostics...', 'info');
+    
+    try {
+        // Auto-run basic connectivity test
+        await runCommand('show', null, true); // true = background/auto mode
+    } catch (error) {
+        showStatus('⚠️ Background diagnostics failed - manual connection required', 'warning');
+    }
+}
+
+function setMillLamp(state) {
+    millLampState = state;
+    // Visual feedback
+    document.querySelectorAll('.status-card button').forEach(btn => btn.classList.remove('selected'));
+    event.target.classList.add('selected');
+    checkStep1Complete();
+}
+
+function setEngine(state) {
+    engineState = state;
+    event.target.classList.add('selected');
+    checkStep1Complete();
+}
+
+function checkStep1Complete() {
+    if (millLampState && engineState) {
+        document.getElementById('step1-next').style.display = 'block';
+    }
+}
+
+function goToStep(stepNum) {
+    // Hide all steps
+    document.querySelectorAll('.diagnostic-step').forEach(step => {
+        step.classList.remove('active');
+    });
+    
+    // Show target step
+    document.getElementById(`step${stepNum}`).classList.add('active');
+    
+    // Generate dynamic content for step 2
+    if (stepNum === 2) {
+        generateDiagnosis();
+    }
+    
+    // Generate commands for step 3
+    if (stepNum === 3) {
+        generateCommands();
+    }
+    
+    // Generate resolution for step 4
+    if (stepNum === 4) {
+        generateResolution();
+    }
+}
+
+function generateDiagnosis() {
+    let diagnosis = '';
+    let severity = '';
+    
+    if (millLampState === 'off' && engineState === 'stopped') {
+        diagnosis = `
+            <div class="alert-critical">
+                <h3>🚨 CRITICAL: Engine Stopped, No Mill Lamp</h3>
+                <p><strong>Likely Cause:</strong> Emergency Stop activated or power failure</p>
+                <p><strong>Priority:</strong> Check Emergency Stop button and power connections</p>
+            </div>
+        `;
+        severity = 'critical-power';
+    } else if (millLampState === 'fast' && engineState === 'stopped') {
+        diagnosis = `
+            <div class="alert-critical">
+                <h3>🚨 CRITICAL: Fast Blink + Engine Stop</h3>
+                <p><strong>Likely Cause:</strong> Hardware fault or memory failure triggered safety shutdown</p>
+                <p><strong>Priority:</strong> System requires restart, possible hardware issue</p>
+            </div>
+        `;
+        severity = 'critical-hardware';
+    } else if (millLampState === 'solid' && engineState === 'stopped') {
+        diagnosis = `
+            <div class="alert-warning">
+                <h3>⚠️ WARNING: Single Error + Engine Stop</h3>
+                <p><strong>Likely Cause:</strong> Sensor fault or configuration issue</p>
+                <p><strong>Priority:</strong> May be resolvable, check specific error</p>
+            </div>
+        `;
+        severity = 'warning-sensor';
+    } else if (millLampState === 'slow' && engineState === 'stopped') {
+        diagnosis = `
+            <div class="alert-warning">
+                <h3>⚠️ WARNING: Multiple Errors + Engine Stop</h3>
+                <p><strong>Likely Cause:</strong> Several system faults or acknowledged errors</p>
+                <p><strong>Priority:</strong> Review all errors, some may be non-critical</p>
+            </div>
+        `;
+        severity = 'warning-multiple';
+    } else {
+        diagnosis = `
+            <div class="alert-info">
+                <h3>ℹ️ INFO: Partial System Function</h3>
+                <p>Engine running but mill lamp indicates system issues</p>
+                <p>May be able to continue with caution while planning maintenance</p>
+            </div>
+        `;
+        severity = 'info';
+    }
+    
+    document.getElementById('diagnosis-result').innerHTML = diagnosis;
+    window.diagnosisSeverity = severity;
+}
+
+function generateCommands() {
+    let commands = '';
+    
+    if (window.diagnosisSeverity === 'critical-power') {
+        commands = `
+            <h3>🔋 Power & Emergency Stop Check</h3>
+            <div class="command-card">
+                <div class="command-header">
+                    <span class="command-prompt">></span>
+                    <code class="command-text">inputs</code>
+                    <button class="btn-copy" onclick="copyCommand('inputs')">📋 Copy</button>
+                    <button class="btn-run" onclick="runCommand('inputs', this)">▶️ Run Now</button>
+                </div>
+                <div class="command-expected">
+                    <strong>Check:</strong> Pin 12 (Emergency Stop) should show HIGH if not pressed
+                </div>
+            </div>
+        `;
+    } else if (window.diagnosisSeverity === 'critical-hardware') {
+        commands = `
+            <h3>🔧 Hardware Fault Analysis</h3>
+            <div class="command-card">
+                <div class="command-header">
+                    <span class="command-prompt">></span>
+                    <code class="command-text">error list</code>
+                    <button class="btn-copy" onclick="copyCommand('error list')">📋 Copy</button>
+                </div>
+                <div class="command-expected">
+                    <strong>Look for:</strong> Error codes 0x01, 0x20, or 0x40 (critical errors)
+                </div>
+            </div>
+        `;
+    } else {
+        commands = `
+            <h3>📋 Error Analysis</h3>
+            <div class="command-card">
+                <div class="command-header">
+                    <span class="command-prompt">></span>
+                    <code class="command-text">error list</code>
+                    <button class="btn-copy" onclick="copyCommand('error list')">📋 Copy</button>
+                </div>
+                <div class="command-expected">
+                    <strong>Note:</strong> All active error codes and descriptions
+                </div>
+            </div>
+        `;
+    }
+    
+    document.getElementById('next-commands').innerHTML = commands;
+}
+
+function generateResolution() {
+    let resolution = '';
+    
+    if (window.diagnosisSeverity === 'critical-power') {
+        resolution = `
+            <div class="resolution-steps">
+                <h3>🔋 Power System Recovery</h3>
+                <ol>
+                    <li><strong>Check Emergency Stop:</strong> Ensure Pin 12 button is released and twisted to unlock</li>
+                    <li><strong>Verify Power:</strong> Check main power connections and fuses</li>
+                    <li><strong>Reset System:</strong> <code>reset</code> command or power cycle controller</li>
+                    <li><strong>Test Basic Function:</strong> <code>show</code> command should show normal status</li>
+                </ol>
+            </div>
+        `;
+    } else if (window.diagnosisSeverity === 'critical-hardware') {
+        resolution = `
+            <div class="resolution-steps">
+                <h3>🔧 Hardware Fault Recovery</h3>
+                <ol>
+                    <li><strong>System Restart:</strong> <code>reset</code> command</li>
+                    <li><strong>If problem persists:</strong> Power cycle entire system</li>
+                    <li><strong>Check Connections:</strong> All cables and relay board connections</li>
+                    <li><strong>Contact Maintenance:</strong> If fast blink continues after restart</li>
+                </ol>
+            </div>
+        `;
+    } else {
+        resolution = `
+            <div class="resolution-steps">
+                <h3>🔨 Error Resolution</h3>
+                <ol>
+                    <li><strong>Acknowledge Errors:</strong> <code>error ack 0x##</code> (replace ## with error code)</li>
+                    <li><strong>Test Hydraulics:</strong> <code>relay R1 ON</code> then <code>relay R1 OFF</code></li>
+                    <li><strong>Clear Resolved Errors:</strong> <code>error clear</code> after fixing issues</li>
+                    <li><strong>Restart Engine:</strong> If hydraulics work normally</li>
+                </ol>
+            </div>
+        `;
+    }
+    
+    document.getElementById('resolution-actions').innerHTML = resolution;
+}
+
+function copyCommand(command) {
+    navigator.clipboard.writeText(command);
+    event.target.innerHTML = '✅ Copied!';
+    setTimeout(() => {
+        event.target.innerHTML = '📋 Copy';
+    }, 2000);
+}
+
+// Enhanced command execution with logging and progressive diagnostics
+async function runCommand(command, buttonElement, isAuto = false) {
+    const startTime = Date.now();
+    
+    // Check for hydraulic commands and warn user
+    const hydraulicCommands = ['extend', 'retract', 'cycle', 'test cycle', 'relay on', 'relay off'];
+    const isHydraulicCommand = hydraulicCommands.some(hc => command.toLowerCase().includes(hc));
+    
+    if (isHydraulicCommand && !isAuto) {
+        const confirmed = await showHydraulicWarning();
+        if (!confirmed) {
+            return;
+        }
+    }
+    
+    // Update button state
+    if (buttonElement && !isAuto) {
+        const originalText = buttonElement.innerHTML;
+        buttonElement.innerHTML = '⏳ Running...';
+        buttonElement.disabled = true;
+    }
+    
+    // Log command execution
+    logWizardEvent('command', {
+        command: command,
+        is_auto: isAuto,
+        is_hydraulic: isHydraulicCommand,
+        timestamp: new Date().toISOString()
+    });
+    
+    try {
+        const response = await fetch('/api/run_command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ command: command })
+        });
+        
+        const result = await response.json();
+        const executionTime = Date.now() - startTime;
+        
+        if (result.success) {
+            // Store result for cross-referencing
+            diagnosticResults[command] = {
+                output: result.output,
+                timestamp: result.timestamp,
+                execution_time: executionTime
+            };
+            
+            // Show command output
+            showCommandResult(command, result.output, 'success', executionTime);
+            
+            // Progressive analysis and next steps
+            const analysis = analyzeCommandOutput(command, result.output);
+            updateDiagnosisDisplay(analysis);
+            
+            // Auto-suggest next commands based on results
+            if (isAuto) {
+                suggestNextAutoCommands(command, result.output);
+            } else {
+                suggestNextManualCommands(command, result.output);
+            }
+            
+            if (buttonElement) {
+                buttonElement.innerHTML = '✅ Complete';
+                buttonElement.style.background = '#059669';
+            }
+        } else {
+            // Handle error
+            showCommandResult(command, result.error, 'error', executionTime);
+            
+            if (buttonElement) {
+                buttonElement.innerHTML = '❌ Failed';
+                buttonElement.style.background = '#dc2626';
+            }
+        }
+        
+        // Log result
+        logWizardEvent('command_result', {
+            command: command,
+            success: result.success,
+            execution_time: executionTime,
+            output_length: result.output ? result.output.length : 0
+        });
+        
+    } catch (error) {
+        showCommandResult(command, `Network error: ${error.message}`, 'error');
+        
+        if (buttonElement) {
+            buttonElement.innerHTML = '❌ Error';
+            buttonElement.style.background = '#dc2626';
+        }
+        
+        logWizardEvent('command_error', {
+            command: command,
+            error: error.message
+        });
+    }
+    
+    // Reset button after delay
+    if (buttonElement && !isAuto) {
+        setTimeout(() => {
+            buttonElement.innerHTML = buttonElement.getAttribute('data-original-text') || 'Run Command';
+            buttonElement.disabled = false;
+            buttonElement.style.background = '';
+        }, 3000);
+    }
+}
+
+// Hydraulic safety warning
+async function showHydraulicWarning() {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'hydraulic-warning-modal';
+        modal.innerHTML = `
+            <div class="warning-content">
+                <h2>⚠️ HYDRAULIC CYLINDER MOVEMENT WARNING</h2>
+                <p><strong>This command will move the hydraulic cylinder!</strong></p>
+                <div class="safety-checklist">
+                    <h3>Before proceeding:</h3>
+                    <ul>
+                        <li>✅ Clear all personnel from cylinder area</li>
+                        <li>✅ Ensure no logs or objects are in path</li>
+                        <li>✅ Emergency stop is accessible</li>
+                        <li>✅ You have clear visibility of cylinder movement</li>
+                    </ul>
+                </div>
+                <div class="warning-buttons">
+                    <button class="btn-danger" onclick="hydraulicCancel()">Cancel</button>
+                    <button class="btn-proceed" onclick="hydraulicProceed()">AREA CLEAR - PROCEED</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        window.hydraulicCancel = () => {
+            document.body.removeChild(modal);
+            resolve(false);
+        };
+        
+        window.hydraulicProceed = () => {
+            document.body.removeChild(modal);
+            logWizardEvent('hydraulic_safety_confirmed', {
+                command: command,
+                timestamp: new Date().toISOString()
+            });
+            resolve(true);
+        };
+    });
+}
+
+function showCommandResult(command, output, status) {
+    const resultDiv = document.getElementById('command-results') || createResultsDiv();
+    
+    const timestamp = new Date().toLocaleTimeString();
+    const statusIcon = status === 'success' ? '✅' : status === 'error' ? '❌' : 'ℹ️';
+    const statusColor = status === 'success' ? '#059669' : status === 'error' ? '#dc2626' : '#0ea5e9';
+    
+    const resultHtml = `
+        <div class="command-result" style="border-left: 4px solid ${statusColor};">
+            <div class="result-header">
+                <span class="status-icon">${statusIcon}</span>
+                <code class="command">${command}</code>
+                <span class="timestamp">${timestamp}</span>
+            </div>
+            <pre class="result-output">${output}</pre>
+        </div>
+    `;
+    
+    resultDiv.insertAdjacentHTML('afterbegin', resultHtml);
+    
+    // Limit to last 5 results
+    const results = resultDiv.querySelectorAll('.command-result');
+    if (results.length > 5) {
+        results[results.length - 1].remove();
+    }
+}
+
+function createResultsDiv() {
+    const container = document.querySelector('.command-interface');
+    const resultsDiv = document.createElement('div');
+    resultsDiv.id = 'command-results';
+    resultsDiv.innerHTML = '<h3>📊 Live Command Results</h3>';
+    container.appendChild(resultsDiv);
+    return resultsDiv;
+}
+
+// Progressive diagnostic analysis with cross-referencing
+function analyzeCommandOutput(command, output) {
+    let analysis = {
+        command: command,
+        findings: [],
+        severity: 'info',
+        next_suggested: []
+    };
+    
+    // Analyze 'show' command output
+    if (command === 'show' || command === 'status') {
+        if (output.includes('errors=0')) {
+            analysis.findings.push({
+                type: 'good',
+                message: 'No active errors detected',
+                icon: '✅'
+            });
+            analysis.severity = 'good';
+        } else if (output.includes('errors=')) {
+            const errorMatch = output.match(/errors=(\d+)/);
+            const errorCount = errorMatch ? parseInt(errorMatch[1]) : 0;
+            
+            analysis.findings.push({
+                type: 'warning',
+                message: `${errorCount} active errors detected`,
+                icon: '⚠️'
+            });
+            
+            if (errorCount > 0) {
+                analysis.next_suggested.push('errors');
+                analysis.severity = errorCount > 3 ? 'critical' : 'warning';
+            }
+        }
+        
+        // Mill lamp analysis
+        if (output.includes('led=OFF')) {
+            analysis.findings.push({type: 'info', message: 'Mill lamp OFF - normal state', icon: '🔵'});
+        } else if (output.includes('led=SOLID')) {
+            analysis.findings.push({type: 'warning', message: 'Mill lamp SOLID - single error', icon: '🟡'});
+            analysis.next_suggested.push('errors');
+        } else if (output.includes('led=SLOW_BLINK')) {
+            analysis.findings.push({type: 'warning', message: 'Mill lamp SLOW BLINK - multiple errors', icon: '🟠'});
+            analysis.next_suggested.push('errors');
+        } else if (output.includes('led=FAST_BLINK')) {
+            analysis.findings.push({type: 'critical', message: 'Mill lamp FAST BLINK - critical fault', icon: '🔴'});
+            analysis.next_suggested.push('errors', 'inputs');
+            analysis.severity = 'critical';
+        }
+        
+        // System status checks
+        if (output.includes('pressure=')) {
+            const pressureMatch = output.match(/pressure=(\d+)/);
+            if (pressureMatch) {
+                const pressure = parseInt(pressureMatch[1]);
+                if (pressure > 2000) {
+                    analysis.findings.push({type: 'warning', message: `High pressure detected: ${pressure} PSI`, icon: '📈'});
+                    analysis.next_suggested.push('pressure');
+                }
+            }
+        }
+    }
+    
+    // Analyze 'errors' command output
+    if (command === 'errors') {
+        if (output.includes('No errors') || output.includes('errors=0')) {
+            analysis.findings.push({type: 'good', message: 'System clear of all errors', icon: '✅'});
+            analysis.severity = 'good';
+        } else {
+            const errorLines = output.split('\n').filter(line => 
+                line.includes('ERROR') || line.includes('0x') || line.includes('FAULT')
+            );
+            
+            errorLines.forEach(error => {
+                let severity = 'warning';
+                if (error.includes('CRITICAL') || error.includes('0x01') || error.includes('0x40')) {
+                    severity = 'critical';
+                }
+                
+                analysis.findings.push({
+                    type: severity,
+                    message: error.trim(),
+                    icon: severity === 'critical' ? '�' : '⚠️'
+                });
+            });
+            
+            analysis.severity = errorLines.some(e => e.includes('CRITICAL')) ? 'critical' : 'warning';
+            analysis.next_suggested.push('inputs', 'relay status');
+        }
+    }
+    
+    // Cross-reference with previous results
+    crossReferenceResults(analysis);
+    
+    return analysis;
+}
+
+// Cross-reference current results with previous command outputs
+function crossReferenceResults(currentAnalysis) {
+    if (diagnosticResults['show'] && currentAnalysis.command === 'errors') {
+        const showOutput = diagnosticResults['show'].output;
+        
+        // Cross-check error counts
+        const showErrors = showOutput.match(/errors=(\d+)/);
+        const errorListLength = currentAnalysis.findings.length;
+        
+        if (showErrors && parseInt(showErrors[1]) !== errorListLength) {
+            currentAnalysis.findings.push({
+                type: 'info',
+                message: `Cross-check: Show reports ${showErrors[1]} errors, found ${errorListLength} in error list`,
+                icon: '🔍'
+            });
+        }
+    }
+    
+    // Check for patterns across multiple commands
+    if (Object.keys(diagnosticResults).length >= 2) {
+        const patterns = findDiagnosticPatterns();
+        if (patterns.length > 0) {
+            currentAnalysis.findings.push({
+                type: 'info',
+                message: `Patterns identified: ${patterns.join(', ')}`,
+                icon: '🧩'
+            });
+        }
+    }
+}
+
+// Suggest next automatic commands based on progressive analysis
+function suggestNextAutoCommands(lastCommand, output) {
+    if (lastCommand === 'show' && autoCommandsComplete === false) {
+        // Progressive auto-diagnostics based on show output
+        if (output.includes('errors=') && !output.includes('errors=0')) {
+            setTimeout(() => runCommand('errors', null, true), 1000);
+        }
+        
+        if (output.includes('led=FAST_BLINK')) {
+            setTimeout(() => runCommand('inputs', null, true), 2000);
+        }
+        
+        autoCommandsComplete = true;
+        showContextualCommands();
+    }
+}
+
+// Show context-specific manual commands
+function showContextualCommands() {
+    const commandsDiv = document.getElementById('contextual-commands') || createContextualCommandsDiv();
+    
+    let suggestedCommands = [];
+    
+    // Analyze all diagnostic results to suggest relevant commands
+    if (diagnosticResults['show']) {
+        const showOutput = diagnosticResults['show'].output;
+        
+        if (showOutput.includes('led=') && !showOutput.includes('led=OFF')) {
+            suggestedCommands.push({
+                command: 'reset errors',
+                description: 'Clear error conditions if they are resolved',
+                category: 'Error Management'
+            });
+        }
+        
+        if (showOutput.includes('pressure=')) {
+            suggestedCommands.push({
+                command: 'pressure',
+                description: 'Get detailed pressure sensor readings',
+                category: 'System Status'
+            });
+        }
+    }
+    
+    if (diagnosticResults['errors']) {
+        suggestedCommands.push({
+            command: 'relay status',
+            description: 'Check all relay states for hardware issues',
+            category: 'Hardware Check'
+        });
+        
+        suggestedCommands.push({
+            command: 'inputs',
+            description: 'Verify all digital input states',
+            category: 'Input Verification'
+        });
+    }
+    
+    // Always available commands
+    suggestedCommands.push({
+        command: 'help',
+        description: 'Show all available controller commands',
+        category: 'Reference'
+    });
+    
+    renderContextualCommands(suggestedCommands);
+}
+
+// Logging system
+async function logWizardEvent(eventType, data) {
+    const logEntry = {
+        session_id: sessionId,
+        event_type: eventType,
+        data: data,
+        timestamp: new Date().toISOString()
+    };
+    
+    sessionLog.push(logEntry);
+    
+    try {
+        await fetch('/api/wizard_log', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(logEntry)
+        });
+    } catch (error) {
+        console.warn('Failed to log wizard event:', error);
+    }
+}
+
+// Status display system
+function showStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('wizard-status') || createStatusDiv();
+    
+    const icons = {
+        info: 'ℹ️',
+        success: '✅',
+        warning: '⚠️',
+        error: '❌'
+    };
+    
+    statusDiv.innerHTML = `
+        <div class="status-message ${type}">
+            ${icons[type]} ${message}
+        </div>
+    `;
+    
+    // Auto-hide after 5 seconds for non-error messages
+    if (type !== 'error') {
+        setTimeout(() => {
+            if (statusDiv.innerHTML.includes(message)) {
+                statusDiv.innerHTML = '';
+            }
+        }, 5000);
+    }
+}
+
+// Helper functions for UI elements
+function createAnalysisDiv() {
+    const container = document.querySelector('.command-interface');
+    const analysisDiv = document.createElement('div');
+    analysisDiv.id = 'auto-analysis';
+    container.appendChild(analysisDiv);
+    return analysisDiv;
+}
+
+function createContextualCommandsDiv() {
+    const container = document.querySelector('.command-interface');
+    const commandsDiv = document.createElement('div');
+    commandsDiv.id = 'contextual-commands';
+    commandsDiv.innerHTML = '<h3>📋 Suggested Next Steps</h3>';
+    container.appendChild(commandsDiv);
+    return commandsDiv;
+}
+
+function createStatusDiv() {
+    let statusDiv = document.getElementById('wizard-status');
+    if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.id = 'wizard-status';
+        statusDiv.className = 'wizard-status-container';
+        
+        const container = document.querySelector('.emergency-header');
+        container.appendChild(statusDiv);
+    }
+    return statusDiv;
+}
+
+function renderContextualCommands(commands) {
+    const commandsDiv = document.getElementById('contextual-commands');
+    if (!commandsDiv) return;
+    
+    const categories = {};
+    commands.forEach(cmd => {
+        if (!categories[cmd.category]) {
+            categories[cmd.category] = [];
+        }
+        categories[cmd.category].push(cmd);
+    });
+    
+    let html = '<h3>📋 Suggested Next Steps</h3>';
+    
+    Object.keys(categories).forEach(category => {
+        html += `<div class="command-category">
+            <h4>${category}</h4>`;
+        
+        categories[category].forEach(cmd => {
+            html += `
+                <div class="contextual-command-card">
+                    <div class="command-header">
+                        <span class="command-prompt">></span>
+                        <code class="command-text">${cmd.command}</code>
+                        <button class="btn-run" onclick="runCommand('${cmd.command}', this)" data-original-text="▶️ Run">▶️ Run</button>
+                    </div>
+                    <div class="command-description">${cmd.description}</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+    });
+    
+    commandsDiv.innerHTML = html;
+}
+
+function updateDiagnosisDisplay(analysis) {
+    const diagnosisDiv = document.getElementById('live-diagnosis') || createLiveDiagnosisDiv();
+    
+    let severityClass = 'diagnosis-' + analysis.severity;
+    let severityIcon = {
+        'good': '✅',
+        'info': 'ℹ️',
+        'warning': '⚠️',
+        'critical': '🚨'
+    }[analysis.severity];
+    
+    let findingsHtml = analysis.findings.map(finding => 
+        `<div class="finding ${finding.type}">
+            ${finding.icon} ${finding.message}
+        </div>`
+    ).join('');
+    
+    diagnosisDiv.innerHTML = `
+        <div class="live-diagnosis-card ${severityClass}">
+            <h3>${severityIcon} Live Diagnosis Update</h3>
+            <div class="findings-list">
+                ${findingsHtml}
+            </div>
+            <div class="diagnosis-timestamp">
+                Updated: ${new Date().toLocaleTimeString()}
+            </div>
+        </div>
+    `;
+}
+
+function createLiveDiagnosisDiv() {
+    const container = document.querySelector('.command-interface');
+    const diagnosisDiv = document.createElement('div');
+    diagnosisDiv.id = 'live-diagnosis';
+    container.insertBefore(diagnosisDiv, container.firstChild);
+    return diagnosisDiv;
+}
+
+function findDiagnosticPatterns() {
+    const patterns = [];
+    const results = Object.values(diagnosticResults);
+    
+    // Pattern: Consistent error reporting
+    if (results.length >= 2) {
+        const errorCounts = results.map(r => {
+            const match = r.output.match(/errors=(\d+)/);
+            return match ? parseInt(match[1]) : 0;
+        });
+        
+        if (errorCounts.every(count => count === errorCounts[0] && count > 0)) {
+            patterns.push('Consistent error count across commands');
+        }
+    }
+    
+    // Pattern: Mill lamp behavior
+    const millLampStates = results.map(r => {
+        if (r.output.includes('led=SOLID')) return 'solid';
+        if (r.output.includes('led=SLOW_BLINK')) return 'slow';
+        if (r.output.includes('led=FAST_BLINK')) return 'fast';
+        return 'off';
+    }).filter(state => state !== 'off');
+    
+    if (millLampStates.length > 1 && millLampStates.every(state => state === millLampStates[0])) {
+        patterns.push(`Mill lamp consistently ${millLampStates[0]}`);
+    }
+    
+    return patterns;
+}
+
+// Enhanced session completion with report generation
+function completeSession() {
+    const sessionSummary = generateSessionReport();
+    showCompletionDialog(sessionSummary);
+}
+
+function generateSessionReport() {
+    const endTime = new Date();
+    const startTime = new Date(sessionLog[0]?.timestamp || endTime);
+    const duration = Math.round((endTime - startTime) / 1000 / 60 * 10) / 10; // minutes
+    
+    return {
+        session_id: sessionId,
+        duration_minutes: duration,
+        commands_executed: sessionLog.filter(e => e.event_type === 'command').length,
+        auto_commands: sessionLog.filter(e => e.event_type === 'command' && e.data.is_auto).length,
+        manual_commands: sessionLog.filter(e => e.event_type === 'command' && !e.data.is_auto).length,
+        hydraulic_commands: sessionLog.filter(e => e.event_type === 'command' && e.data.is_hydraulic).length,
+        final_diagnosis: getCurrentDiagnosisSummary(),
+        resolution_status: 'pending', // Will be set by user
+        recommendations: generateRecommendations()
+    };
+}
+
+function getCurrentDiagnosisSummary() {
+    // Summarize current diagnostic state
+    let summary = {
+        mill_lamp_state: millLampState,
+        engine_state: engineState,
+        error_count: 0,
+        critical_issues: [],
+        resolved_issues: []
+    };
+    
+    // Extract key findings from diagnostic results
+    Object.keys(diagnosticResults).forEach(command => {
+        const output = diagnosticResults[command].output;
+        
+        if (command === 'show' || command === 'errors') {
+            const errorMatch = output.match(/errors=(\d+)/);
+            if (errorMatch) {
+                summary.error_count = Math.max(summary.error_count, parseInt(errorMatch[1]));
+            }
+            
+            if (output.includes('CRITICAL') || output.includes('0x01')) {
+                summary.critical_issues.push('Critical hardware fault detected');
+            }
+        }
+    });
+    
+    return summary;
+}
+
+function generateRecommendations() {
+    const recommendations = [];
+    const diagnosis = getCurrentDiagnosisSummary();
+    
+    if (diagnosis.error_count > 0) {
+        recommendations.push('Monitor error conditions and address root causes');
+    }
+    
+    if (diagnosis.critical_issues.length > 0) {
+        recommendations.push('Schedule immediate maintenance for critical issues');
+    }
+    
+    if (diagnosis.mill_lamp_state !== 'off') {
+        recommendations.push('Verify mill lamp returns to normal after repairs');
+    }
+    
+    recommendations.push('Test all functions before returning to full operation');
+    recommendations.push('Document any permanent fixes in maintenance log');
+    
+    return recommendations;
+}
+
+// Session completion and export functionality
+function showCompletionDialog(sessionSummary) {
+    const modal = document.createElement('div');
+    modal.className = 'session-completion-modal';
+    modal.innerHTML = `
+        <div class="completion-content">
+            <h2>📋 Diagnostic Session Complete</h2>
+            
+            <div class="session-summary">
+                <h3>Session Summary</h3>
+                <p><strong>Duration:</strong> ${sessionSummary.duration_minutes} minutes</p>
+                <p><strong>Commands Executed:</strong> ${sessionSummary.commands_executed} total (${sessionSummary.auto_commands} auto, ${sessionSummary.manual_commands} manual)</p>
+                <p><strong>Hydraulic Operations:</strong> ${sessionSummary.hydraulic_commands}</p>
+                <p><strong>Final Error Count:</strong> ${sessionSummary.final_diagnosis.error_count}</p>
+            </div>
+            
+            <div class="resolution-section">
+                <h3>Resolution Status</h3>
+                <p>How was this issue resolved?</p>
+                <div class="resolution-options">
+                    <button class="resolution-btn" onclick="setResolution('fixed')">✅ Fixed</button>
+                    <button class="resolution-btn" onclick="setResolution('partial')">⚠️ Partially Fixed</button>
+                    <button class="resolution-btn" onclick="setResolution('escalate')">🚨 Needs Escalation</button>
+                    <button class="resolution-btn" onclick="setResolution('deferred')">📅 Deferred Maintenance</button>
+                </div>
+            </div>
+            
+            <div class="recommendations-section">
+                <h3>Recommendations</h3>
+                <ul>
+                    ${sessionSummary.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                </ul>
+            </div>
+            
+            <div class="export-section">
+                <h3>Export & Handoff</h3>
+                <div class="export-buttons">
+                    <button class="btn-secondary" onclick="exportReport('json')">📄 JSON Report</button>
+                    <button class="btn-secondary" onclick="exportReport('csv')">📊 CSV Data</button>
+                    <button class="btn-primary" onclick="exportReport('pdf')">📋 PDF Summary</button>
+                    <button class="btn-emergency" onclick="emailHandoff()">📧 Email to Support</button>
+                </div>
+            </div>
+            
+            <div class="completion-buttons">
+                <button class="btn-secondary" onclick="startNewSession()">🔄 New Session</button>
+                <button class="btn-success" onclick="closeWizard()">✅ Complete</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    window.currentSessionSummary = sessionSummary;
+}
+
+function setResolution(status) {
+    document.querySelectorAll('.resolution-btn').forEach(btn => btn.classList.remove('selected'));
+    event.target.classList.add('selected');
+    
+    window.currentSessionSummary.resolution_status = status;
+    
+    logWizardEvent('session_resolution', {
+        resolution: status,
+        timestamp: new Date().toISOString()
+    });
+}
+
+async function exportReport(format) {
+    const summary = window.currentSessionSummary;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    
+    if (format === 'json') {
+        const report = {
+            ...summary,
+            complete_log: sessionLog,
+            diagnostic_results: diagnosticResults,
+            export_timestamp: new Date().toISOString()
+        };
+        
+        downloadFile(`wizard_session_${timestamp}.json`, JSON.stringify(report, null, 2), 'application/json');
+    }
+    
+    if (format === 'csv') {
+        const csvData = generateCSVReport();
+        downloadFile(`wizard_session_${timestamp}.csv`, csvData, 'text/csv');
+    }
+    
+    if (format === 'pdf') {
+        const pdfContent = generatePDFContent();
+        // For simplicity, we'll create an HTML version that can be printed to PDF
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(pdfContent);
+        printWindow.document.close();
+        printWindow.print();
+    }
+}
+
+function generateCSVReport() {
+    let csv = 'Timestamp,Event Type,Command,Success,Output Length,Notes\n';
+    
+    sessionLog.forEach(entry => {
+        const timestamp = new Date(entry.timestamp).toLocaleString();
+        const eventType = entry.event_type;
+        const command = entry.data.command || '';
+        const success = entry.data.success !== undefined ? entry.data.success : '';
+        const outputLength = entry.data.output_length || '';
+        const notes = entry.data.error || entry.data.message || '';
+        
+        csv += `"${timestamp}","${eventType}","${command}","${success}","${outputLength}","${notes}"\n`;
+    });
+    
+    return csv;
+}
+
+function generatePDFContent() {
+    const summary = window.currentSessionSummary;
+    
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LogSplitter Emergency Diagnostic Report</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 2cm; }
+                .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 1rem; }
+                .section { margin: 1.5rem 0; }
+                .summary-table { width: 100%; border-collapse: collapse; }
+                .summary-table th, .summary-table td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+                .summary-table th { background: #f5f5f5; }
+                .command-log { font-family: monospace; font-size: 0.9rem; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>LogSplitter Emergency Diagnostic Report</h1>
+                <p>Session ID: ${summary.session_id}</p>
+                <p>Generated: ${new Date().toLocaleString()}</p>
+            </div>
+            
+            <div class="section">
+                <h2>Session Summary</h2>
+                <table class="summary-table">
+                    <tr><th>Duration</th><td>${summary.duration_minutes} minutes</td></tr>
+                    <tr><th>Commands Executed</th><td>${summary.commands_executed} total</td></tr>
+                    <tr><th>Resolution Status</th><td>${summary.resolution_status || 'Not specified'}</td></tr>
+                    <tr><th>Final Error Count</th><td>${summary.final_diagnosis.error_count}</td></tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>Diagnostic Findings</h2>
+                <p><strong>Mill Lamp State:</strong> ${summary.final_diagnosis.mill_lamp_state}</p>
+                <p><strong>Engine State:</strong> ${summary.final_diagnosis.engine_state}</p>
+                ${summary.final_diagnosis.critical_issues.length > 0 ? 
+                    '<p><strong>Critical Issues:</strong> ' + summary.final_diagnosis.critical_issues.join(', ') + '</p>' : ''}
+            </div>
+            
+            <div class="section">
+                <h2>Recommendations</h2>
+                <ul>
+                    ${summary.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>Command History</h2>
+                <div class="command-log">
+                    ${sessionLog.filter(e => e.event_type === 'command').map(e => 
+                        `${new Date(e.timestamp).toLocaleTimeString()}: ${e.data.command} ${e.data.success ? '✅' : '❌'}`
+                    ).join('<br>')}
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+function downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function emailHandoff() {
+    const summary = window.currentSessionSummary;
+    const subject = `LogSplitter Emergency Diagnostic - Session ${summary.session_id}`;
+    const body = `
+Emergency diagnostic session completed.
+
+Duration: ${summary.duration_minutes} minutes
+Commands executed: ${summary.commands_executed}
+Resolution: ${summary.resolution_status || 'Pending'}
+Error count: ${summary.final_diagnosis.error_count}
+
+Key findings:
+- Mill lamp: ${summary.final_diagnosis.mill_lamp_state}
+- Engine: ${summary.final_diagnosis.engine_state}
+
+Recommendations:
+${summary.recommendations.map(rec => `- ${rec}`).join('\n')}
+
+Full diagnostic logs are available for download from the wizard interface.
+    `;
+    
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink);
+}
+
+function startNewSession() {
+    document.querySelector('.session-completion-modal').remove();
+    
+    // Reset wizard state
+    millLampState = '';
+    engineState = '';
+    sessionId = 'wizard_' + Date.now();
+    sessionLog = [];
+    autoCommandsComplete = false;
+    diagnosticResults = {};
+    
+    // Clear UI
+    document.querySelectorAll('button').forEach(btn => btn.classList.remove('selected'));
+    document.getElementById('step1-next').style.display = 'none';
+    
+    // Clear dynamic content
+    ['command-results', 'auto-analysis', 'contextual-commands', 'live-diagnosis'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.remove();
+    });
+    
+    goToStep(1);
+    initWizardSession();
+}
+
+function closeWizard() {
+    logWizardEvent('session_complete', {
+        final_summary: window.currentSessionSummary,
+        timestamp: new Date().toISOString()
+    });
+    
+    document.querySelector('.session-completion-modal').remove();
+    alert('✅ Diagnostic session completed successfully!\n\nThank you for using the LogSplitter Emergency Diagnostic Wizard.');
+}
+
+// Initialize wizard when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initWizardSession();
+});
+
+function testSolution() {
+    goToStep(5);
+}
+
+function escalate() {
+    alert('Emergency Contact Protocol:\n\n1. Use Emergency Stop (Pin 12) immediately\n2. Contact maintenance personnel\n3. Do not attempt further operations\n4. Document all error codes shown');
+}
+
+function startOver() {
+    millLampState = '';
+    engineState = '';
+    document.querySelectorAll('button').forEach(btn => btn.classList.remove('selected'));
+    document.getElementById('step1-next').style.display = 'none';
+    goToStep(1);
+}
+
+function completeDiagnosis() {
+    alert('✅ Diagnosis Complete!\n\nSystem should now be operational.\n\nRemember to:\n- Test all functions before full operation\n- Monitor for recurring issues\n- Document any permanent fixes made');
+    startOver();
+}
+</script>
+
+<style>
+body {
+    background: #f8fafc;
+    color: #1e293b;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.container-fluid {
+    background: #ffffff;
+    min-height: 100vh;
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.emergency-header {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+    padding: 2rem;
+    margin: -1rem -1rem 2rem -1rem;
+    text-align: center;
+}
+
+.emergency-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.emergency-subtitle {
+    font-size: 1.2rem;
+    margin: 0.5rem 0 0 0;
+    opacity: 0.9;
+}
+
+.diagnostic-step {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.diagnostic-step.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.step-header {
+    margin-bottom: 2rem;
+}
+
+.step-header h2 {
+    color: #1e40af;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.step-subtitle {
+    color: #64748b;
+    font-size: 1.1rem;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.status-card {
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    color: #1e293b;
+}
+
+.status-card.critical {
+    border-color: #dc2626;
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+}
+
+.status-card h3 {
+    margin: 0 0 1rem 0;
+    color: #1e40af;
+    font-size: 1.3rem;
+}
+
+.button-group {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.btn-emergency {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.btn-emergency:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+}
+
+.btn-emergency.selected {
+    background: #059669;
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.3);
+}
+
+.btn-next {
+    background: #1e40af;
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-next:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.next-section {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px dashed #e2e8f0;
+}
+
+.diagnosis-card {
+    margin-bottom: 2rem;
+}
+
+.alert-critical {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    border: 2px solid #dc2626;
+    border-radius: 8px;
+    padding: 1.5rem;
+    color: #991b1b;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    border: 2px solid #d97706;
+    border-radius: 8px;
+    padding: 1.5rem;
+    color: #92400e;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border: 2px solid #2563eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    color: #1e40af;
+}
+
+.command-interface {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.command-section {
+    margin-bottom: 2rem;
+}
+
+.command-section h3 {
+    color: #1e40af;
+    margin-bottom: 1rem;
+}
+
+.command-card {
+    background: #1a1a1a;
+    color: #00ff00;
+    border-radius: 8px;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    margin-bottom: 1rem;
+}
+
+.command-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.command-prompt {
+    color: #00aa00;
+    font-weight: bold;
+}
+
+.command-text {
+    color: #00ff00;
+    background: none;
+    border: none;
+    font-family: inherit;
+    flex: 1;
+}
+
+.btn-copy {
+    background: #333;
+    color: #00ff00;
+    border: 1px solid #555;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-run {
+    background: #0ea5e9;
+    color: white;
+    border: 1px solid #0284c7;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    transition: background-color 0.3s;
+}
+
+.btn-run:hover {
+    background: #0284c7;
+}
+
+.btn-run:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.command-result {
+    background: #f1f5f9;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    font-family: 'Courier New', monospace;
+}
+
+.result-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.result-output {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.timestamp {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-left: auto;
+}
+
+.auto-analysis-card {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.auto-analysis-card h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+}
+
+.analysis-content {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* New integrated workflow styles */
+.wizard-status-container {
+    margin: 1rem 0;
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.status-message.info {
+    background: #dbeafe;
+    color: #1e40af;
+    border-left: 4px solid #3b82f6;
+}
+
+.status-message.success {
+    background: #dcfce7;
+    color: #166534;
+    border-left: 4px solid #16a34a;
+}
+
+.status-message.warning {
+    background: #fef3c7;
+    color: #92400e;
+    border-left: 4px solid #f59e0b;
+}
+
+.status-message.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border-left: 4px solid #ef4444;
+}
+
+.hydraulic-warning-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.warning-content {
+    background: #ffffff;
+    padding: 2rem;
+    border-radius: 12px;
+    max-width: 500px;
+    margin: 1rem;
+}
+
+.warning-content h2 {
+    color: #dc2626;
+    margin-bottom: 1rem;
+}
+
+.safety-checklist {
+    background: #fef3c7;
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+}
+
+.safety-checklist ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.warning-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-proceed {
+    background: #059669;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.live-diagnosis-card {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.diagnosis-good {
+    border-color: #16a34a;
+    background: #f0fdf4;
+}
+
+.diagnosis-warning {
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.diagnosis-critical {
+    border-color: #ef4444;
+    background: #fef2f2;
+}
+
+.findings-list {
+    margin: 1rem 0;
+}
+
+.finding {
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.finding.good {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.finding.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.finding.critical {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.finding.info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.diagnosis-timestamp {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-align: right;
+    margin-top: 0.5rem;
+}
+
+.command-category {
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.command-category h4 {
+    background: #f1f5f9;
+    padding: 0.75rem;
+    margin: 0;
+    color: #475569;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.contextual-command-card {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.contextual-command-card:last-child {
+    border-bottom: none;
+}
+
+/* Enhanced command interface */
+#contextual-commands {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 2px solid #e2e8f0;
+}
+
+#live-diagnosis {
+    margin-bottom: 1.5rem;
+}
+
+/* Report generation styles */
+.session-completion-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.completion-content {
+    background: #ffffff;
+    padding: 2rem;
+    border-radius: 12px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    margin: 1rem;
+}
+
+.session-summary {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+}
+
+.resolution-options {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.resolution-btn {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e2e8f0;
+    background: #ffffff;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.resolution-btn.selected {
+    border-color: #3b82f6;
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.command-description {
+    color: #888;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.command-expected {
+    color: #ffaa00;
+    font-size: 0.9rem;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.btn-secondary {
+    background: #64748b;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn-success {
+    background: #059669;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn-warning {
+    background: #d97706;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.verification-checklist {
+    margin: 1rem 0;
+}
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+    padding: 0.5rem;
+    border-radius: 4px;
+    background: #f8fafc;
+    color: #1e293b;
+}
+
+.check-item input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+
+.emergency-contact {
+    background: #ffffff;
+    border: 2px solid #d97706;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 3rem;
+    color: #1e293b;
+}
+
+.emergency-contact h3 {
+    color: #d97706;
+    margin: 0 0 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .status-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .emergency-title {
+        font-size: 1.8rem;
+    }
+}
+</style>
+{% endblock %}

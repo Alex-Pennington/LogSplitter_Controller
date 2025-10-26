@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Raw Document - LCARS{% endblock %}
+
+{% block breadcrumb %}
+<span class="lcars-breadcrumb-item">MAIN COMPUTER</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item"><a href="{{ url_for('index') }}">DOCUMENTATION</a></span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">{{ document.category }}</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">{{ document.name }}</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">RAW SOURCE</span>
+{% endblock %}
+
+{% block content %}
+<div class="lcars-raw-display">
+    <div class="lcars-raw-header">
+        <div class="lcars-raw-title-section">
+            <h1 class="lcars-title-large">RAW DOCUMENT SOURCE</h1>
+            <div class="lcars-raw-filename">{{ document.filename }}</div>
+        </div>
+        
+        <div class="lcars-raw-controls">
+            <a href="{{ url_for('view_document', filename=document.filename) }}" 
+               class="lcars-control-button">VIEW RENDERED</a>
+            <button onclick="copyToClipboard()" class="lcars-control-button">COPY SOURCE</button>
+            <button onclick="downloadSource()" class="lcars-control-button">DOWNLOAD</button>
+        </div>
+    </div>
+    
+    <div class="lcars-raw-info-panel">
+        <div class="lcars-raw-info-group">
+            <div class="lcars-info-item">
+                <span class="lcars-info-label">CATEGORY:</span>
+                <span class="lcars-info-value">{{ document.category }}</span>
+            </div>
+            <div class="lcars-info-item">
+                <span class="lcars-info-label">SIZE:</span>
+                <span class="lcars-info-value">{{ document.size_kb }} KB</span>
+            </div>
+            <div class="lcars-info-item">
+                <span class="lcars-info-label">MODIFIED:</span>
+                <span class="lcars-info-value">{{ document.modified }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="lcars-raw-content">
+        <div class="lcars-raw-editor-header">
+            <div class="lcars-editor-title">DOCUMENT SOURCE CODE</div>
+            <div class="lcars-editor-info">
+                <span class="lcars-line-count">{{ content.count('\n') + 1 }} LINES</span>
+                <span class="lcars-char-count">{{ content|length }} CHARACTERS</span>
+            </div>
+        </div>
+        
+        <div class="lcars-raw-editor">
+            <div class="lcars-line-numbers">
+                {% for line_num in range(1, content.count('\n') + 2) %}
+                <div class="lcars-line-number">{{ line_num }}</div>
+                {% endfor %}
+            </div>
+            
+            <div class="lcars-source-content">
+                <pre id="source-content" class="lcars-source-code">{{ content }}</pre>
+            </div>
+        </div>
+    </div>
+    
+    <div class="lcars-raw-actions">
+        <div class="lcars-action-panel">
+            <div class="lcars-action-group">
+                <button onclick="selectAll()" class="lcars-action-button">SELECT ALL</button>
+                <button onclick="toggleLineNumbers()" class="lcars-action-button">TOGGLE LINES</button>
+                <button onclick="toggleWrap()" class="lcars-action-button">TOGGLE WRAP</button>
+            </div>
+            
+            <div class="lcars-navigation-group">
+                <a href="{{ url_for('index') }}" class="lcars-nav-button">RETURN TO INDEX</a>
+                <a href="{{ url_for('view_document', filename=document.filename) }}" 
+                   class="lcars-nav-button">VIEW DOCUMENT</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard() {
+    const content = document.getElementById('source-content');
+    const textArea = document.createElement('textarea');
+    textArea.value = content.textContent;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    
+    // Show feedback
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = 'COPIED!';
+    button.style.backgroundColor = '#66ff66';
+    setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+    }, 2000);
+}
+
+function downloadSource() {
+    const content = document.getElementById('source-content').textContent;
+    const filename = '{{ document.filename }}';
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function selectAll() {
+    const content = document.getElementById('source-content');
+    const range = document.createRange();
+    range.selectNodeContents(content);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function toggleLineNumbers() {
+    const lineNumbers = document.querySelector('.lcars-line-numbers');
+    lineNumbers.style.display = lineNumbers.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleWrap() {
+    const sourceContent = document.querySelector('.lcars-source-code');
+    sourceContent.style.whiteSpace = sourceContent.style.whiteSpace === 'pre-wrap' ? 'pre' : 'pre-wrap';
+}
+</script>
+{% endblock %}

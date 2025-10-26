@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - LCARS Documentation{% endblock %}
+
+{% block breadcrumb %}
+<span class="lcars-breadcrumb-item">MAIN COMPUTER</span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item"><a href="{{ url_for('index') }}">DOCUMENTATION</a></span>
+<span class="lcars-breadcrumb-separator">▶</span>
+<span class="lcars-breadcrumb-item">{{ title.upper() }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="lcars-document-display">
+    <div class="lcars-document-header">
+        <h1 class="lcars-document-title">{{ title }}</h1>
+        <div class="lcars-document-controls">
+            <a href="{{ url_for('view_raw', filename=filename) }}" class="lcars-control-button">VIEW SOURCE</a>
+            <a href="{{ url_for('index') }}" class="lcars-control-button">BACK TO INDEX</a>
+        </div>
+    </div>
+    
+    <div class="lcars-document-content">
+        {{ content | safe }}
+    </div>
+    
+    <div class="lcars-document-footer">
+        <div class="lcars-footer-info">
+            <span class="lcars-footer-label">DOCUMENT:</span>
+            <span class="lcars-footer-value">{{ filename }}</span>
+        </div>
+        <div class="lcars-footer-info">
+            <span class="lcars-footer-label">STATUS:</span>
+            <span class="lcars-footer-value lcars-status-good">ACCESSIBLE</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

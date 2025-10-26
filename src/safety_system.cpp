@@ -1,10 +1,12 @@
 #include "safety_system.h"
 #include "relay_controller.h"
+#include "telemetry_manager.h"
 // NetworkManager include removed - non-networking version
 #include "sequence_controller.h"
 #include "logger.h"
 
 extern void debugPrintf(const char* fmt, ...);
+extern TelemetryManager telemetryManager;
 
 void SafetySystem::begin() {
     // Initialize engine to running state (turn ON Relay 8 - engine runs when relay is ON)
@@ -109,8 +111,11 @@ void SafetySystem::activate(const char* reason) {
     
     safetyActive = true;
     
-    LOG_CRITICAL("SAFETY ACTIVATED: %s (pressure=%.1f PSI)", 
+    debugPrintf("SAFETY ACTIVATED: %s (pressure=%.1f PSI)\n", 
         reason ? reason : "unknown", lastPressure);
+    
+    // Send telemetry for safety activation
+    telemetryManager.sendSafetyEvent(1, true); // 1 = safety activation event
     
     // Emergency stop sequence
     emergencyStop(reason);
@@ -158,7 +163,10 @@ void SafetySystem::activateEStop() {
     eStopActive = true;
     safetyActive = true;  // E-stop also activates general safety
     
-    LOG_CRITICAL("E-STOP ACTIVATED - Emergency shutdown initiated");
+    debugPrintf("E-STOP ACTIVATED - Emergency shutdown initiated\n");
+    
+    // Send telemetry for e-stop activation
+    telemetryManager.sendSafetyEvent(2, true); // 2 = e-stop activation event
     
     // Emergency stop sequence with E-stop specific handling
     emergencyStop("e_stop_pressed");
@@ -175,7 +183,10 @@ void SafetySystem::clearEStop() {
     highPressureActive = false;
     highPressureStartTime = 0;
     
-    LOG_INFO("E-STOP: Cleared via safety clear button - high pressure timer reset");
+    debugPrintf("E-STOP: Cleared via safety clear button - high pressure timer reset\n");
+    
+    // Send telemetry for e-stop clear
+    telemetryManager.sendSafetyEvent(2, false); // 2 = e-stop event, false = cleared
     
     // Turn OFF relay 9 when E-stop is cleared
     if (relayController) {
@@ -195,7 +206,10 @@ void SafetySystem::deactivate() {
     
     safetyActive = false;
     
-    LOG_WARN("Safety system deactivated manually");
+    debugPrintf("Safety system deactivated manually\n");
+    
+    // Send telemetry for safety deactivation
+    telemetryManager.sendSafetyEvent(1, false); // 1 = safety event, false = deactivated
     
     if (relayController) {
         relayController->disableSafety();

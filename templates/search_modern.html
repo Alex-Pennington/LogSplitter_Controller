@@ -1,0 +1,281 @@
+{% extends "base_new.html" %}
+
+{% block title %}Search Documentation - LogSplitter Docs{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Search Header -->
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-search"></i>
+            Search Documentation
+        </h1>
+        <p class="page-subtitle">
+            Find technical information, troubleshooting guides, and system specifications across all documentation.
+        </p>
+    </div>
+
+    <!-- Enhanced Search Form -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <div class="card-content">
+            <form action="{{ url_for('search') }}" method="GET" style="display: grid; gap: 1rem;">
+                <div style="display: flex; gap: 1rem; align-items: end;">
+                    <div style="flex: 1;">
+                        <label for="search-query" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary);">
+                            Search Query
+                        </label>
+                        <input type="text" id="search-query" name="q" value="{{ query }}" 
+                               placeholder="Enter keywords, component names, or describe your problem..." 
+                               class="search-input" 
+                               style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 1rem;"
+                               autofocus>
+                    </div>
+                    
+                    <div>
+                        <label for="category-filter" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary);">
+                            Category
+                        </label>
+                        <select name="category" id="category-filter" 
+                                style="padding: 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-primary);">
+                            <option value="">All Categories</option>
+                            {% for category, info in categories.items() %}
+                            <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>
+                                {{ info.icon }} {{ category }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i>
+                        Search
+                    </button>
+                </div>
+                
+                <!-- Quick Search Buttons -->
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" onclick="quickSearch('error troubleshooting')" class="btn btn-emergency btn-sm">
+                        🚨 Emergency Help
+                    </button>
+                    <button type="button" onclick="quickSearch('pins hardware')" class="btn btn-secondary btn-sm">
+                        ⚙️ Hardware
+                    </button>
+                    <button type="button" onclick="quickSearch('commands setup')" class="btn btn-secondary btn-sm">
+                        🔧 Operations
+                    </button>
+                    <button type="button" onclick="quickSearch('pressure sensor')" class="btn btn-secondary btn-sm">
+                        📊 Monitoring
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Search Results -->
+    {% if query %}
+    <div class="card">
+        <div class="card-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="card-title">
+                    <i class="fas fa-list-ul"></i>
+                    Search Results
+                </h2>
+                <div style="color: var(--text-secondary); font-size: 0.875rem;">
+                    {{ results|length }} documents found for "{{ query }}"
+                    {% if category_filter %} in {{ category_filter }}{% endif %}
+                </div>
+            </div>
+        </div>
+        
+        {% if results %}
+        <div class="card-content">
+            <div style="display: grid; gap: 1.5rem;">
+                {% for result in results %}
+                <div class="card" style="border-left: 4px solid {{ categories[result.doc.category].color }};">
+                    <div class="card-header" style="padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
+                            <div style="flex: 1; min-width: 0;">
+                                <h3 style="margin: 0 0 0.5rem 0;">
+                                    <a href="{{ url_for('view_document', doc_path=result.doc.url_safe_name) }}" 
+                                       style="color: var(--text-primary); text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                                        {% if result.title_match %}
+                                        <i class="fas fa-star" style="color: var(--warning-color);"></i>
+                                        {% endif %}
+                                        {% if result.doc.category == 'Emergency' %}
+                                        <i class="fas fa-exclamation-triangle" style="color: var(--error-color);"></i>
+                                        {% endif %}
+                                        {{ result.doc.name }}
+                                    </a>
+                                </h3>
+                                
+                                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                                    <span style="background: {{ categories[result.doc.category].color }}; color: white; padding: 0.25rem 0.75rem; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight: 600;">
+                                        {{ categories[result.doc.category].icon }} {{ result.doc.category }}
+                                    </span>
+                                    
+                                    {% if result.title_match %}
+                                    <span style="background: var(--warning-color); color: white; padding: 0.25rem 0.75rem; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight: 600;">
+                                        <i class="fas fa-star"></i> Title Match
+                                    </span>
+                                    {% endif %}
+                                    
+                                    <span style="color: var(--text-muted); font-size: 0.875rem;">
+                                        {{ result.doc.size_kb }} KB • Score: {{ result.score }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 0.5rem;">
+                                <a href="{{ url_for('view_document', doc_path=result.doc.url_safe_name) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                <a href="{{ url_for('view_raw', filename=result.doc.filename) }}" class="btn btn-secondary btn-sm">
+                                    <i class="fas fa-code"></i> Source
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if result.matches %}
+                    <div style="padding: 0 1rem 1rem 1rem;">
+                        <div style="background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 1rem;">
+                            <div style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">
+                                <i class="fas fa-search"></i> Matching Content:
+                            </div>
+                            
+                            {% for match in result.matches %}
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--bg-card); border-radius: var(--radius-sm); border-left: 3px solid {{ categories[result.doc.category].color }};">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                                    Line {{ match.line }}: {{ match.text[:100] }}...
+                                </div>
+                                <pre style="background: var(--bg-secondary); padding: 0.5rem; border-radius: var(--radius-sm); font-size: 0.875rem; margin: 0; white-space: pre-wrap; overflow-x: auto;">{{ match.context }}</pre>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <!-- No Results -->
+        <div class="card-content" style="text-align: center; padding: 3rem;">
+            <div style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;">
+                <i class="fas fa-search-minus"></i>
+            </div>
+            <h3 style="margin-bottom: 0.5rem; color: var(--text-primary);">No Results Found</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                No documents match your search for "{{ query }}"{% if category_filter %} in {{ category_filter }}{% endif %}.
+            </p>
+            
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <strong>Try these suggestions:</strong>
+                    <ul style="list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 0.5rem;">
+                        <li>• Check spelling and try different keywords</li>
+                        <li>• Use broader terms (e.g., "pressure" instead of "pressure sensor calibration")</li>
+                        <li>• Remove category filter to search all documents</li>
+                        <li>• Try the emergency search buttons above for common issues</li>
+                    </ul>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        <i class="fas fa-home"></i> Browse All Docs
+                    </a>
+                    <button onclick="document.getElementById('search-query').value=''; document.getElementById('search-query').focus();" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> New Search
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- Search Tips -->
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-lightbulb"></i>
+                    Search Tips
+                </h3>
+            </div>
+            <div class="card-content">
+                <ul style="list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem;">
+                    <li>
+                        <strong>Emergency Searches:</strong><br>
+                        <span style="color: var(--text-secondary);">Try "error", "not working", "stuck", "alarm", "safety"</span>
+                    </li>
+                    <li>
+                        <strong>Component Names:</strong><br>
+                        <span style="color: var(--text-secondary);">Search for "pins", "pressure", "relay", "sensors", "arduino"</span>
+                    </li>
+                    <li>
+                        <strong>Operations:</strong><br>
+                        <span style="color: var(--text-secondary);">Use "setup", "install", "configure", "commands", "deploy"</span>
+                    </li>
+                    <li>
+                        <strong>Smart Search:</strong><br>
+                        <span style="color: var(--text-secondary);">Searches both document titles and full content automatically</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-keyboard"></i>
+                    Keyboard Shortcuts
+                </h3>
+            </div>
+            <div class="card-content">
+                <div style="display: grid; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><kbd>Ctrl</kbd> + <kbd>K</kbd></span>
+                        <span style="color: var(--text-secondary);">Focus search from anywhere</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><kbd>Enter</kbd></span>
+                        <span style="color: var(--text-secondary);">Execute search</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><kbd>Esc</kbd></span>
+                        <span style="color: var(--text-secondary);">Clear search / exit emergency mode</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function quickSearch(query) {
+    document.getElementById('search-query').value = query;
+    document.querySelector('form').submit();
+}
+
+// Auto-focus search input
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search-query');
+    if (!searchInput.value) {
+        searchInput.focus();
+    }
+});
+</script>
+
+<style>
+kbd {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.125rem 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-primary);
+}
+</style>
+{% endblock %}

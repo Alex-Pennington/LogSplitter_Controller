@@ -21,7 +21,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 | 6 | Digital In | Extend Limit Switch | Hydraulic cylinder extend limit | Active LOW |
 | 7 | Digital In | Retract Limit Switch | Hydraulic cylinder retract limit | Active LOW |
 | 8 | Digital In | Splitter Operator Signal | Splitter operator input for basket exchange | Active LOW |
-| 9 | Digital Out | Mill Lamp (Yellow) | Mill lamp indicator controlled by Relay 9 | Active HIGH |
+| 9 | Digital Out | Mill Lamp (Yellow) | Mill lamp indicator controlled by Digital Out 9 | Active HIGH |
 | 10 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 11 | Digital I/O | Reserved | Future digital I/O | N/A |
 | 12 | Digital In | **Emergency Stop (E-Stop)** | Emergency stop input | Active LOW |
@@ -124,13 +124,13 @@ This document provides comprehensive details of all pin assignments for the Ardu
 ### Digital Outputs
 
 #### Pin 9 - Mill Lamp (Yellow)
-- **Function**: Mill lamp indicator controlled by Relay 9 (relay board power control)
-- **Configuration**: OUTPUT (drives mill lamp circuit)
+- **Function**: Digital output for mill lamp indicator
+- **Configuration**: OUTPUT (drives mill lamp circuit directly)
 - **States**:
   - **OFF**: Normal operation, no mill lamp indication needed
   - **ON**: Mill lamp activated (indicates operational status or alerts)
-- **Control**: Controlled via Relay 9 commands (`relay R9 ON/OFF`)
-- **Circuit**: Pin 9 controls Relay 9 which switches mill lamp power
+- **Control**: Controlled via `set pin 9 ON/OFF` commands
+- **Circuit**: Pin 9 directly drives mill lamp circuit (not through relay board)
 - **Purpose**: Visual indicator for mill operational status
 
 #### Pin 13 - Status LED
@@ -154,7 +154,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Baud Rate**: 9600
 - **Function**: Relay controller communication
 - **Protocol**: Simple ASCII commands (R1 ON, R2 OFF, etc.)
-- **Relays**: Controls R1-R8 external relay board
+- **Relays**: Controls R1-R9 external relay board
 - **Safety**: Hardware relay control for hydraulic valves and engine systems
 
 #### WiFi (Built-in)
@@ -165,7 +165,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 
 ## Relay Controller System
 
-The LogSplitter Controller uses an 8-channel relay board connected via Serial1 (Hardware UART) for controlling high-power industrial equipment. All relays are optically isolated and capable of switching AC/DC loads.
+The LogSplitter Controller uses a 9-channel relay board connected via Serial1 (Hardware UART) for controlling high-power industrial equipment. All relays are optically isolated and capable of switching AC/DC loads. The relays (R1-R9) are controlled through serial commands sent to the attached relay board controller, not directly by the digital I/O pins.
 
 ### Relay Output Assignments
 
@@ -636,6 +636,221 @@ Pin 13: OUTPUT
 > network               # Check network connectivity
 > pins                  # Show PIN configurations
 ```
+
+## 🚨 EMERGENCY: Mill Lamp Diagnostic Walkthrough
+
+> **OPERATOR ALERT**: Use this section when the **Mill Lamp (Pin 9)** is ON to diagnose and resume operations quickly during breakdowns.
+
+### Quick Decision Tree: Mill Lamp Status
+
+```
+🟡 MILL LAMP ON → What pattern do you see?
+
+├── 🔴 SOLID ON (continuously lit)
+│   ├── ✅ Single error - Check what it is
+│   └── → Go to SECTION A: Single Error Diagnosis
+│
+├── 🟠 SLOW BLINK (2 seconds on/off)  
+│   ├── ❗ Multiple errors OR acknowledged errors
+│   └── → Go to SECTION B: Multiple Error Diagnosis
+│
+├── 🔴 FAST BLINK (0.5 seconds on/off)
+│   ├── 🚨 CRITICAL system failure
+│   └── → Go to SECTION C: Critical Error Diagnosis
+│
+└── 🔵 OFF (not lit)
+    ├── ✅ Normal operation
+    └── → System OK, no mill lamp issues
+```
+
+---
+
+### SECTION A: Single Error Diagnosis (SOLID ON)
+
+**Step A1: Identify the Error**
+```bash
+# Connect to controller via Serial/Telnet and run:
+> error list
+# Expected output: Single error code like "0x04: Pressure sensor malfunction"
+```
+
+**Step A2: Check System Status**
+```bash
+> show
+# Look for: errors=1 led=SOLID in the output
+```
+
+**Step A3: Error Code Reference**
+| Code | Description | Action Required |
+|------|-------------|-----------------|
+| 0x01 | EEPROM CRC failure | **CRITICAL** - Restart controller |
+| 0x02 | EEPROM save failed | Check memory, restart if needed |
+| 0x04 | Pressure sensor fault | Check wiring, may continue operating |
+| 0x08 | Network connection failed | Check WiFi/ethernet, may continue |
+| 0x10 | Config parameters invalid | Check configuration settings |
+| 0x20 | Memory allocation low | **CRITICAL** - Restart controller |
+| 0x40 | Hardware fault | **CRITICAL** - Check hardware connections |
+| 0x80 | Sequence operation timeout | Check hydraulic system response |
+
+**Step A4: Resolution Actions**
+```bash
+# For non-critical errors (0x04, 0x08, 0x10), you can acknowledge:
+> error ack 0x04    # Replace 0x04 with your actual error code
+
+# After acknowledgment, mill lamp should change to SLOW BLINK
+# If problem is fixed, clear the error:
+> error clear       # Clears all errors - mill lamp should turn OFF
+```
+
+---
+
+### SECTION B: Multiple Error Diagnosis (SLOW BLINK)
+
+**Step B1: List All Active Errors**
+```bash
+> error list
+# Expected output: Multiple errors like "0x04:Pressure sensor, 0x08:(ACK)Network failed"
+# Note: (ACK) means error is acknowledged but still active
+```
+
+**Step B2: Prioritize Critical Issues**
+1. **Address hardware faults first** (0x01, 0x20, 0x40)
+2. **Check operational sensors** (0x04, 0x80) 
+3. **Network issues are lowest priority** (0x08)
+
+**Step B3: Sequential Resolution**
+```bash
+# Acknowledge non-critical errors to continue operations:
+> error ack 0x08    # Network issues
+> error ack 0x04    # Sensor warnings (if hydraulics still work)
+
+# Test basic functionality:
+> relay R1 ON       # Test extend relay
+> relay R1 OFF
+> relay R2 ON       # Test retract relay  
+> relay R2 OFF
+
+# If hydraulics work, you can continue operating while planning maintenance
+```
+
+---
+
+### SECTION C: Critical Error Diagnosis (FAST BLINK)
+
+**⚠️ WARNING: FAST BLINK indicates critical system failure requiring immediate attention**
+
+**Step C1: Emergency Status Check**
+```bash
+> show
+# Look for critical error indicators in system status
+```
+
+**Step C2: Critical Error Codes**
+| Code | Critical Issue | Immediate Action |
+|------|----------------|------------------|
+| 0x01 | EEPROM CRC failure | **STOP OPERATIONS** - Restart controller |
+| 0x20 | Memory allocation failure | **STOP OPERATIONS** - Power cycle system |
+| 0x40 | Hardware fault detected | **STOP OPERATIONS** - Check all connections |
+
+**Step C3: Emergency Actions**
+```bash
+# DO NOT CONTINUE OPERATIONS - These steps are for safe shutdown only:
+
+# 1. Stop all hydraulic operations immediately:
+> relay ALL OFF
+
+# 2. Check if manual controls still work:
+> pins              # Verify pin states
+
+# 3. Document the error for maintenance:
+> error list        # Record all error codes
+
+# 4. Restart the controller:
+> reset             # Or power cycle the entire system
+```
+
+**Step C4: Post-Restart Verification**
+```bash
+# After controller restart, verify mill lamp is OFF:
+> show              # Should show errors=0 led=OFF
+
+# If mill lamp is still blinking after restart:
+# - Contact maintenance personnel immediately
+# - Do not resume operations
+# - Check hardware connections and power supply
+```
+
+---
+
+### Emergency Command Reference
+
+**Quick Status Commands**
+```bash
+> show              # Complete system status including mill lamp
+> error list        # List all active errors
+> pins              # Check all pin states
+> relay status      # Check all relay states
+```
+
+**Emergency Control Commands**
+```bash
+> relay ALL OFF     # Emergency stop all relays
+> error ack 0x##    # Acknowledge specific error (replace ## with code)
+> error clear       # Clear all errors (use only after fixing issues)
+> reset             # Restart controller (for critical errors)
+```
+
+**Safety Override Commands** *(Use only when absolutely necessary)*
+```bash
+> relay R1 ON       # Manual extend (emergency pressure relief)
+> relay R2 ON       # Manual retract (emergency positioning)
+> relay R8 OFF      # Emergency engine stop override
+```
+
+---
+
+### Mill Lamp Hardware Troubleshooting
+
+**If Mill Lamp Doesn't Light Despite Error Commands:**
+
+1. **Check Physical LED Connection**
+   ```bash
+   > set pin 9 ON      # Force pin 9 HIGH - LED should light
+   > set pin 9 OFF     # Force pin 9 LOW - LED should turn off
+   ```
+
+2. **Verify Pin Configuration**
+   ```bash
+   > pins              # Check Pin 9 shows OUTPUT mode
+   ```
+
+3. **Test Error System**
+   ```bash
+   > debug ON          # Enable detailed diagnostics
+   > error test        # Generate test error (if available)
+   ```
+
+**If Commands Don't Work:**
+- Check Serial/USB connection
+- Verify controller power (Pin 13 LED should be on)
+- Try different terminal program
+- Check baud rate: 115200
+
+---
+
+### ⚠️ SAFETY REMINDER
+
+**The mill lamp operates INDEPENDENTLY of critical safety systems:**
+- Emergency Stop (Pin 12) still works even with mill lamp errors
+- Limit switches (Pins 6,7) still provide safety protection  
+- Manual pressure relief via relay commands remains available
+- Mill lamp errors indicate maintenance needs, not immediate danger
+
+**When in doubt: Use Emergency Stop (Pin 12) and contact maintenance**
+
+For complete mill lamp technical details, see: [MILL_LAMP.md](MILL_LAMP.md)
+
+---
 
 ## Safety Certifications
 
