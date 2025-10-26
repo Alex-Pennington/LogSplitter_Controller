@@ -6,6 +6,8 @@
 // Static member definitions - NetworkManager removed
 LogLevel Logger::currentLogLevel = LOG_INFO;  // Default to INFO level
 char Logger::logBuffer[512];
+bool Logger::telemetryEnabled = true;  // Default to enabled
+Stream* Logger::telemetryStream = &Serial;  // Default to Serial, can be changed
 
 void Logger::begin() {
     // NetworkManager removed - non-networking version
@@ -23,6 +25,16 @@ LogLevel Logger::getLogLevel() {
 
 bool Logger::shouldLog(LogLevel level) {
     // Lower numerical values = higher priority
+    // Always show critical and error messages
+    if (level <= LOG_ERROR) {
+        return (level <= currentLogLevel);
+    }
+    
+    // For non-critical messages, respect telemetry setting
+    if (!telemetryEnabled) {
+        return false;
+    }
+    
     // Only log if message level is at or above current threshold
     return (level <= currentLogLevel);
 }
@@ -53,15 +65,14 @@ void Logger::log(LogLevel level, const char* fmt, ...) {
     va_end(args);
     
     // Network logging removed - non-networking version
-    // All logging goes to Serial only
-    {
+    // All logging goes to telemetry stream - machine readable format
+    if (telemetryStream) {
         unsigned long ts = millis();
-        Serial.print("[");
-        Serial.print(ts);
-        Serial.print("] [");
-        Serial.print(getLevelString(level));
-        Serial.print("] ");
-        Serial.println(logBuffer);
+        telemetryStream->print(ts);
+        telemetryStream->print("|");
+        telemetryStream->print(getLevelString(level));
+        telemetryStream->print("|");
+        telemetryStream->println(logBuffer);
     }
 }
 
@@ -103,4 +114,16 @@ void Logger::logDebug(const char* fmt, ...) {
     vsnprintf(logBuffer, sizeof(logBuffer), fmt, args);
     va_end(args);
     log(LOG_DEBUG, "%s", logBuffer);
+}
+
+void Logger::setTelemetryEnabled(bool enabled) {
+    telemetryEnabled = enabled;
+}
+
+bool Logger::isTelemetryEnabled() {
+    return telemetryEnabled;
+}
+
+void Logger::setTelemetryStream(Stream* stream) {
+    telemetryStream = stream;
 }

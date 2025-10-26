@@ -31,10 +31,19 @@ public:
     // Generic logging function
     static void log(LogLevel level, const char* fmt, ...);
     
+    // Telemetry control - allows external control of non-critical logging
+    static void setTelemetryEnabled(bool enabled);
+    static bool isTelemetryEnabled();
+    
+    // Telemetry output stream control
+    static void setTelemetryStream(Stream* stream);
+    
 private:
     // NetworkManager removed - non-networking version
     static LogLevel currentLogLevel;
     static char logBuffer[512];
+    static bool telemetryEnabled;
+    static Stream* telemetryStream;
     
     static bool shouldLog(LogLevel level);
     static const char* getLevelString(LogLevel level);

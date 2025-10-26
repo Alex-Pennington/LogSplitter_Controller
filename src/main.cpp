@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 #include <EEPROM.h>
+#include <SoftwareSerial.h>
 
 // Module includes
 #include "constants.h"
@@ -53,6 +54,9 @@ SystemErrorManager systemErrorManager;
 CommandProcessor commandProcessor;
 SubsystemTimingMonitor timingMonitor;
 
+// Telemetry output port (A4=TX, A5=RX) - A5 not used but required by constructor
+SoftwareSerial telemetrySerial(A5, A4);  // RX, TX pins
+
 // Global pointers for cross-module access
 RelayController* g_relayController = &relayController;
 
@@ -62,6 +66,7 @@ bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
 
 // Global debug and safety state variables
 bool g_debugEnabled = false;        // Debug output control
+bool g_echoEnabled = false;         // Keystroke echo when telemetry disabled
 bool g_emergencyStopActive = false; // Emergency stop current state
 bool g_emergencyStopLatched = false; // Emergency stop latched state
 
@@ -271,6 +276,9 @@ bool initializeSystem() {
         delay(10); 
     }
     
+    // Initialize telemetry serial port (A4=TX, A5=RX)
+    telemetrySerial.begin(115200);
+    
     Serial.println();
     Serial.println("=== LogSplitter Controller v2.0 ===");
     Serial.println("Initializing system...");
@@ -328,11 +336,12 @@ bool initializeSystem() {
     
     Serial.println("Core systems initialized");
     
-    // Initialize logger (serial only in non-networking version)
+    // Initialize logger (telemetry via SoftwareSerial)
     currentSystemState = SYS_RUNNING;
-    Logger::begin();  // No network manager - serial only
+    Logger::begin();
+    Logger::setTelemetryStream(&telemetrySerial);  // Route telemetry to A4/A5 pins
     Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
-    LOG_INFO("Logger initialized (serial only mode)");
+    LOG_INFO("Logger initialized (telemetry on pins A4/A5)");
     
     // Initialize timing monitor
     timingMonitor.begin();
@@ -396,64 +405,96 @@ void updateSystem() {
 }
 
 void publishTelemetry() {
-    // Event-driven telemetry - log metrics on state changes or periodically as fallback
-    unsigned long now = millis();
-    bool forceUpdate = (now - lastPublishTime >= publishInterval);
+    // Check if telemetry is enabled
+    if (!Logger::isTelemetryEnabled()) return;
     
-    // Check for sequence state changes
+    unsigned long now = millis();
+    
+    // ===== IMMEDIATE SEQUENCE UPDATES =====
+    // Only output sequence data when it actually changes
     SequenceState currentSequenceState = sequenceController.getState();
-    if (currentSequenceState != lastSequenceState || forceUpdate) {
-        if (currentSequenceState != lastSequenceState) {
-            // Sequence state changed - log pressure metrics
-            float hydraulicPressure = pressureManager.getHydraulicPressure();
-            float oilPressure = pressureManager.getHydraulicOilPressure();
-            LOG_INFO("SEQUENCE: %s -> %s | PRESSURE: Hydraulic=%.1f PSI, Oil=%.1f PSI", 
-                getSequenceStateName(lastSequenceState),
-                getSequenceStateName(currentSequenceState),
-                hydraulicPressure, oilPressure);
-        }
+    if (currentSequenceState != lastSequenceState) {
+        // Sequence state changed - output immediately with pressure context
+        float hydraulicPressure = pressureManager.getHydraulicPressure();
+        float oilPressure = pressureManager.getHydraulicOilPressure();
+        LOG_INFO("Sequence: %s -> %s", 
+            getSequenceStateName(lastSequenceState),
+            getSequenceStateName(currentSequenceState));
+        LOG_INFO("Pressure: A1=%.1fpsi A5=%.1fpsi", hydraulicPressure, oilPressure);
         lastSequenceState = currentSequenceState;
     }
     
-    // Check for safety state changes
+    // ===== RATE LIMITED UPDATES (30 SECOND INTERVALS) =====
+    // All other telemetry is rate limited to reduce traffic
+    bool periodicUpdate = (now - lastPublishTime >= publishInterval);
+    if (!periodicUpdate) return;  // Exit early if not time for periodic update
+    
+    lastPublishTime = now;
+    
+    // Safety state monitoring (30 second rate limit)
     bool currentSafetyActive = safetySystem.isActive();
     bool currentEStopActive = safetySystem.isEStopActive();
     bool currentEngineRunning = !safetySystem.isEngineStopped();
     
+    // Only log safety if changed OR if this is a periodic update
     if (currentSafetyActive != lastSafetyActive || currentEStopActive != lastEStopActive || 
-        currentEngineRunning != lastEngineRunning || forceUpdate) {
+        currentEngineRunning != lastEngineRunning || periodicUpdate) {
         
-        if (currentSafetyActive != lastSafetyActive || currentEStopActive != lastEStopActive || 
-            currentEngineRunning != lastEngineRunning) {
-            // Safety state changed - log safety metrics
-            LOG_INFO("SAFETY: Active=%s, E-Stop=%s, Engine=%s", 
-                currentSafetyActive ? "YES" : "NO",
-                currentEStopActive ? "ACTIVE" : "OK", 
-                currentEngineRunning ? "RUNNING" : "STOPPED");
-        }
+        LOG_INFO("Safety: estop=%s engine=%s active=%s", 
+            currentEStopActive ? "true" : "false",
+            currentEngineRunning ? "true" : "false", 
+            currentSafetyActive ? "true" : "false");
         
         lastSafetyActive = currentSafetyActive;
         lastEStopActive = currentEStopActive;
         lastEngineRunning = currentEngineRunning;
     }
     
-    // Periodic fallback - log basic status every 30 seconds
-    if (forceUpdate) {
-        lastPublishTime = now;
-        LOG_INFO("STATUS: Uptime=%lu min, Pressure=%.1f PSI, Sequence=%s", 
-            (now - systemStartTime) / 60000,
-            pressureManager.getHydraulicPressure(),
-            getSequenceStateName(currentSequenceState));
-    }
+    // System status summary (every 30 seconds)
+    LOG_INFO("System: uptime=%lus state=%s", 
+        (now - systemStartTime) / 1000,
+        getSequenceStateName(currentSequenceState));
 }
 
 void processSerialCommands() {
     TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_SERIAL);
     while (Serial.available()) {
         char c = Serial.read();
+        
+        // Handle Ctrl+K (ASCII 11) to toggle debug/telemetry output
+        if (c == 11) { // Ctrl+K
+            Logger::setTelemetryEnabled(!Logger::isTelemetryEnabled());
+            g_echoEnabled = !Logger::isTelemetryEnabled(); // Enable echo when telemetry off
+            
+            // Send feedback to user console (Serial)
+            Serial.print("\r\n*** TELEMETRY/DEBUG OUTPUT ");
+            Serial.print(Logger::isTelemetryEnabled() ? "ENABLED" : "DISABLED");
+            Serial.println(" (Ctrl+K to toggle) ***");
+            if (!Logger::isTelemetryEnabled()) {
+                Serial.println("Interactive mode: keystrokes will be echoed");
+                Serial.print("> ");
+            }
+            
+            // Send control message to monitor Arduino (telemetrySerial)
+            telemetrySerial.print("*** TELEMETRY/DEBUG OUTPUT ");
+            telemetrySerial.print(Logger::isTelemetryEnabled() ? "ENABLED" : "DISABLED");
+            telemetrySerial.println(" (Ctrl+K to toggle) ***");
+            if (!Logger::isTelemetryEnabled()) {
+                telemetrySerial.println("Interactive mode: keystrokes will be echoed");
+            }
+            
+            continue;
+        }
+        
         if (c == '\r') continue; // Ignore CR
         
+        // Echo keystrokes when in interactive mode (telemetry disabled)
+        if (g_echoEnabled && c != '\n') {
+            Serial.print(c);
+        }
+        
         if (c == '\n') {
+            if (g_echoEnabled) Serial.println(); // Complete the line
             g_command_buffer[serialLinePos] = '\0';
             serialLinePos = 0;
             
@@ -470,7 +511,7 @@ void processSerialCommands() {
                     Serial.println("Command failed. Type 'help' for available commands.");
                 }
                 
-                // MQTT response removed - non-networking version
+                if (g_echoEnabled) Serial.print("> "); // Prompt for next command
             }
         } else {
             if (serialLinePos < COMMAND_BUFFER_SIZE - 1) {
