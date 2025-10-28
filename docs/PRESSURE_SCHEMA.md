@@ -48,7 +48,7 @@ Hardware Sensor → ADC Sampling → Filtering → Averaging → Calibration →
 
 #### PressureManager Class
 - **Multi-Sensor**: Manages both hydraulic sensors simultaneously
-- **Network Integration**: MQTT publishing every 10 seconds
+- **Binary Telemetry**: Real-time data streaming via telemetry protocol
 - **System Interface**: Provides unified pressure access to other systems
 
 ## Operational Integration
@@ -160,7 +160,7 @@ void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
 - **Pressure Calculation**: <1ms computational overhead
 - **Safety Response**: <100ms from pressure spike to emergency shutdown
 - **Sequence Response**: 15ms stability timer + processing time
-- **MQTT Publishing**: Every 10 seconds (background)
+- **Binary Telemetry**: Every 100ms (real-time streaming)
 
 ### Accuracy and Precision
 - **ADC Resolution**: 12-bit (4096 levels)
@@ -169,9 +169,9 @@ void SafetySystem::checkPressure(float pressure, bool atLimitSwitch) {
 - **System Accuracy**: Dependent on sensor calibration (typically ±1%)
 - **Stability**: Digital filtering reduces noise and false triggers
 
-## Network Integration
+## Binary Telemetry Integration
 
-### MQTT Publishing
+### Real-time Streaming
 
 #### Automatic Publishing
 - **Interval**: Every 10 seconds
@@ -256,7 +256,7 @@ pressureManager.getSensor(SENSOR_HYDRAULIC).setSensorOffset(-2.3f);
 - **Pressure Spikes**: Check for mechanical system issues
 - **Sensor Drift**: Recalibration may be required
 - **Noise/Fluctuation**: Verify filtering configuration
-- **Communication Errors**: Check MQTT connectivity and network
+- **Communication Errors**: Check serial connections and binary telemetry stream
 
 ### Diagnostic Commands
 - `show` - Display current pressure readings

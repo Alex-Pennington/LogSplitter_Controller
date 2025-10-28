@@ -297,12 +297,12 @@ function generateCommands() {
             <div class="command-card">
                 <div class="command-header">
                     <span class="command-prompt">></span>
-                    <code class="command-text">inputs</code>
-                    <button class="btn-copy" onclick="copyCommand('inputs')">📋 Copy</button>
-                    <button class="btn-run" onclick="runCommand('inputs', this)">▶️ Run Now</button>
+                    <code class="command-text">pins</code>
+                    <button class="btn-copy" onclick="copyCommand('pins')">📋 Copy</button>
+                    <button class="btn-run" onclick="runCommand('pins', this)">▶️ Run Now</button>
                 </div>
                 <div class="command-expected">
-                    <strong>Check:</strong> Pin 12 (Emergency Stop) should show HIGH if not pressed
+                    <strong>Check:</strong> Pin 12 E_STOP configuration and state
                 </div>
             </div>
         `;
@@ -328,6 +328,7 @@ function generateCommands() {
                     <span class="command-prompt">></span>
                     <code class="command-text">error list</code>
                     <button class="btn-copy" onclick="copyCommand('error list')">📋 Copy</button>
+                    <button class="btn-run" onclick="runCommand('error list', this)">▶️ Run Now</button>
                 </div>
                 <div class="command-expected">
                     <strong>Note:</strong> All active error codes and descriptions
@@ -347,10 +348,16 @@ function generateResolution() {
             <div class="resolution-steps">
                 <h3>🔋 Power System Recovery</h3>
                 <ol>
-                    <li><strong>Check Emergency Stop:</strong> Ensure Pin 12 button is released and twisted to unlock</li>
-                    <li><strong>Verify Power:</strong> Check main power connections and fuses</li>
-                    <li><strong>Reset System:</strong> <code>reset</code> command or power cycle controller</li>
-                    <li><strong>Test Basic Function:</strong> <code>show</code> command should show normal status</li>
+                    <li><strong>Emergency Stop Check:</strong> 
+                        <ul>
+                            <li>Twist red E-stop button clockwise to release</li>
+                            <li>Verify button pops out fully</li>
+                            <li>Run <code>pins</code> - Pin 12 should show "HIGH" when released</li>
+                        </ul>
+                    </li>
+                    <li><strong>Safety Clear:</strong> Press and release safety clear button (Pin 4)</li>
+                    <li><strong>System Reset:</strong> Run <code>reset</code> command to restart controller</li>
+                    <li><strong>Verify Recovery:</strong> Run <code>show</code> - should show <code>errors=0 led=OFF</code></li>
                 </ol>
             </div>
         `;
@@ -359,10 +366,16 @@ function generateResolution() {
             <div class="resolution-steps">
                 <h3>🔧 Hardware Fault Recovery</h3>
                 <ol>
-                    <li><strong>System Restart:</strong> <code>reset</code> command</li>
-                    <li><strong>If problem persists:</strong> Power cycle entire system</li>
-                    <li><strong>Check Connections:</strong> All cables and relay board connections</li>
-                    <li><strong>Contact Maintenance:</strong> If fast blink continues after restart</li>
+                    <li><strong>Immediate Safety:</strong> Run <code>R1 OFF</code> and <code>R2 OFF</code> to stop hydraulics</li>
+                    <li><strong>System Restart:</strong> Run <code>reset</code> command</li>
+                    <li><strong>Check Status:</strong> Run <code>show</code> - mill lamp should change pattern</li>
+                    <li><strong>If Fast Blink Continues:</strong>
+                        <ul>
+                            <li>Power cycle entire controller (turn off/on)</li>
+                            <li>Check all cable connections to relay board</li>
+                            <li>Contact maintenance - possible hardware failure</li>
+                        </ul>
+                    </li>
                 </ol>
             </div>
         `;
@@ -371,10 +384,17 @@ function generateResolution() {
             <div class="resolution-steps">
                 <h3>🔨 Error Resolution</h3>
                 <ol>
-                    <li><strong>Acknowledge Errors:</strong> <code>error ack 0x##</code> (replace ## with error code)</li>
-                    <li><strong>Test Hydraulics:</strong> <code>relay R1 ON</code> then <code>relay R1 OFF</code></li>
-                    <li><strong>Clear Resolved Errors:</strong> <code>error clear</code> after fixing issues</li>
-                    <li><strong>Restart Engine:</strong> If hydraulics work normally</li>
+                    <li><strong>Review Errors:</strong> Run <code>error list</code> to see all active errors</li>
+                    <li><strong>Address Root Causes:</strong> Fix physical issues before clearing errors</li>
+                    <li><strong>Test Hydraulic Safety:</strong> 
+                        <ul>
+                            <li>⚠️ <strong>CLEAR AREA FIRST</strong> - ensure no people near cylinder</li>
+                            <li>Run <code>R1 ON</code> briefly, then <code>R1 OFF</code></li>
+                            <li>Check cylinder movement and pressure response</li>
+                        </ul>
+                    </li>
+                    <li><strong>Clear Errors:</strong> Run <code>error clear</code> only after problems are fixed</li>
+                    <li><strong>Final Check:</strong> Run <code>show</code> - should show <code>errors=0 led=OFF</code></li>
                 </ol>
             </div>
         `;
@@ -478,7 +498,7 @@ async function runCommand(command, buttonElement, isAuto = false) {
         });
         
     } catch (error) {
-        showCommandResult(command, `Network error: ${error.message}`, 'error');
+        showCommandResult(command, `Communication error: ${error.message}`, 'error');
         
         if (buttonElement) {
             buttonElement.innerHTML = '❌ Error';
@@ -591,10 +611,11 @@ function analyzeCommandOutput(command, output) {
     
     // Analyze 'show' command output
     if (command === 'show' || command === 'status') {
+        // Error analysis with operator context
         if (output.includes('errors=0')) {
             analysis.findings.push({
                 type: 'good',
-                message: 'No active errors detected',
+                message: 'System clear - no active errors',
                 icon: '✅'
             });
             analysis.severity = 'good';
@@ -602,30 +623,110 @@ function analyzeCommandOutput(command, output) {
             const errorMatch = output.match(/errors=(\d+)/);
             const errorCount = errorMatch ? parseInt(errorMatch[1]) : 0;
             
-            analysis.findings.push({
-                type: 'warning',
-                message: `${errorCount} active errors detected`,
-                icon: '⚠️'
-            });
+            if (errorCount === 1) {
+                analysis.findings.push({
+                    type: 'warning', 
+                    message: `Single error active - likely recoverable`,
+                    icon: '⚠️'
+                });
+            } else if (errorCount > 1) {
+                analysis.findings.push({
+                    type: errorCount > 3 ? 'critical' : 'warning',
+                    message: `${errorCount} errors active - system degraded`,
+                    icon: errorCount > 3 ? '🚨' : '⚠️'
+                });
+            }
             
             if (errorCount > 0) {
-                analysis.next_suggested.push('errors');
+                analysis.next_suggested.push('error list');
                 analysis.severity = errorCount > 3 ? 'critical' : 'warning';
             }
         }
         
-        // Mill lamp analysis
+        // Pressure analysis for operators
+        if (output.includes('hydraulic=')) {
+            const pressureMatch = output.match(/hydraulic=([\d.]+)/);
+            if (pressureMatch) {
+                const pressure = parseFloat(pressureMatch[1]);
+                if (pressure > 2300) {
+                    analysis.findings.push({
+                        type: 'warning',
+                        message: `High hydraulic pressure: ${pressure} PSI - approaching safety limit`,
+                        icon: '📈'
+                    });
+                    analysis.next_suggested.push('R1 OFF', 'R2 OFF');
+                } else if (pressure < 100) {
+                    analysis.findings.push({
+                        type: 'warning', 
+                        message: `Low hydraulic pressure: ${pressure} PSI - pump or valve issue`,
+                        icon: '📉'
+                    });
+                } else {
+                    analysis.findings.push({
+                        type: 'good',
+                        message: `Hydraulic pressure normal: ${pressure} PSI`,
+                        icon: '✅'
+                    });
+                }
+            }
+        }
+        
+        // Sequence status for operators  
+        if (output.includes('seq=')) {
+            const seqMatch = output.match(/seq=(\w+)/);
+            if (seqMatch) {
+                const seqState = seqMatch[1];
+                if (seqState === 'IDLE') {
+                    analysis.findings.push({
+                        type: 'info',
+                        message: 'System ready - no active sequence',
+                        icon: 'ℹ️'
+                    });
+                } else if (seqState.includes('ABORT') || seqState.includes('ERROR')) {
+                    analysis.findings.push({
+                        type: 'critical',
+                        message: `Sequence ${seqState} - manual intervention needed`,
+                        icon: '🚨'
+                    });
+                    analysis.severity = 'critical';
+                } else {
+                    analysis.findings.push({
+                        type: 'info',
+                        message: `Active sequence: ${seqState}`,
+                        icon: '🔄'
+                    });
+                }
+            }
+        }
+        
+        // Mill lamp analysis with operator instructions
         if (output.includes('led=OFF')) {
-            analysis.findings.push({type: 'info', message: 'Mill lamp OFF - normal state', icon: '🔵'});
+            analysis.findings.push({
+                type: 'good', 
+                message: 'Mill lamp OFF - system normal (safe to operate)',
+                icon: '🔵'
+            });
         } else if (output.includes('led=SOLID')) {
-            analysis.findings.push({type: 'warning', message: 'Mill lamp SOLID - single error', icon: '🟡'});
-            analysis.next_suggested.push('errors');
-        } else if (output.includes('led=SLOW_BLINK')) {
-            analysis.findings.push({type: 'warning', message: 'Mill lamp SLOW BLINK - multiple errors', icon: '🟠'});
-            analysis.next_suggested.push('errors');
-        } else if (output.includes('led=FAST_BLINK')) {
-            analysis.findings.push({type: 'critical', message: 'Mill lamp FAST BLINK - critical fault', icon: '🔴'});
-            analysis.next_suggested.push('errors', 'inputs');
+            analysis.findings.push({
+                type: 'warning', 
+                message: 'Mill lamp SOLID - single active error (check error list)',
+                icon: '🟡'
+            });
+            analysis.next_suggested.push('error list');
+        } else if (output.includes('led=SLOW') || output.includes('led=SLOW_BLINK')) {
+            analysis.findings.push({
+                type: 'warning', 
+                message: 'Mill lamp SLOW BLINK - multiple errors or acknowledged errors',
+                icon: '🟠'
+            });
+            analysis.next_suggested.push('error list');
+        } else if (output.includes('led=FAST') || output.includes('led=FAST_BLINK')) {
+            analysis.findings.push({
+                type: 'critical', 
+                message: 'Mill lamp FAST BLINK - critical system fault (immediate attention)',
+                icon: '🔴'
+            });
+            analysis.next_suggested.push('error list', 'pins');
             analysis.severity = 'critical';
         }
         
@@ -666,7 +767,7 @@ function analyzeCommandOutput(command, output) {
             });
             
             analysis.severity = errorLines.some(e => e.includes('CRITICAL')) ? 'critical' : 'warning';
-            analysis.next_suggested.push('inputs', 'relay status');
+            analysis.next_suggested.push('pins', 'show');
         }
     }
     
@@ -716,7 +817,7 @@ function suggestNextAutoCommands(lastCommand, output) {
         }
         
         if (output.includes('led=FAST_BLINK')) {
-            setTimeout(() => runCommand('inputs', null, true), 2000);
+            setTimeout(() => runCommand('pins', null, true), 2000);
         }
         
         autoCommandsComplete = true;
@@ -753,14 +854,14 @@ function showContextualCommands() {
     
     if (diagnosticResults['errors']) {
         suggestedCommands.push({
-            command: 'relay status',
-            description: 'Check all relay states for hardware issues',
+            command: 'show',
+            description: 'Get complete system status including relay states',
             category: 'Hardware Check'
         });
         
         suggestedCommands.push({
-            command: 'inputs',
-            description: 'Verify all digital input states',
+            command: 'pins',
+            description: 'Show all pin configurations and current states',
             category: 'Input Verification'
         });
     }
@@ -770,6 +871,25 @@ function showContextualCommands() {
         command: 'help',
         description: 'Show all available controller commands',
         category: 'Reference'
+    });
+    
+    // Operator-focused emergency commands
+    suggestedCommands.push({
+        command: 'R1 OFF',
+        description: 'Turn OFF hydraulic extend relay (emergency stop)',
+        category: 'Emergency Control'
+    });
+    
+    suggestedCommands.push({
+        command: 'R2 OFF', 
+        description: 'Turn OFF hydraulic retract relay (emergency stop)',
+        category: 'Emergency Control'
+    });
+    
+    suggestedCommands.push({
+        command: 'timing status',
+        description: 'Check system performance and timing health',
+        category: 'System Diagnostics'
     });
     
     renderContextualCommands(suggestedCommands);

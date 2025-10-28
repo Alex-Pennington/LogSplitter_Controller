@@ -39,7 +39,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Circuit**: 24V supply → Sensor → 250Ω resistor → GND
 - **Sampling**: 100ms intervals with digital filtering
 - **Safety**: Critical for over-pressure protection
-- **MQTT Topic**: `r4/pressure/hydraulic_system`
+- **Binary Telemetry**: `pressure` message type (0x12)
 
 #### A5 - Filter Hydraulic Pressure Sensor (0-5V Voltage Output)
 - **Function**: Hydraulic filter pressure monitoring  
@@ -48,7 +48,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Circuit**: Sensor power → 5V, Signal → A5, Ground → GND
 - **Sampling**: 100ms intervals with digital filtering
 - **Purpose**: Filter condition monitoring and diagnostics
-- **MQTT Topic**: `r4/pressure/hydraulic_filter`
+- **Binary Telemetry**: `pressure` message type (0x12)
 
 ### Digital Inputs
 
@@ -109,8 +109,8 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Configuration**: INPUT_PULLUP (normally open button or switch to ground)
 - **Active State**: LOW (button pressed/switch activated)
 - **Purpose**: Communication between splitter and loader operators
-- **MQTT**: Publishes immediate status changes to `r4/data/splitter_operator`
-- **Response**: Triggers MQTT notification and serial console message
+- **Binary Telemetry**: Real-time status via `digital_io` message type (0x10)
+- **Response**: Triggers telemetry update and serial console message
 
 #### Pin 12 - Emergency Stop (E-Stop)
 - **Function**: Emergency shutdown of all hydraulic operations
@@ -138,7 +138,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Configuration**: OUTPUT (built-in LED)
 - **States**:
   - **Solid ON**: System operational, all connections good
-  - **Slow Blink (1Hz)**: Network disconnected, system operational
+  - **Slow Blink (1Hz)**: Serial-only mode, system operational
   - **Fast Blink (5Hz)**: Safety warning or system error
   - **OFF**: System fault or not initialized
 
@@ -148,7 +148,7 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Baud Rate**: 115200
 - **Function**: Primary command interface and diagnostics
 - **Access**: Full system control including PIN configuration
-- **Commands**: All commands available (help, show, debug, network, pins, set, relay)
+- **Commands**: All commands available (help, show, debug, pins, set, relay)
 
 #### Serial1 (Hardware UART)
 - **Baud Rate**: 9600
@@ -157,11 +157,12 @@ This document provides comprehensive details of all pin assignments for the Ardu
 - **Relays**: Controls R1-R9 external relay board
 - **Safety**: Hardware relay control for hydraulic valves and engine systems
 
-#### WiFi (Built-in)
-- **Function**: MQTT communication and remote monitoring
-- **Topics**: Status publishing and command reception
-- **Failsafe**: Network issues cannot affect hydraulic control
-- **Security**: PIN commands restricted to Serial interface only
+#### Binary Telemetry (A4/A5 pins)
+- **Function**: Real-time binary telemetry output for system monitoring
+- **Protocol**: Protocol Buffer format at 115200 baud
+- **Topics**: Status publishing for all system components
+- **Failsafe**: Serial communication issues cannot affect hydraulic control
+- **Security**: Command interface restricted to Serial interface only
 
 ## Relay Controller System
 
@@ -193,7 +194,7 @@ The LogSplitter Controller uses a 9-channel relay board connected via Serial1 (H
   - Emergency stop (Pin 12) immediately disables
 - **Manual Control**: Via `relay R1 ON/OFF` commands or Pin 2 manual extend button
 - **Automatic Control**: Controlled during hydraulic sequences
-- **MQTT Topic**: `r4/relays/R1` (status publishing)
+- **Binary Telemetry**: `relays` message type (0x11)
 
 #### Relay 2 (R2) - Hydraulic Retract  
 - **Function**: Controls hydraulic cylinder retraction valve
@@ -205,7 +206,7 @@ The LogSplitter Controller uses a 9-channel relay board connected via Serial1 (H
   - Emergency stop (Pin 12) immediately disables
 - **Manual Control**: Via `relay R2 ON/OFF` commands or Pin 3 manual retract button
 - **Automatic Control**: Controlled during hydraulic sequences
-- **MQTT Topic**: `r4/relays/R2` (status publishing)
+- **Binary Telemetry**: `relays` message type (0x11)
 
 #### Relay 8 (R8) - Engine Enable/Disable
 - **Function**: Controls engine enable/disable signal for log splitter engine

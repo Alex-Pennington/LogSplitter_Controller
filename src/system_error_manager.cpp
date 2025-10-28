@@ -10,14 +10,19 @@ void SystemErrorManager::begin() {
     pinMode(MILL_LAMP_PIN, OUTPUT);
     digitalWrite(MILL_LAMP_PIN, LOW);
     
+    // Initialize the built-in LED pin for system stability status
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);
+    
     // Initialize state
     activeErrors = 0;
     acknowledgedErrors = 0;
     ledState = false;
+    builtinLedState = false;
     lastBlinkTime = millis();
     errorStartTime = 0;
     
-    debugPrintf("SystemErrorManager: Initialized with MIL on pin 9\n");
+    debugPrintf("SystemErrorManager: Initialized with MIL on pin 9 and LED_BUILTIN on pin 13\n");
 }
 
 void SystemErrorManager::setError(SystemErrorType errorType, const char* description) {
@@ -109,6 +114,18 @@ void SystemErrorManager::updateLED() {
     ErrorLedPattern pattern = getLedPattern();
     unsigned long currentTime = millis();
     
+    // Update LED_BUILTIN (pin 13) for system stability status
+    // Simple logic: ON = stable (no errors), OFF = errors present
+    bool systemStable = (activeErrors == 0);
+    if (builtinLedState != systemStable) {
+        digitalWrite(LED_BUILTIN, systemStable ? HIGH : LOW);
+        builtinLedState = systemStable;
+        // Send telemetry for LED_BUILTIN state change
+        telemetryManager.sendDigitalOutput(LED_BUILTIN, systemStable, Telemetry::OUTPUT_STATUS_LED, 
+                                         systemStable ? "stable" : "error");
+    }
+    
+    // Update mill lamp (pin 9) with detailed error patterns
     switch (pattern) {
         case LED_OFF:
             if (ledState != false) {  // Only send telemetry on state change

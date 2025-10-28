@@ -40,17 +40,19 @@ message DigitalInputEvent {
   }
 }
 
-// Digital output state changes (DO9, DO13)
+// Digital output state changes (DO9, DO11, DO13)
 message DigitalOutputEvent {
-  uint32 pin = 1;                 // Pin number (9, 13)
+  uint32 pin = 1;                 // Pin number (9, 11, 13)
   bool state = 2;                 // true=HIGH, false=LOW
   OutputType output_type = 3;     // Type of output
   string pattern = 4;             // For mill lamp: "solid", "slow_blink", "fast_blink", "off"
+                                  // For safety status: "solid", "flashing", "off"
   
   enum OutputType {
     UNKNOWN = 0;
     MILL_LAMP = 1;                // Pin 9
     STATUS_LED = 2;               // Pin 13
+    SAFETY_STATUS = 3;            // Pin 11
   }
 }
 

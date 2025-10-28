@@ -48,7 +48,8 @@ enum InputType : uint8_t {
 enum OutputType : uint8_t {
     OUTPUT_UNKNOWN = 0,
     OUTPUT_MILL_LAMP = 1,        // Pin 9
-    OUTPUT_STATUS_LED = 2        // Pin 13
+    OUTPUT_STATUS_LED = 2,       // Pin 13
+    OUTPUT_SAFETY_STATUS = 3     // Pin 11
 };
 
 // Relay types

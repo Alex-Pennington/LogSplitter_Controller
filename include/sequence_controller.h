@@ -52,6 +52,7 @@ private:
     // Error management integration
     class SystemErrorManager* errorManager = nullptr;
     class InputManager* inputManager = nullptr;
+    class SafetySystem* safetySystem = nullptr;
     
     // Helper methods
     void enterState(SequenceState newState);
@@ -74,6 +75,7 @@ public:
     void setTimeout(unsigned long ms) { timeoutMs = ms; }
     void setErrorManager(class SystemErrorManager* em) { errorManager = em; }
     void setInputManager(class InputManager* im) { inputManager = im; }
+    void setSafetySystem(class SafetySystem* ss) { safetySystem = ss; }
     
     unsigned long getStableTime() const { return stableTimeMs; }
     unsigned long getStartStableTime() const { return startStableTimeMs; }

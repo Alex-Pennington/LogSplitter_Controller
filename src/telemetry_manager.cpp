@@ -216,6 +216,7 @@ Telemetry::InputType TelemetryManager::getInputType(uint8_t pin) {
 Telemetry::OutputType TelemetryManager::getOutputType(uint8_t pin) {
     switch (pin) {
         case MILL_LAMP_PIN: return Telemetry::OUTPUT_MILL_LAMP;
+        case SAFETY_STATUS_PIN: return Telemetry::OUTPUT_SAFETY_STATUS;
         case LED_BUILTIN: return Telemetry::OUTPUT_STATUS_LED;
         default: return Telemetry::OUTPUT_UNKNOWN;
     }

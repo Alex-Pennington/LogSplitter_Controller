@@ -11,6 +11,12 @@ private:
     float lastPressure = 0.0f;
     unsigned long lastSafetyCheck = 0;
     
+    // Pin 11 safety status LED control
+    bool safetyStatusLedState = false;      // Current pin 11 state
+    bool pressureLimitUsedPersistent = false; // Persistent flag until power reset
+    unsigned long lastSafetyStatusBlink = 0;
+    const unsigned long SAFETY_STATUS_BLINK_INTERVAL_MS = 500; // 1Hz flashing
+    
     // Time-based pressure monitoring for E-stop activation
     bool highPressureActive = false;
     unsigned long highPressureStartTime = 0;
@@ -51,4 +57,8 @@ public:
     bool isEStopActive() const { return eStopActive; }
     void getStatusString(char* buffer, size_t bufferSize);
     void publishIndividualValues();  // Publish individual MQTT values
+    
+    // Safety status LED control (pin 11)
+    void markPressureLimitUsed();  // Mark that pressure limits were used (persistent until power reset)
+    void updateSafetyStatusLed();  // Update pin 11 based on current state
 };

@@ -9,6 +9,12 @@ extern void debugPrintf(const char* fmt, ...);
 extern TelemetryManager telemetryManager;
 
 void SafetySystem::begin() {
+    // Initialize pin 11 (safety status LED)
+    pinMode(SAFETY_STATUS_PIN, OUTPUT);
+    digitalWrite(SAFETY_STATUS_PIN, LOW);
+    safetyStatusLedState = false;
+    pressureLimitUsedPersistent = false;
+    
     // Initialize engine to running state (turn ON Relay 8 - engine runs when relay is ON)
     debugPrintf("SafetySystem: Initializing engine to running state...\n");
     
@@ -19,7 +25,7 @@ void SafetySystem::begin() {
     engineStopped = true;  // Force state change
     setEngineStop(false);  // Start engine on system startup
     LOG_WARN("SafetySystem: Engine started - relay R8 initialized to ON (running state)");
-    debugPrintf("SafetySystem: Engine initialization complete\n");
+    debugPrintf("SafetySystem: Engine and safety status LED initialization complete\n");
 }
 
 void SafetySystem::setEngineStop(bool stop) {
@@ -48,6 +54,10 @@ void SafetySystem::update(float currentPressure) {
     bool atLimitSwitch = g_limitExtendActive || g_limitRetractActive;
     
     checkPressure(currentPressure, atLimitSwitch);
+    
+    // Update safety status LED (pin 11)
+    updateSafetyStatusLed();
+    
     lastSafetyCheck = millis();
 }
 
@@ -258,4 +268,47 @@ void SafetySystem::getStatusString(char* buffer, size_t bufferSize) {
 void SafetySystem::publishIndividualValues() {
     // Network publishing removed - non-networking version
     // Safety status available via getStatusString() for serial output
+}
+
+void SafetySystem::markPressureLimitUsed() {
+    // Mark that pressure limits were used - this is persistent until power reset
+    if (!pressureLimitUsedPersistent) {
+        pressureLimitUsedPersistent = true;
+        debugPrintf("SafetySystem: Pressure limit usage detected - pin 11 will flash until power reset\n");
+    }
+}
+
+void SafetySystem::updateSafetyStatusLed() {
+    unsigned long currentTime = millis();
+    
+    // Determine LED behavior:
+    // SOLID ON: Safety system has stopped the system
+    // FLASHING: Pressure limit system used (persistent until power reset)
+    // OFF: Normal operation
+    
+    if (safetyActive || eStopActive) {
+        // SOLID ON: Safety system has stopped the system
+        if (!safetyStatusLedState) {
+            digitalWrite(SAFETY_STATUS_PIN, HIGH);
+            safetyStatusLedState = true;
+            telemetryManager.sendDigitalOutput(SAFETY_STATUS_PIN, true, Telemetry::OUTPUT_SAFETY_STATUS, "solid");
+            debugPrintf("SafetySystem: Pin 11 SOLID ON - safety system active\n");
+        }
+    } else if (pressureLimitUsedPersistent) {
+        // FLASHING: Pressure limit system was used (persistent until power reset)
+        if (currentTime - lastSafetyStatusBlink >= SAFETY_STATUS_BLINK_INTERVAL_MS) {
+            safetyStatusLedState = !safetyStatusLedState;
+            digitalWrite(SAFETY_STATUS_PIN, safetyStatusLedState ? HIGH : LOW);
+            telemetryManager.sendDigitalOutput(SAFETY_STATUS_PIN, safetyStatusLedState, Telemetry::OUTPUT_SAFETY_STATUS, "flashing");
+            lastSafetyStatusBlink = currentTime;
+        }
+    } else {
+        // OFF: Normal operation
+        if (safetyStatusLedState) {
+            digitalWrite(SAFETY_STATUS_PIN, LOW);
+            safetyStatusLedState = false;
+            telemetryManager.sendDigitalOutput(SAFETY_STATUS_PIN, false, Telemetry::OUTPUT_SAFETY_STATUS, "off");
+            debugPrintf("SafetySystem: Pin 11 OFF - normal operation\n");
+        }
+    }
 }

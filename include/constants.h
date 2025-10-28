@@ -75,7 +75,7 @@ const char TOPIC_RELAYS_R9[] PROGMEM = "controller/relays/r9";
 
 
 // Pin Configuration
-const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 12};
+const uint8_t WATCH_PINS[] = {2, 3, 4, 5, 6, 7, 8, 12};
 const size_t WATCH_PIN_COUNT = sizeof(WATCH_PINS) / sizeof(WATCH_PINS[0]);
 const unsigned long DEBOUNCE_DELAY_MS = 5;  // Reduced for fast-moving hydraulic cylinder limit switches
 
@@ -97,6 +97,7 @@ const uint8_t RELAY_POWER_CONTROL = 9; // Relay 9 - Relay board power control
 
 // Safety System Pin Configuration
 const uint8_t MILL_LAMP_PIN = 9; // Pin 9 - Mill Lamp (Yellow) output
+const uint8_t SAFETY_STATUS_PIN = 11; // Pin 11 - Safety System Status output
 
 // Relay Configuration
 const unsigned long RELAY_BAUD = 115200;

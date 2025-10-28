@@ -137,7 +137,7 @@ class DocServer:
         elif any(keyword in filename_lower for keyword in ['pin', 'pressure', 'hardware', 'arduino']):
             return 2
         # Operations and commands
-        elif any(keyword in filename_lower for keyword in ['setup', 'command', 'syslog', 'deploy']):
+        elif any(keyword in filename_lower for keyword in ['setup', 'command', 'deploy']):
             return 3
         # General documentation
         else:
@@ -161,11 +161,11 @@ class DocServer:
             return 'Operations'
         
         # Monitoring and diagnostics
-        elif any(kw in filename_lower for kw in ['monitor', 'test', 'diagnostic', 'log', 'syslog', 'telemetry']):
+        elif any(kw in filename_lower for kw in ['monitor', 'test', 'diagnostic', 'log', 'telemetry']):
             return 'Monitoring'
         
         # Development and technical
-        elif any(kw in filename_lower for kw in ['api', 'interface', 'protocol', 'mqtt', 'serial', 'code']):
+        elif any(kw in filename_lower for kw in ['api', 'interface', 'protocol', 'serial', 'code']):
             return 'Development'
         
         # Reference materials
@@ -206,10 +206,9 @@ def _expand_emergency_query(query):
         'error': ['error', 'fault', 'alarm', 'warning', 'problem'],
         'pin': ['pin', 'gpio', 'connection', 'wire', 'terminal'],
         'power': ['power', 'voltage', 'current', 'supply', '12v', '24v'],
-        'network': ['network', 'wifi', 'tcp', 'ip', 'ethernet', 'connection'],
         'monitor': ['monitor', 'display', 'lcd', 'screen', 'interface'],
         'temperature': ['temperature', 'temp', 'thermal', 'heat', 'cooling'],
-        'log': ['log', 'syslog', 'debug', 'trace', 'output'],
+        'log': ['log', 'debug', 'trace', 'output', 'telemetry'],
         'test': ['test', 'diagnostic', 'troubleshoot', 'check', 'verify'],
         'setup': ['setup', 'install', 'config', 'configure', 'deploy']
     }
@@ -223,7 +222,7 @@ def _expand_emergency_query(query):
     problem_patterns = {
         'not working': ['error', 'fault', 'broken', 'failed', 'stuck'],
         'stuck': ['relay', 'valve', 'switch', 'mechanical'],
-        'no response': ['network', 'communication', 'timeout', 'connection'],
+        'no response': ['serial', 'communication', 'timeout', 'connection'],
         'overheating': ['temperature', 'thermal', 'cooling', 'fan'],
         'no power': ['power', 'voltage', 'supply', 'fuse', 'connection']
     }

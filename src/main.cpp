@@ -338,6 +338,7 @@ bool initializeSystem() {
     configManager.setSystemErrorManager(&systemErrorManager);
     sequenceController.setErrorManager(&systemErrorManager);
     sequenceController.setInputManager(&inputManager);
+    sequenceController.setSafetySystem(&safetySystem);
     
     Serial.println("Core systems initialized");
     

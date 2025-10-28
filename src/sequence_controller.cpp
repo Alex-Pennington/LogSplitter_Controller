@@ -3,6 +3,7 @@
 #include "pressure_manager.h"
 #include "system_error_manager.h"
 #include "input_manager.h"
+#include "safety_system.h"
 #include "telemetry_manager.h"
 #include "logger.h"
 #include "constants.h"
@@ -194,6 +195,10 @@ void SequenceController::update() {
                 float currentPressure = pressureManager.getHydraulicPressure();
                 if (currentPressure >= EXTEND_PRESSURE_LIMIT_PSI) {
                     extendLimitReached = true;
+                    // Mark that pressure limit was used (persistent until power reset)
+                    if (safetySystem) {
+                        safetySystem->markPressureLimitUsed();
+                    }
                     debugPrintf("[SEQ] Pressure limit reached: %.1f PSI >= %.1f PSI\n", 
                                currentPressure, EXTEND_PRESSURE_LIMIT_PSI);
                 }
@@ -237,6 +242,10 @@ void SequenceController::update() {
                 float currentPressure = pressureManager.getHydraulicPressure();
                 if (currentPressure >= RETRACT_PRESSURE_LIMIT_PSI) {
                     retractLimitReached = true;
+                    // Mark that pressure limit was used (persistent until power reset)
+                    if (safetySystem) {
+                        safetySystem->markPressureLimitUsed();
+                    }
                     debugPrintf("[SEQ] Retract pressure limit reached: %.1f PSI >= %.1f PSI\n", 
                                currentPressure, RETRACT_PRESSURE_LIMIT_PSI);
                 }

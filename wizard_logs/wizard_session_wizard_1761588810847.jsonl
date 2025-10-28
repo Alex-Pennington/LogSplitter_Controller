@@ -1,0 +1,5 @@
+{"timestamp": "2025-10-27T14:13:31.070032", "session_id": "wizard_1761588810847", "event_type": "start", "data": {"timestamp": "2025-10-27T18:13:31.062Z", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}}
+{"timestamp": "2025-10-27T14:13:31.483718", "session_id": "wizard_1761588810847", "event_type": "command", "data": {"command": "show", "is_auto": true, "is_hydraulic": false, "timestamp": "2025-10-27T18:13:31.071Z"}}
+{"timestamp": "2025-10-27T14:13:32.039202", "session_id": "wizard_1761588810847", "event_type": "command_result", "data": {"command": "show", "success": false, "execution_time": 605, "output_length": 0}}
+{"timestamp": "2025-10-27T14:14:03.518239", "session_id": "wizard_1761588810847", "event_type": "command", "data": {"command": "show", "is_auto": false, "is_hydraulic": false, "timestamp": "2025-10-27T18:14:03.209Z"}}
+{"timestamp": "2025-10-27T14:14:03.809058", "session_id": "wizard_1761588810847", "event_type": "command_result", "data": {"command": "show", "success": false, "execution_time": 348, "output_length": 0}}

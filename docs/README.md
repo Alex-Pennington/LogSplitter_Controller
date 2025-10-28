@@ -1,4 +1,4 @@
-# LogSplitter Controller - Binary Telemetry System# LogSplitter Controller - Binary Telemetry System
+# LogSplitter Controller - Non-Networking Version# LogSplitter Controller - Non-Networking Version
 
 
 
@@ -6,258 +6,465 @@
 
 
 
-The LogSplitter Controller is an Arduino UNO R4 WiFi-based industrial automation system for hydraulic log splitter operations. This build features a **pure binary telemetry system** using Protocol Buffers for maximum data throughput and efficiency.The LogSplitter Controller is an Arduino UNO R4 WiFi-based industrial automation system for hydraulic log splitter operations. This build features a **pure binary telemetry system** using Protocol Buffers for maximum data throughput and efficiency.
+The LogSplitter Controller is an Arduino UNO R4 WiFi-based industrial automation system for hydraulic log splitter operations. This **non-networking version** features a **pure binary telemetry system** using Protocol Buffers for maximum data throughput and efficiency, without WiFi or network dependencies.The LogSplitter Controller is an Arduino UNO R4 WiFi-based industrial automation system for hydraulic log splitter operations. This **non-networking version** features a **pure binary telemetry system** using Protocol Buffers for maximum data throughput and efficiency, without WiFi or network dependencies.
 
 
 
-## 🚀 Key Features## Key Features
+## 🚀 Key Features## 🚀 Key Features
 
 
 
-### **High-Performance Binary Telemetry**### 🚀 **High-Performance Binary Telemetry**
+### 📡 **High-Performance Binary Telemetry**### � **High-Performance Binary Telemetry**
 
-- **Pure Protocol Buffers**: 6-18 byte binary messages- **Pure Protocol Buffers**: 6-18 byte binary messages
+- **Pure Protocol Buffers**: 6-18 byte binary messages
 
-- **600% Faster**: No ASCII overhead, maximum bandwidth efficiency  - **600% Faster**: No ASCII overhead, maximum bandwidth efficiency  
+- **Pure Protocol Buffers**: 6-18 byte binary messages- **600% Faster**: No ASCII overhead, maximum bandwidth efficiency  
 
-- **SoftwareSerial**: Dedicated A4/A5 pins at 115200 baud- **SoftwareSerial**: Dedicated A4/A5 pins at 115200 baud
+- **600% Faster**: No ASCII overhead, maximum bandwidth efficiency  - **SoftwareSerial**: Dedicated A4/A5 pins at 115200 baud
 
-- **Real-time Events**: Sub-millisecond transmission latency- **Real-time Events**: Sub-millisecond transmission latency
+- **SoftwareSerial**: Dedicated A4/A5 pins at 115200 baud- **Real-time Events**: Sub-millisecond transmission latency
 
+- **Real-time Events**: Sub-millisecond transmission latency
 
+### 🏭 **Industrial Control System**
 
-### **Industrial Control System**### 🏭 **Industrial Control System**
+### 🏭 **Industrial Control System**- **8-Relay Control**: Professional-grade hydraulic operations
 
-- **8-Relay Control**: Professional-grade hydraulic operations- **8-Relay Control**: Professional-grade hydraulic operations
+- **Safety Systems**: Mill lamp, emergency stops, pressure monitoring
 
-- **Safety Systems**: Mill lamp, emergency stops, pressure monitoring- **Safety Systems**: Mill lamp, emergency stops, pressure monitoring
+- **8-Relay Control**: Professional-grade hydraulic operations- **Modular Architecture**: Clean, maintainable codebase
 
-- **Modular Architecture**: Clean, maintainable codebase- **Modular Architecture**: Clean, maintainable codebase
+- **Safety Systems**: Mill lamp, emergency stops, pressure monitoring- **Arduino UNO R4 WiFi**: Modern 32-bit ARM Cortex-M4 platform (used for processing power only)
 
-- **Arduino UNO R4 WiFi**: Modern 32-bit ARM Cortex-M4 platform- **Arduino UNO R4 WiFi**: Modern 32-bit ARM Cortex-M4 platform
+- **Modular Architecture**: Clean, maintainable codebase
 
+- **Arduino UNO R4 WiFi**: Modern 32-bit ARM Cortex-M4 platform (used for processing power only)
 
 
-### **System Components**### 📡 **Telemetry System**
 
-- **Pressure Management**: Real-time hydraulic pressure monitoring
+### 🎯 **System Components**### 🎯 **System Components**
 
-- **Safety Controller**: Mill lamp control and emergency systems  ### 2. **Memory Optimization**
 
-- **Sequence Control**: Automated hydraulic cylinder operations- **Issue Fixed**: Large stack arrays (256+ bytes) that could cause stack overflow
 
-- **Input Processing**: Digital input monitoring and debouncing- **Solution**: Shared global buffers with controlled sizes
+- **Pressure Management**: Real-time hydraulic pressure monitoring- **Pressure Management**: Real-time hydraulic pressure monitoring
 
-- **Relay Management**: 8-channel industrial relay control- **Benefit**: Reduced memory usage by ~60%
+- **Safety Controller**: Mill lamp control and emergency systems- **Safety Controller**: Mill lamp control and emergency systems
 
+- **Sequence Control**: Automated hydraulic cylinder operations- **Sequence Control**: Automated hydraulic cylinder operations
 
+- **Input Processing**: Digital input monitoring and debouncing- **Input Processing**: Digital input monitoring and debouncing
 
-## 📁 File Structure### 3. **Network Reliability**
+- **Relay Management**: 8-channel industrial relay control- **Relay Management**: 8-channel industrial relay control
 
-- **Issue Fixed**: Blocking delays and infinite reconnection attempts
+- **Binary Telemetry**: Protocol Buffer messages on A4/A5 pins- **Binary Telemetry**: Protocol Buffer messages on A4/A5 pins
 
-```- **Solution**: Non-blocking reconnection with retry limits and timeouts
 
-src/- **Benefit**: System remains responsive during network issues
 
-├── main.cpp                    # Main system initialization
+### 🔧 **Key Improvements Over Networked Version**### � **Key Improvements Over Networked Version**
 
-├── telemetry_manager.cpp      # Binary telemetry system### 4. **Safety Systems**
 
-├── pressure_manager.cpp       # Pressure sensor interface- **Enhancement**: Comprehensive safety system with pressure monitoring
 
-├── safety_system.cpp          # Mill lamp and safety controls- **Features**: Emergency stop, system health monitoring, watchdog timer
+- **Memory Optimization**: Reduced RAM usage by ~60% via shared global buffers- **Memory Optimization**: Reduced RAM usage by ~60% via shared global buffers
 
-├── sequence_controller.cpp    # Hydraulic sequence automation- **Benefit**: Industrial-grade reliability and fail-safe operation
+- **Safety Systems**: Enhanced safety system with pressure monitoring- **Safety Systems**: Enhanced safety system with pressure monitoring
 
-├── input_manager.cpp          # Digital input processing
+- **Input Validation**: Command validation and security checks- **Input Validation**: Command validation and security checks
 
-├── relay_controller.cpp       # 8-relay control system### 5. **Input Validation & Security**
+- **Simplified Architecture**: Removed network complexity for increased reliability- **Simplified Architecture**: Removed network complexity for increased reliability
 
-└── system_error_manager.cpp   # Error handling and logging- **Issue Fixed**: No validation of MQTT commands
+- **Faster Execution**: No network timeouts or blocking operations- **Faster Execution**: No network timeouts or blocking operations
 
-- **Solution**: Command whitelisting, parameter validation, rate limiting
 
-include/- **Benefit**: Protection against malicious or malformed commands
 
-├── telemetry_manager.h        # Protobuf telemetry interface
+## 📁 File Structure## 📁 File Structure
 
-├── constants.h                # System configuration### 6. **State Machine Design**
 
-└── [component headers]        # Module definitions- **Issue Fixed**: Complex sequence logic mixed with other code
-
-- **Solution**: Clean state machine with defined states and transitions
-
-docs/- **Benefit**: Easier debugging and more predictable behavior
-
-├── TELEMETRY_API.md           # Complete protobuf API specification
-
-├── PINS.md                    # Hardware pin assignments## File Structure
-
-├── DEPLOYMENT_GUIDE.md        # Setup and installation
-
-└── SYSTEM_TEST_SUITE.md       # Testing procedures```
-
-```├── include/
-
-│   ├── constants.h           # System constants and configuration
-
-## 📡 Binary Telemetry API│   ├── network_manager.h     # WiFi/MQTT connectivity
-
-│   ├── sequence_controller.h # Sequence state machine
-
-The system uses **Protocol Buffers** for all telemetry output. See `docs/TELEMETRY_API.md` for complete specifications including:│   ├── pressure_sensor.h     # Pressure monitoring and filtering
-
-│   ├── relay_controller.h    # Relay control and Serial1 communication
-
-- **8 Message Types**: Digital I/O, Relays, Pressure, Errors, Safety, System Status│   ├── config_manager.h      # EEPROM configuration management
-
-- **Python Examples**: Real-time listeners and decoders│   ├── input_manager.h       # Input debouncing and pin monitoring
-
-- **C++ Integration**: Templates for external systems│   ├── safety_system.h       # Safety monitoring and emergency stop
-
-- **Wire Format**: Complete binary protocol specification│   └── command_processor.h   # Command validation and processing
-
-├── src/
-
-## 🔧 Hardware Configuration│   ├── main.cpp             # Main application (200 lines vs 1000+)
-
-│   ├── network_manager.cpp
-
-```│   ├── sequence_controller.cpp
-
-Arduino UNO R4 WiFi Binary Telemetry:│   ├── pressure_sensor.cpp
-
-┌─────────────────────────────────────┐│   ├── relay_controller.cpp
-
-│ Pin A4 (TX) ──────────► Protobuf    ││   ├── config_manager.cpp
-
-│ Pin A5 (RX) ──────────► Not Used    ││   ├── input_manager.cpp
-
-│ Baud Rate: 115200                   ││   ├── safety_system.cpp
-
-│ Format: Pure Binary (no ASCII)      ││   ├── command_processor.cpp
-
-└─────────────────────────────────────┘│   └── constants.cpp
 
 ``````
 
+src/src/
+
+├── main.cpp                    # Main system initialization├── main.cpp                    # Main system initialization
+
+├── telemetry_manager.cpp      # Binary telemetry system├── telemetry_manager.cpp      # Binary telemetry system
+
+├── pressure_manager.cpp       # Pressure sensor interface├── pressure_manager.cpp       # Pressure sensor interface
+
+├── safety_system.cpp          # Mill lamp and safety controls├── safety_system.cpp          # Mill lamp and safety controls
+
+├── sequence_controller.cpp    # Hydraulic sequence automation├── sequence_controller.cpp    # Hydraulic sequence automation
+
+├── input_manager.cpp          # Digital input processing├── input_manager.cpp          # Digital input processing
+
+├── relay_controller.cpp       # 8-relay control system├── relay_controller.cpp       # 8-relay control system
+
+└── system_error_manager.cpp   # Error handling and logging└── system_error_manager.cpp   # Error handling and logging
 
 
-## 🚀 Quick Start## Module Summaries
+
+include/- **Solution**: Command whitelisting, parameter validation, rate limiting
+
+├── constants.h                 # System constants and configuration
+
+├── sequence_controller.h       # Sequence state machineinclude/- **Benefit**: Protection against malicious or malformed commands
+
+├── pressure_sensor.h          # Pressure monitoring and filtering
+
+├── relay_controller.h         # Relay control and Serial1 communication├── telemetry_manager.h        # Protobuf telemetry interface
+
+├── config_manager.h           # EEPROM configuration management
+
+├── input_manager.h            # Input debouncing and pin monitoring├── constants.h                # System configuration### 6. **State Machine Design**
+
+├── safety_system.h            # Safety monitoring and emergency stop
+
+└── command_processor.h        # Command validation and processing└── [component headers]        # Module definitions- **Issue Fixed**: Complex sequence logic mixed with other code
 
 
 
-1. **Hardware Setup**: Connect Arduino UNO R4 WiFi with relay board### Pressure Sensing
+docs/- **Solution**: Clean state machine with defined states and transitions
 
-2. **Flash Firmware**: Upload using PlatformIO
+├── TELEMETRY_API.md           # Complete protobuf API specification
 
-3. **Connect Telemetry**: Monitor A4 pin at 115200 baud for binary output- **Purpose**: Dual-channel (A1 main hydraulic, A5 filter/oil) sampling with filtering & calibration
+├── PINS.md                    # Hardware pin assignmentsdocs/- **Benefit**: Easier debugging and more predictable behavior
 
-4. **Decode Data**: Use Python examples in `docs/TELEMETRY_API.md`- **Features**: Circular buffer averaging, Median3 / EMA filters, configurable ADC reference
+├── DEPLOYMENT_GUIDE.md        # Setup and installation
 
-- **Extended Scaling (A1)**: 0–5.0 V electrical span represents -25% .. +125% of nominal (3000 PSI) but output is CLAMPED to 0..3000 PSI for safety & display
+└── SYSTEM_TEST_SUITE.md       # Testing procedures├── TELEMETRY_API.md           # Complete protobuf API specification
 
-## 📊 Performance Metrics- **Benefit**: Head-room for sensor over‑range / calibration shift while keeping operator & safety logic within a stable nominal window
+```
+
+├── PINS.md                    # Hardware pin assignments## File Structure
+
+## 📡 Binary Telemetry API
+
+├── DEPLOYMENT_GUIDE.md        # Setup and installation
+
+The system uses **Protocol Buffers** for all telemetry output. See `docs/TELEMETRY_API.md` for complete specifications including:
+
+└── SYSTEM_TEST_SUITE.md       # Testing procedures```
+
+- **8 Message Types**: Digital I/O, Relays, Pressure, Errors, Safety, System Status
+
+- **Python Examples**: Real-time listeners and decoders```├── include/
+
+- **C++ Integration**: Templates for external systems
+
+- **Wire Format**: Complete binary protocol specification│   ├── constants.h           # System constants and configuration
 
 
 
-| Metric | Value | Benefit |### RelayController
+## 🔧 Hardware Configuration## 📡 Binary Telemetry API│   ├── network_manager.h     # WiFi/MQTT connectivity
+
+
+
+```│   ├── sequence_controller.h # Sequence state machine
+
+Arduino UNO R4 WiFi Binary Telemetry:
+
+┌─────────────────────────────────────┐The system uses **Protocol Buffers** for all telemetry output. See `docs/TELEMETRY_API.md` for complete specifications including:│   ├── pressure_sensor.h     # Pressure monitoring and filtering
+
+│ Pin A4 (TX) ──────────► Binary      │
+
+│ Pin A5 (RX) ──────────► Not Used    ││   ├── relay_controller.h    # Relay control and Serial1 communication
+
+│                                     │
+
+│ Serial      ──────────► Debug Only  │ (ASCII preserved)- **8 Message Types**: Digital I/O, Relays, Pressure, Errors, Safety, System Status│   ├── config_manager.h      # EEPROM configuration management
+
+│ Serial1     ──────────► Relay Board │ (Unchanged)
+
+└─────────────────────────────────────┘- **Python Examples**: Real-time listeners and decoders│   ├── input_manager.h       # Input debouncing and pin monitoring
+
+
+
+Telemetry: 115200 baud, binary-only- **C++ Integration**: Templates for external systems│   ├── safety_system.h       # Safety monitoring and emergency stop
+
+Debug: Serial port for development
+
+Relay: Existing protocol preserved- **Wire Format**: Complete binary protocol specification│   └── command_processor.h   # Command validation and processing
+
+```
+
+├── src/
+
+## 🚀 Quick Start
+
+## 🔧 Hardware Configuration│   ├── main.cpp             # Main application (200 lines vs 1000+)
+
+1. **Hardware Setup**: Connect Arduino UNO R4 WiFi with relay board
+
+2. **Flash Firmware**: Upload using PlatformIO│   ├── network_manager.cpp
+
+3. **Connect Telemetry**: Monitor A4 pin at 115200 baud for binary output
+
+4. **Decode Data**: Use Python examples in `docs/TELEMETRY_API.md````│   ├── sequence_controller.cpp
+
+
+
+## 📊 Performance MetricsArduino UNO R4 WiFi Binary Telemetry:│   ├── pressure_sensor.cpp
+
+
+
+| Metric | Value | Benefit |┌─────────────────────────────────────┐│   ├── relay_controller.cpp
 
 |--------|-------|---------|
 
-| **Message Size** | 6-18 bytes | 600% more efficient than ASCII |- **Purpose**: Serial1 communication with relay board
+| **Message Size** | 6-18 bytes | 600% more efficient than ASCII |│ Pin A4 (TX) ──────────► Protobuf    ││   ├── config_manager.cpp
 
-| **Transmission Rate** | <1ms latency | Real-time responsiveness |- **Features**: State tracking, power management, command validation
+| **Transmission Rate** | <1ms latency | Real-time responsiveness |
 
-| **Memory Usage** | Flash: 35.5%, RAM: 20.8% | Efficient resource utilization |- **Improvements**: Centralized relay logic, safety integration
+| **Memory Usage** | Flash: 35.5%, RAM: 20.8% | Efficient resource utilization |│ Pin A5 (RX) ──────────► Not Used    ││   ├── input_manager.cpp
 
 | **Baud Rate** | 115200 | Maximum Arduino serial speed |
 
-### ConfigManager
+│ Baud Rate: 115200                   ││   ├── safety_system.cpp
 
-## 📚 Documentation
+## Module Summaries
 
-- **Purpose**: EEPROM storage and configuration management
+│ Format: Pure Binary (no ASCII)      ││   ├── command_processor.cpp
 
-- **[Binary Telemetry API](TELEMETRY_API.md)**: Complete protobuf specifications- **Features**: Validation, defaults, cross-module configuration
+### Pressure Sensing
 
-- **[Hardware Pins](PINS.md)**: Pin assignments and connections  - **Improvements**: Robust configuration with validation and recovery
+└─────────────────────────────────────┘│   └── constants.cpp
 
-- **[Deployment Guide](DEPLOYMENT_GUIDE.md)**: Setup and installation
+- **Purpose**: Dual-channel (A1 main hydraulic, A5 filter/oil) sampling with filtering & calibration
 
-- **[System Testing](SYSTEM_TEST_SUITE.md)**: Validation procedures### SafetySystem
+- **Features**: Circular buffer averaging, Median3 / EMA filters, configurable ADC reference``````
 
-- **[Mill Lamp Control](MILL_LAMP.md)**: Safety system documentation
+- **Extended Scaling (A1)**: 0–5.0 V electrical span represents -25% .. +125% of nominal (3000 PSI) but output is CLAMPED to 0..3000 PSI for safety & display
 
-- **Purpose**: System safety monitoring and emergency procedures
+- **Benefit**: Head-room for sensor over‑range / calibration shift while keeping operator & safety logic within a stable nominal window
 
-## 🔄 System Architecture- **Features**: Pressure monitoring, emergency stop, system health checks
+
+
+### RelayController## 🚀 Quick Start## Module Summaries
+
+
+
+- **Purpose**: Serial1 communication with relay board
+
+- **Features**: State tracking, power management, command validation
+
+- **Improvements**: Centralized relay logic, safety integration1. **Hardware Setup**: Connect Arduino UNO R4 WiFi with relay board### Pressure Sensing
+
+
+
+### ConfigManager2. **Flash Firmware**: Upload using PlatformIO
+
+
+
+- **Purpose**: EEPROM storage and configuration management3. **Connect Telemetry**: Monitor A4 pin at 115200 baud for binary output- **Purpose**: Dual-channel (A1 main hydraulic, A5 filter/oil) sampling with filtering & calibration
+
+- **Features**: Validation, defaults, cross-module configuration
+
+- **Improvements**: Robust configuration with validation and recovery4. **Decode Data**: Use Python examples in `docs/TELEMETRY_API.md`- **Features**: Circular buffer averaging, Median3 / EMA filters, configurable ADC reference
+
+
+
+### SafetySystem- **Extended Scaling (A1)**: 0–5.0 V electrical span represents -25% .. +125% of nominal (3000 PSI) but output is CLAMPED to 0..3000 PSI for safety & display
+
+
+
+- **Purpose**: System safety monitoring and emergency procedures## 📊 Performance Metrics- **Benefit**: Head-room for sensor over‑range / calibration shift while keeping operator & safety logic within a stable nominal window
+
+- **Features**: Pressure monitoring, emergency stop, system health checks
 
 - **Improvements**: Centralized safety logic, multiple trigger conditions
 
-The system follows a **modular, event-driven architecture** optimized for industrial control applications:
 
-### InputManager
 
-1. **Main Loop**: Non-blocking system coordination
+### InputManager| Metric | Value | Benefit |### RelayController
 
-2. **Telemetry Manager**: High-speed binary output- **Purpose**: Pin monitoring with debouncing
 
-3. **Component Managers**: Specialized control subsystems- **Features**: Configurable pin modes (NO/NC), callback system
 
-4. **Safety Systems**: Fail-safe operation and monitoring- **Improvements**: Separated from main loop, cleaner debounce logic
+- **Purpose**: Pin monitoring with debouncing|--------|-------|---------|
 
-5. **Error Handling**: Comprehensive fault detection and reporting
+- **Features**: Configurable pin modes (NO/NC), callback system
 
-### SequenceController
+- **Improvements**: Separated from main loop, cleaner debounce logic| **Message Size** | 6-18 bytes | 600% more efficient than ASCII |- **Purpose**: Serial1 communication with relay board
 
----
 
-- **Purpose**: Cylinder sequence state machine (extend/retract workflow)
 
-**Status**: Production-ready binary telemetry system with 600% performance improvement over legacy ASCII protocols.- **Features**: Stable limit detection timers, timeout handling, abort path
-- **Improvements**: Deterministic transitions; reduced false limit triggers
+### SequenceController| **Transmission Rate** | <1ms latency | Real-time responsiveness |- **Features**: State tracking, power management, command validation
+
+
+
+- **Purpose**: Cylinder sequence state machine (extend/retract workflow)| **Memory Usage** | Flash: 35.5%, RAM: 20.8% | Efficient resource utilization |- **Improvements**: Centralized relay logic, safety integration
+
+- **Features**: Stable limit detection timers, timeout handling, abort path
+
+- **Improvements**: Deterministic transitions; reduced false limit triggers| **Baud Rate** | 115200 | Maximum Arduino serial speed |
+
+
+
+### CommandProcessor### ConfigManager
+
+
+
+- **Purpose**: Command validation and processing (Serial only)## 📚 Documentation
+
+- **Features**: Input validation, rate limiting, security checks, shorthand relay commands (e.g. `R1 ON`)
+
+- **Improvements**: Protection against malformed commands, structured processing, compact `show` output- **Purpose**: EEPROM storage and configuration management
+
+
+
+## Usage- **[Binary Telemetry API](TELEMETRY_API.md)**: Complete protobuf specifications- **Features**: Validation, defaults, cross-module configuration
+
+
+
+### Serial Commands- **[Hardware Pins](PINS.md)**: Pin assignments and connections  - **Improvements**: Robust configuration with validation and recovery
+
+
+
+```text- **[Deployment Guide](DEPLOYMENT_GUIDE.md)**: Setup and installation
+
+help                             # Show available commands
+
+show                             # Compact status line (pressures, sequence, relays, safety)- **[System Testing](SYSTEM_TEST_SUITE.md)**: Validation procedures### SafetySystem
+
+pins                             # Detailed pin mapping & modes
+
+set vref 3.3                     # Set ADC reference (used for ADC->Voltage)- **[Mill Lamp Control](MILL_LAMP.md)**: Safety system documentation
+
+set maxpsi 5000                  # Set nominal max (non-extended channels / legacy path)
+
+set filter median3               # Filter: none | median3 | ema- **Purpose**: System safety monitoring and emergency procedures
+
+set gain 1.02                    # Apply scalar gain to raw pressure (legacy single-sensor path)
+
+set offset -12.5                 # Apply offset (" ")## 🔄 System Architecture- **Features**: Pressure monitoring, emergency stop, system health checks
+
+set pinmode 6 NC                 # Configure limit / input as NO or NC
+
+R1 ON                            # Shorthand relay control- **Improvements**: Centralized safety logic, multiple trigger conditions
+
+relay R2 OFF                     # Long form relay control
+
+```The system follows a **modular, event-driven architecture** optimized for industrial control applications:
+
+
+
+Example `show` response (single line):### InputManager
+
+
+
+```text1. **Main Loop**: Non-blocking system coordination
+
+hydraulic=1234.5 hydraulic_oil=1180.2 seq=IDLE stage=NONE relays=1:ON,2:OFF safe=OK
+
+```2. **Telemetry Manager**: High-speed binary output- **Purpose**: Pin monitoring with debouncing
+
+
+
+## Safety Features3. **Component Managers**: Specialized control subsystems- **Features**: Configurable pin modes (NO/NC), callback system
+
+
+
+1. **Pressure Safety**: Automatic shutdown if clamped main pressure > 2500 PSI (A1 extended scaling still clamps before this check)4. **Safety Systems**: Fail-safe operation and monitoring- **Improvements**: Separated from main loop, cleaner debounce logic
+
+2. **Sequence Timeouts**: Automatic abort if sequence takes too long
+
+3. **System Health**: Watchdog monitoring of main loop execution5. **Error Handling**: Comprehensive fault detection and reporting
+
+4. **Emergency Stop / Reset**: Safety reset on pin 4; single start on pin 5; manual controls on pins 2 & 3
+
+5. **Input Validation**: Protection against malformed commands & rate spikes### SequenceController
+
+
+
+## Memory Usage---
+
+
+
+- **Current Usage**: RAM: 34.5% (11,308 bytes), Flash: 43.3% (113,432 bytes)- **Purpose**: Cylinder sequence state machine (extend/retract workflow)
+
+- **Shared Buffers**: 256-byte message buffer, 64-byte topic buffer
+
+- **Stack Safety**: No large local arrays in functions**Status**: Production-ready binary telemetry system with 600% performance improvement over legacy ASCII protocols.- **Features**: Stable limit detection timers, timeout handling, abort path
+
+- **PROGMEM**: Constants stored in flash memory- **Improvements**: Deterministic transitions; reduced false limit triggers
+
+- **Estimated Savings**: ~60% reduction in RAM usage vs original monolithic design
 
 ### CommandProcessor
 
+## Compilation
+
 - **Purpose**: Command validation and processing (Serial + Telnet + MQTT)
-- **Features**: Input validation, rate limiting, security checks, shorthand relay commands (e.g. `R1 ON`)
+
+To compile this project:- **Features**: Input validation, rate limiting, security checks, shorthand relay commands (e.g. `R1 ON`)
+
 - **Improvements**: Protection against malformed commands, structured processing, compact `show` output
 
-### NetworkManager
+1. Ensure PlatformIO is installed and in PATH
 
-- **Purpose**: WiFi + MQTT connectivity management + Syslog logging
+2. Open terminal in project directory### NetworkManager
+
+3. Run: `pio run`
+
+4. Upload: `pio run --target upload`- **Purpose**: WiFi + MQTT connectivity management + Syslog logging
+
 - **Features**: Non-blocking reconnect, publish helper, status tracking, automatic hostname setting, UDP syslog support
-- **Improvements**: Avoids main loop stalls during outages
+
+## Migration Notes- **Improvements**: Avoids main loop stalls during outages
+
 - **Hostname**: Automatically sets device hostname as `LogSplitter` for easier telnet server discovery
-- **Syslog**: Sends debug messages to configurable rsyslog server (RFC 3164 format over UDP)
 
-### Pressure Scaling Details (A1)
+- **EEPROM**: Existing configurations automatically loaded- **Syslog**: Sends debug messages to configurable rsyslog server (RFC 3164 format over UDP)
 
-Electrical span: 0–5.0 V (configured constant)
+- **Commands**: Legacy commands preserved; added shorthand `R<n> ON|OFF`
+
+- **Pins**: Updated logic: pin 4 now dedicated Safety Reset, pin 5 single Start button (replaces multi-button requirement), pins 2/3 manual action inputs### Pressure Scaling Details (A1)
+
+- **Pressure Scaling**: Main channel (A1) now uses extended 0–5V mapping to -25%..+125% of nominal then clamps to 0..3000 for safety & display; no telemetry format changes required
+
+- **Behavior**: Improved reliability; sequence limit stability timing reduces false transitionsElectrical span: 0–5.0 V (configured constant)
+
+- **Network Features**: All WiFi, MQTT, telnet, and syslog features removed for simplified operation
 
 Logical span: -0.25 * P_nom .. +1.25 * P_nom (P_nom = 3000 PSI) => 1.5 * P_nom total
 
+## Troubleshooting
+
 Mapping formula (before clamp):
 
+### Build Issues
+
 ```text
-rawPsi = (V / 5.0) * (1.5 * P_nom) - 0.25 * P_nom
-```
+
+- Ensure all header files are present in `include/` directoryrawPsi = (V / 5.0) * (1.5 * P_nom) - 0.25 * P_nom
+
+- Check that `arduino_secrets.h` contains basic configuration (not used for networking)```
+
+- Verify PlatformIO dependencies are installed
 
 Clamp applied:
 
+### Runtime Issues
+
 ```text
-rawPsi_clamped = min( max(rawPsi, 0), P_nom )
-```
+
+- Check serial output for initialization messagesrawPsi_clamped = min( max(rawPsi, 0), P_nom )
+
+- Use `show` command to check system status```
+
+- Monitor binary telemetry on A4/A5 pins for system events
 
 Reasons:
 
-1. Headroom for slight sensor over‑range / calibration shift without saturating ADC early
-2. Negative region (below 0) absorbed by clamp—prevents underflow noise
-3. Safety logic and UI operate only on clamped nominal range (predictable thresholds)
-4. No change to MQTT payload schema; downstream consumers unaffected
+---
 
+1. Headroom for slight sensor over‑range / calibration shift without saturating ADC early
+
+**Author**: Refactored from original networked design  2. Negative region (below 0) absorbed by clamp—prevents underflow noise
+
+**Date**: October 2025  3. Safety logic and UI operate only on clamped nominal range (predictable thresholds)
+
+**Version**: 2.4.0 (Non-networking version, Binary telemetry only, Serial command interface)  4. No change to MQTT payload schema; downstream consumers unaffected
+
+**Compatibility**: Arduino UNO R4 WiFi with PlatformIO
 If future needs arise (publishing raw unclamped value, configurable span, or auto-calibration), the code has clear constants (`MAIN_PRESSURE_EXT_*`) ready for parameterization.
 
 ## Usage

@@ -32,7 +32,8 @@ private:
     uint8_t activeErrors = 0;           // Bitmask of active errors
     uint8_t acknowledgedErrors = 0;     // Bitmask of acknowledged errors
     unsigned long lastBlinkTime = 0;    // Last LED blink timestamp
-    bool ledState = false;              // Current LED state
+    bool ledState = false;              // Current mill lamp state (pin 9)
+    bool builtinLedState = false;       // Current LED_BUILTIN state (pin 13)
     unsigned long errorStartTime = 0;   // When first error occurred
     
     // Network manager removed - non-networking version
