@@ -307,4 +307,149 @@ The diagnostic wizard **directly interfaces** with the LogSplitter Controller:
 - **Development** (💻): API interfaces, protocols
 - **Reference** (📖): General documentation and guides
 
+## LCARS Documentation System & Emergency Diagnostic Wizard
+
+### Documentation Server (`lcars_docs_server.py`)
+The project includes a **comprehensive Flask-based documentation system** that provides:
+
+- **Smart Document Discovery**: Auto-scans all `.md` files and categorizes them (Emergency, Hardware, Operations, etc.)
+- **Emergency Dashboard**: Priority access to critical documentation during repairs
+- **Interactive Search**: Query expansion for repair terms and troubleshooting
+- **LCARS-Style Interface**: Clean, responsive design optimized for technical work
+
+### Emergency Diagnostic Wizard (`/emergency_diagnostic`)
+**Critical Tool**: Interactive troubleshooting system with:
+
+- **Visual Assessment**: Mill lamp and engine status identification
+- **Progressive Diagnosis**: AI-powered analysis of symptoms → root cause
+- **Live Serial Commands**: Direct controller communication via USB/Serial
+- **Safety Warnings**: Hydraulic operation confirmations and area-clear protocols
+- **Session Logging**: Complete diagnostic sessions saved to `wizard_logs/`
+- **Report Generation**: PDF/CSV export for maintenance handoff
+
+### Usage Workflows
+
+#### Start Documentation Server
+```bash
+python lcars_docs_server.py
+# Opens http://localhost:3000
+# Emergency button → /emergency_diagnostic
+```
+
+#### Diagnostic Wizard Features
+1. **Mill Lamp Assessment**: Visual identification (OFF/SOLID/SLOW_BLINK/FAST_BLINK)
+2. **Engine Status Check**: Running/Stopped/Unknown states  
+3. **Progressive Commands**: Auto-suggested commands based on findings
+4. **Live Serial Interface**: Real-time controller communication
+5. **Safety Protocols**: Hydraulic movement warnings and confirmations
+6. **Session Export**: Complete diagnostic logs for maintenance teams
+
+#### Emergency Command API (`/api/run_command`)
+- **Auto-detects Arduino COM port** (CH340, USB Serial adapters)
+- **115200 baud connection** with 3-second timeout
+- **Command validation** and **response parsing**
+- **Error handling** for serial communication failures
+- **Session logging** to `wizard_logs/*.jsonl`
+
+### Integration with Controller
+The diagnostic wizard **directly interfaces** with the LogSplitter Controller:
+- **Serial Commands**: `show`, `errors`, `inputs`, `relay status`
+- **Hydraulic Safety**: Area-clear confirmations before cylinder movement
+- **Real-time Analysis**: Progressive diagnosis based on command responses
+- **Cross-referencing**: Compares multiple command outputs for patterns
+
+### Key Documentation Categories
+- **Emergency** (🚨): ERROR.md, MILL_LAMP.md, safety procedures
+- **Hardware** (⚙️): PINS.md, pressure sensors, relay configuration  
+- **Operations** (🔧): Commands, deployment, setup procedures
+- **Monitoring** (📊): TELEMETRY_API.md, system testing
+- **Development** (💻): API interfaces, protocols
+- **Reference** (📖): General documentation and guides
+
+## Telemetry Test Receiver (`telemetry_test_receiver.py`)
+
+### Binary Telemetry Validation Tool
+**Critical Development Tool**: Python script for validating binary protobuf telemetry:
+
+- **Auto-detects Arduino ports**: Finds CH340, USB Serial adapters automatically
+- **Real-time Protocol Buffer decoding**: Validates 8 message types (Digital I/O, Relays, Pressure, etc.)
+- **Message integrity checking**: Sequence validation and error detection
+- **LCD Simulation**: Displays controller status in simulated LCD format
+- **Performance monitoring**: Tracks message rates and throughput
+
+### Usage Examples
+```bash
+python telemetry_test_receiver.py         # Auto-detect Arduino port
+python telemetry_test_receiver.py COM3    # Specific port
+```
+
+### Integration with Development
+- **Real-time debugging**: Monitor telemetry during controller development
+- **Protocol validation**: Ensure binary messages conform to protobuf spec
+- **Performance testing**: Verify 600% throughput improvement over ASCII
+- **System integration**: Test external monitoring systems
+
+## Meshtastic Integration Architecture
+
+### Wireless Telemetry via Meshtastic Node
+**Future Enhancement**: The binary telemetry system is perfectly designed for Meshtastic integration:
+
+#### Hardware Configuration
+```
+Arduino UNO R4 WiFi → Meshtastic Node → Mesh Network
+┌─────────────────────────────────────────────────────────┐
+│ Pin A4 (TX) ────────► Meshtastic RX  ────────► LoRa    │
+│ Pin A5 (RX) ────────► Meshtastic TX  ◄────────◄ LoRa    │
+│                                                         │
+│ Serial  ────────────► Debug/Local (unchanged)          │
+│ Serial1 ────────────► Relay Board (unchanged)          │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Integration Benefits
+- **Zero Protocol Changes**: Existing binary telemetry (7-19 bytes) fits perfectly in Meshtastic packets
+- **Industrial Range**: LoRa provides kilometers of range for remote log splitter operations
+- **Mesh Resilience**: Multi-hop routing through intermediate Meshtastic nodes
+- **Battery Friendly**: Optimized binary protocol minimizes transmission power
+- **Real-time Performance**: Sub-second latency for safety-critical events
+
+#### Meshtastic Node Configuration
+```python
+# Meshtastic node setup for LogSplitter telemetry transport
+serial_config = {
+    'enabled': True,
+    'baud': 115200,
+    'timeout': 1000,
+    'mode': 'TEXTMSG',  # Forward binary data as text payload
+    'echo': False
+}
+
+# Channel configuration for industrial telemetry
+channel_config = {
+    'name': 'LogSplitter',
+    'psk': 'AQ==',  # Custom PSK for industrial network
+    'role': 'PRIMARY',
+    'uplink_enabled': True,
+    'downlink_enabled': True
+}
+```
+
+#### Message Routing
+- **Telemetry Messages**: A4→Meshtastic→Mesh→Monitoring Station
+- **Command Messages**: Monitoring Station→Mesh→Meshtastic→A5→Controller
+- **Emergency Broadcasts**: Safety events propagate to all mesh nodes instantly
+- **Local Fallback**: Serial debug port remains available for direct USB connection
+
+#### Development Integration
+- **Existing Tools Compatible**: `telemetry_test_receiver.py` works through Meshtastic bridge
+- **Protocol Unchanged**: All 8 message types (0x10-0x17) transport transparently
+- **Range Testing**: Use Meshtastic utilities to validate signal strength and routing
+- **Network Debugging**: Mesh network visualization tools for troubleshooting
+
+#### Safety Considerations
+- **Redundant Paths**: Multiple mesh routes ensure critical safety data delivery
+- **Local Override**: Direct USB connection always available for emergency access
+- **Message Priority**: Safety events (Type 0x15) can be configured for priority routing
+- **Mesh Health**: Monitor mesh connectivity as part of system health checks
+
 When implementing new features, prioritize safety validation, use existing memory management patterns, and ensure compatibility with the binary telemetry system.
