@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LCARS - LogSplitter Control Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- LCARS Header with curved corners -->
+    <div class="lcars-header">
+        <div class="lcars-title">
+            <div class="lcars-bracket-left"></div>
+            <span class="title-text">LCARS</span>
+            <div class="lcars-bracket-right"></div>
+        </div>
+        <div class="lcars-subtitle">LOGSPLITTER CONTROL INTERFACE</div>
+        <div class="lcars-stardate">STARDATE 102025.16</div>
+    </div>
+
+    <!-- Main LCARS Interface -->
+    <div class="lcars-container">
+        
+        <!-- Left Panel - Navigation Tabs (TNG Style) -->
+        <div class="lcars-left-panel">
+            <div class="lcars-tab active" data-panel="operations">
+                <div class="tab-number">01</div>
+                <div class="tab-label">OPS</div>
+            </div>
+            
+            <div class="lcars-tab" data-panel="diagnostics">
+                <div class="tab-number">02</div>
+                <div class="tab-label">DIAG</div>
+            </div>
+            
+            <div class="lcars-tab" data-panel="mesh">
+                <div class="tab-number">03</div>
+                <div class="tab-label">MESH</div>
+            </div>
+            
+            <div class="lcars-tab" data-panel="emergency">
+                <div class="tab-number">04</div>
+                <div class="tab-label">EMRG</div>
+            </div>
+            
+            <div class="lcars-tab" data-panel="documentation">
+                <div class="tab-number">05</div>
+                <div class="tab-label">DOCS</div>
+            </div>
+            
+            <div class="lcars-tab" data-panel="system">
+                <div class="tab-number">06</div>
+                <div class="tab-label">SYS</div>
+            </div>
+
+            <!-- Status Indicators -->
+            <div class="lcars-status-group">
+                <div class="lcars-status online">ONLINE</div>
+                <div class="lcars-status" id="arduino-status">ARDUINO</div>
+                <div class="lcars-status" id="mesh-status">MESH NET</div>
+                <div class="lcars-status" id="telemetry-status">TELEMETRY</div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="lcars-main-content">
+            
+            <!-- Operations Panel -->
+            <div id="operations-panel" class="lcars-panel active">
+                <div class="lcars-panel-header">
+                    <h2>OPERATIONAL SYSTEMS</h2>
+                    <div class="panel-status">STATUS: NOMINAL</div>
+                </div>
+                
+                <div class="lcars-grid">
+                    <div class="lcars-module">
+                        <div class="module-header">HYDRAULIC CONTROL</div>
+                        <div class="module-content">
+                            <div class="control-row">
+                                <div class="lcars-button" data-action="extend">EXTEND</div>
+                                <div class="lcars-button" data-action="retract">RETRACT</div>
+                                <div class="lcars-button emergency" data-action="estop">E-STOP</div>
+                            </div>
+                            <div class="pressure-display">
+                                <div class="pressure-value" id="main-pressure">0 PSI</div>
+                                <div class="pressure-label">MAIN HYDRAULIC</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">SEQUENCE CONTROL</div>
+                        <div class="module-content">
+                            <div class="sequence-status" id="sequence-status">IDLE</div>
+                            <div class="control-row">
+                                <div class="lcars-button" data-action="start-sequence">START</div>
+                                <div class="lcars-button" data-action="abort-sequence">ABORT</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">SAFETY SYSTEMS</div>
+                        <div class="module-content">
+                            <div class="safety-indicator" id="safety-status">
+                                <div class="indicator-light safe"></div>
+                                <div class="indicator-label">SYSTEMS SAFE</div>
+                            </div>
+                            <div class="limit-switches">
+                                <div class="switch-status" id="extend-limit">EXTEND LIMIT</div>
+                                <div class="switch-status" id="retract-limit">RETRACT LIMIT</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diagnostics Panel -->
+            <div id="diagnostics-panel" class="lcars-panel">
+                <div class="lcars-panel-header">
+                    <h2>DIAGNOSTIC SYSTEMS</h2>
+                    <div class="panel-status">SCAN IN PROGRESS</div>
+                </div>
+                
+                <div class="diagnostic-grid">
+                    <div class="lcars-module">
+                        <div class="module-header">SUBSYSTEM STATUS</div>
+                        <div class="module-content">
+                            <div class="diagnostic-list" id="subsystem-list">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">ERROR LOG</div>
+                        <div class="module-content">
+                            <div class="error-console" id="error-console">
+                                <!-- Error messages appear here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">PERFORMANCE METRICS</div>
+                        <div class="module-content">
+                            <div class="metrics-display">
+                                <div class="metric-item">
+                                    <span class="metric-label">LOOP FREQ</span>
+                                    <span class="metric-value" id="loop-freq">0 Hz</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">FREE RAM</span>
+                                    <span class="metric-value" id="free-ram">0 KB</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">UPTIME</span>
+                                    <span class="metric-value" id="uptime">00:00:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mesh Network Panel -->
+            <div id="mesh-panel" class="lcars-panel">
+                <div class="lcars-panel-header">
+                    <h2>MESH NETWORK STATUS</h2>
+                    <div class="panel-status" id="mesh-panel-status">SCANNING</div>
+                </div>
+                
+                <div class="mesh-grid">
+                    <div class="lcars-module">
+                        <div class="module-header">NETWORK TOPOLOGY</div>
+                        <div class="module-content">
+                            <div class="node-map" id="node-map">
+                                <!-- Network topology visualization -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">NODE STATUS</div>
+                        <div class="module-content">
+                            <div class="node-list" id="node-list">
+                                <!-- Node status list -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">TELEMETRY STREAM</div>
+                        <div class="module-content">
+                            <div class="telemetry-console" id="telemetry-console">
+                                <!-- Live telemetry data -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Panel -->
+            <div id="emergency-panel" class="lcars-panel">
+                <div class="lcars-panel-header emergency">
+                    <h2>EMERGENCY PROTOCOLS</h2>
+                    <div class="panel-status alert">STANDBY</div>
+                </div>
+                
+                <div class="emergency-grid">
+                    <div class="lcars-module emergency-module">
+                        <div class="module-header">EMERGENCY STOP</div>
+                        <div class="module-content">
+                            <div class="emergency-button" data-action="emergency-stop">
+                                <div class="button-icon">⚠</div>
+                                <div class="button-text">EMERGENCY<br>STOP</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">SAFETY OVERRIDE</div>
+                        <div class="module-content">
+                            <div class="override-controls">
+                                <div class="lcars-button emergency" data-action="safety-override">SAFETY BYPASS</div>
+                                <div class="lcars-button emergency" data-action="system-reset">SYSTEM RESET</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">EMERGENCY CONTACTS</div>
+                        <div class="module-content">
+                            <div class="contact-list">
+                                <div class="contact-item">MAINTENANCE: EXT 2847</div>
+                                <div class="contact-item">SAFETY OFFICER: EXT 1701</div>
+                                <div class="contact-item">EMERGENCY: 911</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documentation Panel -->
+            <div id="documentation-panel" class="lcars-panel">
+                <div class="lcars-panel-header">
+                    <h2>TECHNICAL DOCUMENTATION</h2>
+                    <div class="panel-status">{{ document_count }} DOCUMENTS</div>
+                </div>
+                
+                <div class="docs-grid">
+                    <div class="lcars-module">
+                        <div class="module-header">CATEGORY INDEX</div>
+                        <div class="module-content">
+                            <div class="category-list">
+                                <div class="category-item" data-category="emergency">🚨 EMERGENCY (4)</div>
+                                <div class="category-item" data-category="wireless">📡 WIRELESS (15)</div>
+                                <div class="category-item" data-category="hardware">⚙️ HARDWARE (5)</div>
+                                <div class="category-item" data-category="operations">🔧 OPERATIONS (6)</div>
+                                <div class="category-item" data-category="monitoring">📊 MONITORING (2)</div>
+                                <div class="category-item" data-category="reference">📖 REFERENCE (2)</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">DOCUMENT VIEWER</div>
+                        <div class="module-content">
+                            <div class="document-display" id="document-display">
+                                <div class="document-placeholder">SELECT CATEGORY TO VIEW DOCUMENTS</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Panel -->
+            <div id="system-panel" class="lcars-panel">
+                <div class="lcars-panel-header">
+                    <h2>SYSTEM CONFIGURATION</h2>
+                    <div class="panel-status">CONFIGURATION MODE</div>
+                </div>
+                
+                <div class="system-grid">
+                    <div class="lcars-module">
+                        <div class="module-header">SYSTEM INFO</div>
+                        <div class="module-content">
+                            <div class="system-info">
+                                <div class="info-item">
+                                    <span class="info-label">PLATFORM:</span>
+                                    <span class="info-value">ARDUINO UNO R4 WIFI</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">FIRMWARE:</span>
+                                    <span class="info-value">LOGSPLITTER v2.6</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">NETWORK:</span>
+                                    <span class="info-value">MESHTASTIC MESH</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lcars-module">
+                        <div class="module-header">CONFIGURATION</div>
+                        <div class="module-content">
+                            <div class="config-controls">
+                                <div class="lcars-button" data-action="save-config">SAVE CONFIG</div>
+                                <div class="lcars-button" data-action="load-config">LOAD CONFIG</div>
+                                <div class="lcars-button" data-action="reset-config">RESET DEFAULT</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - System Status -->
+        <div class="lcars-right-panel">
+            <div class="status-display">
+                <div class="status-header">SYSTEM STATUS</div>
+                <div class="status-items">
+                    <div class="status-item">
+                        <div class="status-indicator online"></div>
+                        <div class="status-text">POWER SYSTEMS</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-indicator" id="hydraulic-indicator"></div>
+                        <div class="status-text">HYDRAULIC SYS</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-indicator" id="comm-indicator"></div>
+                        <div class="status-text">COMMUNICATIONS</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-indicator" id="safety-indicator"></div>
+                        <div class="status-text">SAFETY SYSTEMS</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="lcars-elbow-bottom"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/lcars-interface.js') }}"></script>
+</body>
+</html>

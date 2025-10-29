@@ -165,8 +165,8 @@ bool CommandValidator::checkRateLimit() {
 // ============================================================================
 
 void CommandProcessor::handleHelp(char* response, size_t responseSize, bool fromMqtt) {
-    const char* helpText = "Commands: help, show, debug, reset, error, loglevel [0-7], timing [report|reset|status|slowest|log], bypass";
-    snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nTiming Commands:\ntiming report - Show subsystem performance\ntiming status - Health status\ntiming slowest - Show bottleneck", helpText);
+    const char* helpText = "Commands: help, show, debug, reset, error, loglevel [0-7], timing [report|reset|status|slowest|log], bypass, mesh_test [on|off|status]";
+    snprintf(response, responseSize, "%s, pins, pin <6|7> debounce <low|med|high>, set <param> <val>, relay R<n> ON|OFF\n\nSpecial:\nmesh_test on/off - Generate realistic protobuf telemetry for Meshtastic testing", helpText);
 }
 
 void CommandProcessor::handleShow(char* response, size_t responseSize, bool fromMqtt) {
@@ -900,6 +900,10 @@ bool CommandProcessor::processCommand(char* commandBuffer, bool fromMqtt, char* 
         char* param = strtok(NULL, " ");
         handleTiming(param, response, responseSize);
     }
+    else if (strcasecmp(cmd, "mesh_test") == 0) {
+        char* param = strtok(NULL, " ");
+        handleMeshTest(param, response, responseSize);
+    }
     else {
         snprintf(response, responseSize, "unknown command: %s", cmd);
         return false;
@@ -1017,5 +1021,50 @@ void CommandProcessor::handleTiming(char* param, char* response, size_t response
     }
     else {
         snprintf(response, responseSize, "timing commands: report, reset, status, slowest, log, detailed");
+    }
+}
+
+void CommandProcessor::handleMeshTest(char* param, char* response, size_t responseSize) {
+    // Need to declare external functions from main.cpp
+    extern void enableMeshTestMode();
+    extern void disableMeshTestMode();
+    extern bool meshTestModeActive;
+    
+    if (!param) {
+        snprintf(response, responseSize, "mesh_test status: %s", 
+                 meshTestModeActive ? "ACTIVE - generating telemetry" : "INACTIVE");
+        return;
+    }
+    
+    if (strcasecmp(param, "on") == 0 || strcasecmp(param, "start") == 0 || strcasecmp(param, "enable") == 0) {
+        if (meshTestModeActive) {
+            snprintf(response, responseSize, "mesh_test already active");
+        } else {
+            enableMeshTestMode();
+            snprintf(response, responseSize, "mesh_test ENABLED - sending realistic telemetry every 1s on A2/A3");
+        }
+    }
+    else if (strcasecmp(param, "off") == 0 || strcasecmp(param, "stop") == 0 || strcasecmp(param, "disable") == 0) {
+        if (!meshTestModeActive) {
+            snprintf(response, responseSize, "mesh_test already inactive");
+        } else {
+            disableMeshTestMode();
+            snprintf(response, responseSize, "mesh_test DISABLED - telemetry generation stopped");
+        }
+    }
+    else if (strcasecmp(param, "status") == 0 || strcasecmp(param, "info") == 0) {        
+        if (meshTestModeActive) {
+            // Simple status without accessing internal mock data structure
+            snprintf(response, responseSize, "mesh_test ACTIVE - generating protobuf telemetry every 1s on A2/A3");
+        } else {
+            snprintf(response, responseSize, "mesh_test INACTIVE - use 'mesh_test on' to start");
+        }
+    }
+    else if (strcasecmp(param, "help") == 0) {
+        snprintf(response, responseSize, 
+                 "mesh_test commands: on|off, status, help - generates realistic protobuf telemetry");
+    }
+    else {
+        snprintf(response, responseSize, "unknown mesh_test command: %s (try: on, off, status, help)", param);
     }
 }

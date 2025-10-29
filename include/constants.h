@@ -128,11 +128,23 @@ const float DEFAULT_A1_ADC_VREF = 5.0f;  // Corrected to 5V reference
 const float DEFAULT_A1_SENSOR_GAIN = 1.0f;
 const float DEFAULT_A1_SENSOR_OFFSET = 0.0f;
 
-// Individual sensor defaults (A5 - Hydraulic Oil)
+// Individual sensor defaults (A5 - Hydraulic Oil) 
+// NOTE: A5 pin conflict resolution - use different pins for Meshtastic in test mode
 const float DEFAULT_A5_MAX_PRESSURE_PSI = 30.0f;
 const float DEFAULT_A5_ADC_VREF = 5.0f;  // Corrected to 5V reference
 const float DEFAULT_A5_SENSOR_GAIN = 1.0f;
 const float DEFAULT_A5_SENSOR_OFFSET = 0.0f;
+
+// Meshtastic Communication Pins (for mesh test mode)
+// Using different pins to avoid conflict with A5 pressure sensor
+const uint8_t MESHTASTIC_TX_PIN = A2;  // Arduino A2 → Meshtastic RX
+const uint8_t MESHTASTIC_RX_PIN = A3;  // Arduino A3 ← Meshtastic TX
+const unsigned long MESHTASTIC_BAUD = 115200;
+
+// Mesh Test Mode Constants
+const bool MESH_TEST_MODE_DEFAULT = true;   // Default ON for mesh testing
+const unsigned long MESH_TEST_INTERVAL_MS = 1000;  // 1 second telemetry bursts
+const unsigned long MESH_TEST_SEQUENCE_DURATION_MS = 30000;  // 30 second cycle
 
 // Current loop sensor constants (4-20mA)
 const float CURRENT_LOOP_MIN_VOLTAGE = 1.0f;  // 4mA × 250Ω = 1V

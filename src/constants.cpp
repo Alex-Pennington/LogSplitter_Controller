@@ -2,7 +2,7 @@
 
 // Command validation arrays
 const char* const ALLOWED_COMMANDS[] = {
-    "help", "show", "pins", "pin", "set", "relay", "debug", "reset", "test", "loglevel", "heartbeat", "error", "bypass", "timing", nullptr
+    "help", "show", "pins", "pin", "set", "relay", "debug", "reset", "test", "loglevel", "heartbeat", "error", "bypass", "timing", "mesh_test", nullptr
 };
 
 const char* const ALLOWED_SET_PARAMS[] = {

@@ -1,0 +1,14 @@
+[
+  {
+    "timestamp": "2025-10-29T11:35:07.574389",
+    "action": "Factory reset COM8",
+    "success": true,
+    "details": ""
+  },
+  {
+    "timestamp": "2025-10-29T11:36:43.614268",
+    "action": "Configure diagnostic",
+    "success": true,
+    "details": "10 settings applied"
+  }
+]

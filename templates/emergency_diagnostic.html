@@ -61,7 +61,18 @@
     <div id="step3" class="diagnostic-step">
         <div class="step-header">
             <h2>Step 3: Run Diagnostic Commands</h2>
-            <p class="step-subtitle">Connect to controller via USB/Serial (115200 baud) and run these commands:</p>
+            <p class="step-subtitle">Connect to controller via Meshtastic mesh network (protobuf protocol) and run these commands:</p>
+        </div>
+        
+        <!-- Meshtastic Connection Status -->
+        <div class="connection-status" id="meshtastic-status">
+            <div class="status-card">
+                <h3>📡 Meshtastic Network Status</h3>
+                <div id="network-status" class="status-info">
+                    <span class="status-indicator">🔄 Checking connection...</span>
+                </div>
+                <button class="btn-small" onclick="checkMeshtasticStatus()">Refresh Status</button>
+            </div>
         </div>
         
         <div class="command-interface">
@@ -89,15 +100,111 @@
         </div>
         
         <div class="action-buttons">
-            <button class="btn-emergency" onclick="goToStep(4)">Commands Complete →</button>
+            <button class="btn-emergency" onclick="goToStep(4)">Test Connectivity →</button>
             <button class="btn-secondary" onclick="goToStep(2)">← Back to Diagnosis</button>
         </div>
     </div>
 
-    <!-- Step 4: Resolution Actions -->
+    <!-- Step 4: Meshtastic Connectivity Test -->
     <div id="step4" class="diagnostic-step">
         <div class="step-header">
-            <h2>Step 4: Resolution Actions</h2>
+            <h2>Step 4: Meshtastic Network Diagnostics</h2>
+            <p class="step-subtitle">Test wireless telemetry system connectivity and mesh network health</p>
+        </div>
+        
+        <div class="meshtastic-interface">
+            <div class="connectivity-section">
+                <h3>🔍 Node Discovery</h3>
+                <div class="command-card">
+                    <div class="command-header">
+                        <span class="command-prompt">📡</span>
+                        <span class="command-text">Auto-discover Meshtastic nodes</span>
+                        <button class="btn-run" onclick="runMeshtasticTest('discover')">🔍 Discover Nodes</button>
+                    </div>
+                    <div class="command-description">
+                        Scans for connected Meshtastic devices and checks their configuration
+                    </div>
+                    <div id="node-discovery-results" class="test-results" style="display: none;">
+                        <!-- Dynamic results -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="network-section">
+                <h3>🌐 Network Health Check</h3>
+                <div class="command-card" id="network-health-card" style="display: none;">
+                    <div class="command-header">
+                        <span class="command-prompt">📊</span>
+                        <span class="command-text">Check mesh network connectivity</span>
+                        <button class="btn-run" onclick="runNetworkHealthTest()">📊 Test Network</button>
+                    </div>
+                    <div class="command-description">
+                        Tests mesh network connectivity, node visibility, and telemetry health
+                    </div>
+                    <div id="network-health-results" class="test-results" style="display: none;">
+                        <!-- Dynamic results -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="range-section">
+                <h3>📡 Range Testing</h3>
+                <div class="command-card" id="range-test-card" style="display: none;">
+                    <div class="command-header">
+                        <span class="command-prompt">📶</span>
+                        <span class="command-text">Quick connectivity test between nodes</span>
+                        <button class="btn-run" onclick="runQuickRangeTest()">📶 Test Range</button>
+                    </div>
+                    <div class="command-description">
+                        Sends test messages between bridge and monitor nodes to verify communication
+                    </div>
+                    <div id="range-test-results" class="test-results" style="display: none;">
+                        <!-- Dynamic results -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="advanced-tools">
+                <h3>🔧 Advanced Tools</h3>
+                <div class="tool-grid">
+                    <div class="tool-card">
+                        <h4>📊 Comprehensive Range Test</h4>
+                        <p>Run full range testing with GPS logging and performance statistics</p>
+                        <div class="tool-command">
+                            <code>python meshtastic_range_test.py --duration 300</code>
+                            <button class="btn-copy" onclick="copyCommand('python meshtastic_range_test.py --duration 300')">📋</button>
+                        </div>
+                    </div>
+                    <div class="tool-card">
+                        <h4>🔧 Node Configuration</h4>
+                        <p>Configure Meshtastic nodes for optimal LogSplitter telemetry</p>
+                        <div class="tool-command">
+                            <code>python meshtastic_config.py --configure-bridge</code>
+                            <button class="btn-copy" onclick="copyCommand('python meshtastic_config.py --configure-bridge')">📋</button>
+                        </div>
+                    </div>
+                    <div class="tool-card">
+                        <h4>📡 Enhanced Receiver</h4>
+                        <p>Monitor telemetry through Meshtastic bridge</p>
+                        <div class="tool-command">
+                            <code>python meshtastic_telemetry_receiver.py --mode bridge</code>
+                            <button class="btn-copy" onclick="copyCommand('python meshtastic_telemetry_receiver.py --mode bridge')">📋</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn-emergency" onclick="goToStep(5)">Proceed to Actions →</button>
+            <button class="btn-secondary" onclick="goToStep(3)">← Back to Commands</button>
+        </div>
+    </div>
+
+    <!-- Step 5: Resolution Actions -->
+    <div id="step5" class="diagnostic-step">
+        <div class="step-header">
+            <h2>Step 5: Resolution Actions</h2>
         </div>
         
         <div id="resolution-actions" class="resolution-card">
@@ -111,10 +218,10 @@
         </div>
     </div>
 
-    <!-- Step 5: Verification -->
-    <div id="step5" class="diagnostic-step">
+    <!-- Step 6: Verification -->
+    <div id="step6" class="diagnostic-step">
         <div class="step-header">
-            <h2>Step 5: Solution Verification</h2>
+            <h2>Step 6: Solution Verification</h2>
         </div>
         
         <div class="verification-card">
@@ -208,6 +315,57 @@ function checkStep1Complete() {
     }
 }
 
+// Check Meshtastic network status
+async function checkMeshtasticStatus() {
+    const statusElement = document.getElementById('network-status');
+    statusElement.innerHTML = '<span class="status-indicator">🔄 Checking Meshtastic network...</span>';
+    
+    try {
+        const response = await fetch('/api/meshtastic_status', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const status = await response.json();
+        
+        if (status.status === 'healthy') {
+            statusElement.innerHTML = `
+                <span class="status-indicator">✅ Network Connected</span>
+                <div class="status-details">
+                    <small>Nodes: ${status.nodes_detected} detected, ${status.visible_mesh_nodes} in mesh</small>
+                    <small>Primary port: ${status.primary_port}</small>
+                </div>
+            `;
+        } else if (status.status === 'isolated') {
+            statusElement.innerHTML = `
+                <span class="status-indicator">⚠️ Network Isolated</span>
+                <div class="status-details">
+                    <small>Local nodes: ${status.nodes_detected}, but no mesh connectivity</small>
+                    <small>Commands will be sent but responses may be limited</small>
+                </div>
+            `;
+        } else {
+            statusElement.innerHTML = `
+                <span class="status-indicator">❌ Network Error</span>
+                <div class="status-details">
+                    <small>Error: ${status.error || 'Unknown network issue'}</small>
+                    <small>Check Meshtastic device connections</small>
+                </div>
+            `;
+        }
+    } catch (error) {
+        statusElement.innerHTML = `
+            <span class="status-indicator">❌ Connection Failed</span>
+            <div class="status-details">
+                <small>Cannot reach Meshtastic network</small>
+                <small>Ensure devices are connected and configured</small>
+            </div>
+        `;
+    }
+}
+
 function goToStep(stepNum) {
     // Hide all steps
     document.querySelectorAll('.diagnostic-step').forEach(step => {
@@ -225,6 +383,7 @@ function goToStep(stepNum) {
     // Generate commands for step 3
     if (stepNum === 3) {
         generateCommands();
+        checkMeshtasticStatus(); // Check network status when entering command interface
     }
     
     // Generate resolution for step 4
@@ -1432,6 +1591,296 @@ function completeDiagnosis() {
     alert('✅ Diagnosis Complete!\n\nSystem should now be operational.\n\nRemember to:\n- Test all functions before full operation\n- Monitor for recurring issues\n- Document any permanent fixes made');
     startOver();
 }
+
+// Meshtastic network diagnostic functions
+let discoveredNodes = [];
+
+async function runMeshtasticTest(testType) {
+    const startTime = Date.now();
+    
+    // Show loading state
+    const resultsDiv = document.getElementById('node-discovery-results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div class="loading">🔍 Discovering Meshtastic nodes...</div>';
+    
+    try {
+        const response = await fetch('/api/meshtastic_test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ test_type: testType })
+        });
+        
+        const result = await response.json();
+        const executionTime = Date.now() - startTime;
+        
+        if (result.success) {
+            discoveredNodes = result.nodes || [];
+            displayNodeDiscoveryResults(result);
+            
+            // Enable next sections if nodes found
+            if (discoveredNodes.length > 0) {
+                document.getElementById('network-health-card').style.display = 'block';
+                if (discoveredNodes.length >= 2) {
+                    document.getElementById('range-test-card').style.display = 'block';
+                }
+            }
+            
+            // Log successful test
+            logWizardEvent('meshtastic_test', {
+                test_type: testType,
+                node_count: discoveredNodes.length,
+                execution_time: executionTime,
+                success: true
+            });
+        } else {
+            resultsDiv.innerHTML = `
+                <div class="error-result">
+                    <strong>❌ Discovery Failed:</strong> ${result.error}<br>
+                    <em>💡 ${result.suggestion || 'Ensure Meshtastic CLI tools are installed and nodes are connected'}</em>
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `
+            <div class="error-result">
+                <strong>❌ Network Error:</strong> ${error.message}<br>
+                <em>💡 Check server connection and try again</em>
+            </div>
+        `;
+    }
+}
+
+function displayNodeDiscoveryResults(result) {
+    const resultsDiv = document.getElementById('node-discovery-results');
+    
+    if (result.nodes.length === 0) {
+        resultsDiv.innerHTML = `
+            <div class="warning-result">
+                <strong>⚠️ No Nodes Found</strong><br>
+                <p>No Meshtastic devices detected on available serial ports.</p>
+                <div class="troubleshoot">
+                    <strong>Troubleshooting:</strong>
+                    <ul>
+                        <li>Ensure Meshtastic nodes are connected via USB</li>
+                        <li>Check that device drivers are installed</li>
+                        <li>Verify Meshtastic CLI tools are installed: <code>pip install meshtastic</code></li>
+                        <li>Try running: <code>meshtastic --info</code> from command line</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="success-result">
+            <strong>✅ Found ${result.nodes.length} Meshtastic Node(s)</strong>
+        </div>
+        <div class="nodes-grid">
+    `;
+    
+    result.nodes.forEach((node, index) => {
+        const nodeInfo = node.node_info || {};
+        html += `
+            <div class="node-card" data-port="${node.port}">
+                <h4>📡 Node ${index + 1}</h4>
+                <div class="node-details">
+                    <div><strong>Port:</strong> ${node.port}</div>
+                    <div><strong>Device:</strong> ${node.description}</div>
+                    ${nodeInfo.owner ? `<div><strong>Owner:</strong> ${nodeInfo.owner}</div>` : ''}
+                    ${nodeInfo.model ? `<div><strong>Model:</strong> ${nodeInfo.model}</div>` : ''}
+                    ${nodeInfo.battery ? `<div><strong>Battery:</strong> ${nodeInfo.battery}</div>` : ''}
+                    ${nodeInfo.region ? `<div><strong>Region:</strong> ${nodeInfo.region}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    if (result.nodes.length >= 2) {
+        html += `
+            <div class="next-step">
+                <p>✅ Multiple nodes detected - ready for network health testing and range testing</p>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="warning">
+                <p>⚠️ Only one node detected. Connect a second node for full mesh testing.</p>
+            </div>
+        `;
+    }
+    
+    resultsDiv.innerHTML = html;
+}
+
+async function runNetworkHealthTest() {
+    if (discoveredNodes.length === 0) {
+        alert('❌ Run node discovery first');
+        return;
+    }
+    
+    const resultsDiv = document.getElementById('network-health-results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div class="loading">📊 Checking mesh network health...</div>';
+    
+    const testPort = discoveredNodes[0].port;
+    
+    try {
+        const response = await fetch('/api/meshtastic_test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                test_type: 'network_health',
+                port: testPort
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayNetworkHealthResults(result.health_data);
+        } else {
+            resultsDiv.innerHTML = `
+                <div class="error-result">
+                    <strong>❌ Network Test Failed:</strong> ${result.error}
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `
+            <div class="error-result">
+                <strong>❌ Test Error:</strong> ${error.message}
+            </div>
+        `;
+    }
+}
+
+function displayNetworkHealthResults(healthData) {
+    const resultsDiv = document.getElementById('network-health-results');
+    
+    let html = `<div class="health-summary">`;
+    
+    if (healthData.status === 'healthy') {
+        html += `<div class="success-result"><strong>✅ Network Status: Healthy</strong></div>`;
+    } else if (healthData.status === 'isolated') {
+        html += `<div class="warning-result"><strong>⚠️ Network Status: Isolated (no other nodes visible)</strong></div>`;
+    } else {
+        html += `<div class="error-result"><strong>❌ Network Status: Error</strong></div>`;
+    }
+    
+    if (healthData.visible_nodes !== undefined) {
+        html += `<div class="metric"><strong>Visible Nodes:</strong> ${healthData.visible_nodes}</div>`;
+    }
+    
+    if (healthData.telemetry) {
+        html += `<div class="metric"><strong>Telemetry:</strong> Active</div>`;
+    }
+    
+    html += `</div>`;
+    
+    if (healthData.nodes_output) {
+        html += `
+            <details class="raw-output">
+                <summary>📋 Raw Node List Output</summary>
+                <pre>${healthData.nodes_output}</pre>
+            </details>
+        `;
+    }
+    
+    resultsDiv.innerHTML = html;
+}
+
+async function runQuickRangeTest() {
+    if (discoveredNodes.length < 2) {
+        alert('❌ Need at least 2 nodes for range testing');
+        return;
+    }
+    
+    const resultsDiv = document.getElementById('range-test-results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div class="loading">📶 Testing connectivity between nodes...</div>';
+    
+    const bridgePort = discoveredNodes[0].port;
+    const monitorPort = discoveredNodes[1].port;
+    
+    try {
+        const response = await fetch('/api/meshtastic_test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                test_type: 'range_quick',
+                bridge_port: bridgePort,
+                monitor_port: monitorPort
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayRangeTestResults(result.range_data);
+        } else {
+            resultsDiv.innerHTML = `
+                <div class="error-result">
+                    <strong>❌ Range Test Failed:</strong> ${result.error}
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `
+            <div class="error-result">
+                <strong>❌ Test Error:</strong> ${error.message}
+            </div>
+        `;
+    }
+}
+
+function displayRangeTestResults(rangeData) {
+    const resultsDiv = document.getElementById('range-test-results');
+    
+    let html = `<div class="range-summary">`;
+    
+    if (rangeData.send_success && rangeData.monitor_connection) {
+        html += `<div class="success-result"><strong>✅ Connectivity Test: Successful</strong></div>`;
+        html += `<div class="metric"><strong>Test Message:</strong> ${rangeData.test_message}</div>`;
+        html += `<div class="metric"><strong>Bridge Node:</strong> Send successful</div>`;
+        html += `<div class="metric"><strong>Monitor Node:</strong> Connected and responsive</div>`;
+    } else {
+        html += `<div class="warning-result"><strong>⚠️ Connectivity Issues Detected</strong></div>`;
+        if (!rangeData.send_success) {
+            html += `<div class="error">❌ Bridge node failed to send test message</div>`;
+        }
+        if (!rangeData.monitor_connection) {
+            html += `<div class="error">❌ Monitor node connection failed</div>`;
+        }
+    }
+    
+    html += `</div>`;
+    
+    html += `
+        <div class="recommendation">
+            <strong>💡 Recommendation:</strong> ${rangeData.recommendation}
+        </div>
+    `;
+    
+    if (rangeData.send_output) {
+        html += `
+            <details class="raw-output">
+                <summary>📋 Send Command Output</summary>
+                <pre>${rangeData.send_output}</pre>
+            </details>
+        `;
+    }
+    
+    resultsDiv.innerHTML = html;
+}
 </script>
 
 <style>
@@ -1681,6 +2130,50 @@ body {
 .btn-run:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+/* Connection Status Styles */
+.connection-status {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.status-info {
+    margin: 0.5rem 0;
+}
+
+.status-indicator {
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.status-details {
+    margin-top: 0.5rem;
+}
+
+.status-details small {
+    display: block;
+    color: #64748b;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.btn-small {
+    background: #64748b;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+}
+
+.btn-small:hover {
+    background: #475569;
 }
 
 .command-result {
@@ -2071,6 +2564,245 @@ body {
     
     .emergency-title {
         font-size: 1.8rem;
+    }
+}
+
+/* Meshtastic Interface Styles */
+.meshtastic-interface {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.connectivity-section, .network-section, .range-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.connectivity-section h3, .network-section h3, .range-section h3 {
+    color: #2563eb;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.test-results {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #e5e7eb;
+}
+
+.loading {
+    color: #6b7280;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+}
+
+.success-result {
+    background: #f0fdf4;
+    border-left-color: #22c55e;
+    color: #15803d;
+}
+
+.warning-result {
+    background: #fefce8;
+    border-left-color: #eab308;
+    color: #a16207;
+}
+
+.error-result {
+    background: #fef2f2;
+    border-left-color: #ef4444;
+    color: #dc2626;
+}
+
+.nodes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.node-card {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.node-card h4 {
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.node-details {
+    font-size: 0.9rem;
+    color: #64748b;
+}
+
+.node-details div {
+    margin-bottom: 0.25rem;
+}
+
+.health-summary, .range-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.metric {
+    font-size: 0.9rem;
+    padding: 0.25rem 0;
+}
+
+.recommendation {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+    color: #1e40af;
+}
+
+.raw-output {
+    margin-top: 1rem;
+}
+
+.raw-output summary {
+    cursor: pointer;
+    color: #6b7280;
+    font-size: 0.9rem;
+    padding: 0.5rem;
+    background: #f9fafb;
+    border-radius: 4px;
+}
+
+.raw-output pre {
+    background: #1f2937;
+    color: #f9fafb;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+.troubleshoot {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #fafafa;
+    border-radius: 6px;
+}
+
+.troubleshoot ul {
+    margin: 0.5rem 0 0 1rem;
+    padding: 0;
+}
+
+.troubleshoot li {
+    margin-bottom: 0.25rem;
+}
+
+.troubleshoot code {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.advanced-tools {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.advanced-tools h3 {
+    color: #374151;
+    margin-bottom: 1rem;
+}
+
+.tool-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.tool-card {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.tool-card h4 {
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.tool-card p {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.tool-command {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f9fafb;
+    padding: 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.tool-command code {
+    flex: 1;
+    background: none;
+    color: #374151;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.8rem;
+}
+
+.next-step {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+    color: #065f46;
+}
+
+.warning {
+    background: #fefce8;
+    border: 1px solid #fde047;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+    color: #a16207;
+}
+
+@media (max-width: 768px) {
+    .nodes-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .tool-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .tool-command {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
     }
 }
 </style>

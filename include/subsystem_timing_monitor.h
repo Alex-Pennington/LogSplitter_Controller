@@ -11,6 +11,7 @@ enum class SubsystemID {
     INPUT_MANAGER,
     SYSTEM_ERROR_MANAGER,
     SAFETY_SYSTEM,
+    MESHTASTIC_COMM,           // Meshtastic communication manager
     COMMAND_PROCESSING_SERIAL,
     MAIN_LOOP_TOTAL,
     COUNT  // Keep this last - used for array sizing

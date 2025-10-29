@@ -39,6 +39,7 @@ void SubsystemTimingMonitor::initializeSubsystemData() {
         "InputManager",
         "SystemErrorManager",
         "SafetySystem",
+        "MeshtasticComm",
         "CommandProcessing_Serial",
         "MainLoop_Total"
     };

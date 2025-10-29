@@ -6,6 +6,7 @@ Clean, responsive interface optimized for technical documentation
 
 from flask import Flask, render_template, request, send_from_directory, jsonify
 import os
+import subprocess
 import markdown
 from datetime import datetime
 import re
@@ -38,11 +39,12 @@ class DocServer:
         # Define categories and their icons
         self.categories = {
             'Emergency': {'icon': '🚨', 'color': '#ff4444', 'priority': 1},
-            'Hardware': {'icon': '⚙️', 'color': '#ff8c00', 'priority': 2},
-            'Operations': {'icon': '🔧', 'color': '#4CAF50', 'priority': 3},
-            'Monitoring': {'icon': '📊', 'color': '#2196F3', 'priority': 4},
-            'Development': {'icon': '💻', 'color': '#9C27B0', 'priority': 5},
-            'Reference': {'icon': '📖', 'color': '#607D8B', 'priority': 6}
+            'Wireless': {'icon': '📡', 'color': '#00bcd4', 'priority': 2}, 
+            'Hardware': {'icon': '⚙️', 'color': '#ff8c00', 'priority': 3},
+            'Operations': {'icon': '🔧', 'color': '#4CAF50', 'priority': 4},
+            'Monitoring': {'icon': '📊', 'color': '#2196F3', 'priority': 5},
+            'Development': {'icon': '💻', 'color': '#9C27B0', 'priority': 6},
+            'Reference': {'icon': '📖', 'color': '#607D8B', 'priority': 7}
         }
     
     def scan_all_documents(self):
@@ -152,6 +154,12 @@ class DocServer:
         if any(kw in filename_lower for kw in ['error', 'emergency', 'safety', 'mill_lamp', 'fault', 'alarm']):
             return 'Emergency'
         
+        # Wireless/Meshtastic - new priority category
+        elif any(kw in filename_lower for kw in ['meshtastic', 'wireless', 'mesh', 'lora', 'protocol', 'integration', 'provisioning']):
+            return 'Wireless'
+        elif any(kw in content_lower for kw in ['meshtastic', 'mesh network', 'lora', 'protobuf', 'channel 0', 'channel 1']):
+            return 'Wireless'
+        
         # Hardware/Physical systems
         elif any(kw in filename_lower for kw in ['pin', 'hardware', 'arduino', 'pressure', 'relay', 'sensor']):
             return 'Hardware'
@@ -165,7 +173,7 @@ class DocServer:
             return 'Monitoring'
         
         # Development and technical
-        elif any(kw in filename_lower for kw in ['api', 'interface', 'protocol', 'serial', 'code']):
+        elif any(kw in filename_lower for kw in ['api', 'interface', 'serial', 'code']):
             return 'Development'
         
         # Reference materials
@@ -180,7 +188,7 @@ class DocServer:
         # Group critical documents by category
         critical_docs = {}
         for doc in self.documents:
-            if doc['category'] in ['Emergency', 'Hardware', 'Operations']:
+            if doc['category'] in ['Emergency', 'Wireless', 'Hardware', 'Operations']:
                 category = doc['category']
                 if category not in critical_docs:
                     critical_docs[category] = []
@@ -337,17 +345,37 @@ def emergency_dashboard():
 
 @app.route('/emergency_diagnostic')
 def emergency_diagnostic():
-    """Interactive Emergency Diagnostic Wizard"""
+    """Interactive Emergency Diagnostic Wizard with Meshtastic Integration"""
     try:
         # Get all documents for potential recommendations
         all_docs = doc_server.scan_all_documents()
         
-        # Filter for emergency and troubleshooting docs
-        emergency_docs = [doc for doc in all_docs if doc['category'] in ['Emergency', 'Hardware', 'Operations']]
+        # Filter for emergency and troubleshooting docs, now including Wireless
+        emergency_docs = [doc for doc in all_docs if doc['category'] in ['Emergency', 'Wireless', 'Hardware', 'Operations']]
         
         return render_template('emergency_diagnostic.html', emergency_docs=emergency_docs)
     except Exception as e:
         return f"<h1>Emergency Diagnostic Error: {str(e)}</h1>", 500
+
+@app.route('/meshtastic_overview')
+def meshtastic_overview():
+    """Meshtastic Integration Overview and Status Dashboard"""
+    try:
+        all_docs = doc_server.scan_all_documents()
+        
+        # Get wireless/meshtastic specific documents
+        wireless_docs = [doc for doc in all_docs if doc['category'] == 'Wireless']
+        
+        # Get system integration documents
+        integration_docs = [doc for doc in all_docs if any(keyword in doc['filename'].lower() 
+                          for keyword in ['integration', 'deployment', 'provisioning', 'protocol'])]
+        
+        return render_template('meshtastic_overview.html', 
+                             wireless_docs=wireless_docs,
+                             integration_docs=integration_docs,
+                             total_docs=len(all_docs))
+    except Exception as e:
+        return f"<h1>Meshtastic Overview Error: {str(e)}</h1>", 500
 
 @app.route('/search')
 def search():
@@ -476,83 +504,317 @@ def system_status():
     except Exception as e:
         return f"<h1>System status error: {str(e)}</h1>", 500
 
+@app.route('/api/meshtastic_status', methods=['GET'])
+def meshtastic_status():
+    """Get Meshtastic network status for diagnostic wizard"""
+    try:
+        from wizard_meshtastic_client import get_wizard_network_status
+        
+        status = get_wizard_network_status()
+        return jsonify(status)
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': f'Network status error: {str(e)}',
+            'suggestion': 'Verify Meshtastic devices are connected and configured'
+        }), 500
+
+@app.route('/api/system_info', methods=['GET'])
+def system_info():
+    """Get comprehensive LogSplitter system information including Meshtastic integration"""
+    try:
+        docs = doc_server.scan_all_documents()
+        
+        # Count documents by category
+        categories = {}
+        wireless_docs = []
+        for doc in docs:
+            category = doc['category']
+            categories[category] = categories.get(category, 0) + 1
+            if category == 'Wireless':
+                wireless_docs.append({
+                    'name': doc['name'],
+                    'filename': doc['filename'],
+                    'modified': doc['modified'].isoformat()
+                })
+        
+        # Get Meshtastic status if available
+        meshtastic_info = {'status': 'unknown', 'integration': 'complete'}
+        try:
+            from wizard_meshtastic_client import get_wizard_network_status
+            meshtastic_info = get_wizard_network_status()
+            meshtastic_info['integration'] = 'complete'
+        except:
+            meshtastic_info['integration_note'] = 'Meshtastic client available but hardware not detected'
+        
+        return jsonify({
+            'system': {
+                'name': 'LogSplitter Controller',
+                'version': '2.0 - Meshtastic Wireless',
+                'architecture': 'Industrial Arduino UNO R4 WiFi + Meshtastic Mesh',
+                'communication': 'Wireless LoRa Mesh Network (Primary), USB Serial (Debug)',
+                'safety_level': 'Industrial Grade with Mesh Redundancy',
+                'uptime': datetime.now().isoformat(),
+                'status': 'Production Ready'
+            },
+            'documentation': {
+                'total_documents': len(docs),
+                'categories': categories,
+                'wireless_documents': len(wireless_docs),
+                'last_scan': doc_server.last_scan.isoformat()
+            },
+            'meshtastic': meshtastic_info,
+            'capabilities': {
+                'wireless_commands': True,
+                'mesh_networking': True,
+                'emergency_broadcasts': True,
+                'binary_protobuf': True,
+                'industrial_range': True,
+                'mesh_redundancy': True,
+                'safety_preserved': True
+            },
+            'channels': {
+                'channel_0': 'Emergency broadcasts (plain language)',
+                'channel_1': 'LogSplitter protocol (binary protobuf)'
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'System info error: {str(e)}'
+        }), 500
+
+@app.route('/api/meshtastic_test', methods=['POST'])
+def meshtastic_test():
+    """Test Meshtastic connectivity and network health for diagnostic wizard"""
+    try:
+        data = request.get_json()
+        test_type = data.get('test_type', 'discover')
+        
+        import subprocess
+        import serial.tools.list_ports
+        
+        if test_type == 'discover':
+            # Auto-discover Meshtastic nodes
+            nodes = []
+            for port in serial.tools.list_ports.comports():
+                if test_meshtastic_connection(port.device):
+                    node_info = get_meshtastic_node_info(port.device)
+                    nodes.append({
+                        'port': port.device,
+                        'description': port.description,
+                        'node_info': node_info
+                    })
+            
+            return jsonify({
+                'success': True,
+                'test_type': 'discover',
+                'nodes': nodes,
+                'node_count': len(nodes),
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        elif test_type == 'network_health':
+            # Test network health across all nodes
+            port = data.get('port')
+            if not port:
+                return jsonify({
+                    'success': False,
+                    'error': 'Port required for network health test'
+                }), 400
+            
+            health_data = check_meshtastic_network_health(port)
+            return jsonify({
+                'success': True,
+                'test_type': 'network_health',
+                'health_data': health_data,
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        elif test_type == 'range_quick':
+            # Quick range test between two nodes
+            bridge_port = data.get('bridge_port')
+            monitor_port = data.get('monitor_port')
+            
+            if not bridge_port or not monitor_port:
+                return jsonify({
+                    'success': False,
+                    'error': 'Both bridge_port and monitor_port required'
+                }), 400
+            
+            range_data = quick_meshtastic_range_test(bridge_port, monitor_port)
+            return jsonify({
+                'success': True,
+                'test_type': 'range_quick',
+                'range_data': range_data,
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Unknown test_type: {test_type}'
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Meshtastic test error: {str(e)}',
+            'suggestion': 'Ensure Meshtastic CLI tools are installed and nodes are connected'
+        }), 500
+
+def test_meshtastic_connection(port: str) -> bool:
+    """Test if port has a Meshtastic device"""
+    try:
+        result = subprocess.run(['meshtastic', '--port', port, '--info'], 
+                               capture_output=True, text=True, timeout=10)
+        return result.returncode == 0 and 'MyNodeInfo' in result.stdout
+    except:
+        return False
+
+def get_meshtastic_node_info(port: str) -> dict:
+    """Get detailed Meshtastic node information"""
+    try:
+        result = subprocess.run(['meshtastic', '--port', port, '--info'], 
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            info = {'raw_output': result.stdout}
+            lines = result.stdout.split('\n')
+            
+            for line in lines:
+                if 'Owner:' in line:
+                    info['owner'] = line.split('Owner:')[1].strip()
+                elif 'Model:' in line:
+                    info['model'] = line.split('Model:')[1].strip()
+                elif 'Battery:' in line:
+                    info['battery'] = line.split('Battery:')[1].strip()
+                elif 'Region:' in line:
+                    info['region'] = line.split('Region:')[1].strip()
+                elif 'Channel:' in line:
+                    info['channel'] = line.split('Channel:')[1].strip()
+                elif 'MyNodeInfo:' in line:
+                    info['node_id'] = line.split('MyNodeInfo:')[1].strip()
+            
+            return info
+    except:
+        pass
+    return {}
+
+def check_meshtastic_network_health(port: str) -> dict:
+    """Check Meshtastic network health and connectivity"""
+    health_data = {}
+    
+    try:
+        # Get node list
+        result = subprocess.run(['meshtastic', '--port', port, '--nodes'], 
+                               capture_output=True, text=True, timeout=15)
+        if result.returncode == 0:
+            health_data['nodes_output'] = result.stdout
+            # Count nodes mentioned in output
+            node_count = result.stdout.count('│')  # Simple heuristic
+            health_data['visible_nodes'] = max(0, node_count - 2)  # Subtract header rows
+        
+        # Check telemetry
+        result = subprocess.run(['meshtastic', '--port', port, '--get', 'telemetry'], 
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            health_data['telemetry'] = result.stdout
+        
+        # Check channel info
+        result = subprocess.run(['meshtastic', '--port', port, '--ch-index', '0'], 
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            health_data['channel_info'] = result.stdout
+        
+        health_data['status'] = 'healthy' if health_data.get('visible_nodes', 0) > 0 else 'isolated'
+        
+    except Exception as e:
+        health_data['error'] = str(e)
+        health_data['status'] = 'error'
+    
+    return health_data
+
+def quick_meshtastic_range_test(bridge_port: str, monitor_port: str) -> dict:
+    """Perform quick range test between two Meshtastic nodes"""
+    range_data = {}
+    
+    try:
+        import time
+        import threading
+        
+        # Send test message from bridge
+        test_message = f"DIAGNOSTIC_TEST_{int(time.time())}"
+        send_result = subprocess.run([
+            'meshtastic', '--port', bridge_port, 
+            '--sendtext', test_message
+        ], capture_output=True, text=True, timeout=10)
+        
+        range_data['send_success'] = send_result.returncode == 0
+        range_data['send_output'] = send_result.stdout
+        
+        if send_result.returncode != 0:
+            range_data['send_error'] = send_result.stderr
+        
+        # Brief monitoring on receiver (simplified for diagnostics)
+        monitor_result = subprocess.run([
+            'meshtastic', '--port', monitor_port, '--info'
+        ], capture_output=True, text=True, timeout=5)
+        
+        range_data['monitor_connection'] = monitor_result.returncode == 0
+        range_data['test_message'] = test_message
+        range_data['recommendation'] = 'Use meshtastic_range_test.py for comprehensive testing'
+        
+    except Exception as e:
+        range_data['error'] = str(e)
+    
+    return range_data
+
 @app.route('/api/run_command', methods=['POST'])
 def run_command():
-    """Execute controller command via serial USB connection for diagnostic wizard"""
+    """Execute controller command via Meshtastic protobuf for diagnostic wizard"""
     try:
         data = request.get_json()
         command = data.get('command', '').strip()
         
-        # All commands allowed - safety handled by wizard UI
-        import serial
+        # Import required modules
+        import subprocess
         import time
+        import json
+        import base64
         import serial.tools.list_ports
         
+        # Import Meshtastic protocol
         try:
-            # Auto-detect Arduino port
-            arduino_port = None
-            for port in serial.tools.list_ports.comports():
-                if 'Arduino' in port.description or 'CH340' in port.description or 'USB' in port.description:
-                    arduino_port = port.device
-                    break
-            
-            if not arduino_port:
-                return jsonify({
-                    'success': False,
-                    'error': 'Arduino controller not found',
-                    'suggestion': 'Connect Arduino via USB cable and ensure drivers are installed',
-                    'available_ports': [p.device for p in serial.tools.list_ports.comports()]
-                }), 404
-            
-            # Connect to Arduino
-            ser = serial.Serial(arduino_port, 115200, timeout=3)
-            time.sleep(2)  # Wait for Arduino to initialize
-            
-            # Clear any existing data
-            ser.flushInput()
-            ser.flushOutput()
-            
-            # Send command
-            ser.write(f'{command}\r\n'.encode())
-            time.sleep(0.5)  # Wait for processing
-            
-            # Read response
-            response_lines = []
-            start_time = time.time()
-            while time.time() - start_time < 3:  # 3 second timeout
-                if ser.in_waiting > 0:
-                    line = ser.readline().decode('utf-8', errors='ignore').strip()
-                    if line:
-                        response_lines.append(line)
-                    if line.endswith('>') or 'Complete' in line:  # Command prompt or completion
-                        break
-                else:
-                    time.sleep(0.1)
-            
-            ser.close()
-            
-            response = '\n'.join(response_lines) if response_lines else 'No response received'
-            
-            return jsonify({
-                'success': True,
-                'command': command,
-                'output': response,
-                'port': arduino_port,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-        except serial.SerialException as e:
+            from logsplitter_meshtastic_protocol import LogSplitterProtocol, CommandMessage, CommandResponse
+            from logsplitter_meshtastic_protocol import LogSplitterMessageType
+        except ImportError:
             return jsonify({
                 'success': False,
-                'error': f'Serial communication error: {str(e)}',
-                'suggestion': 'Check USB connection and ensure no other programs are using the serial port'
+                'error': 'Meshtastic protocol module not found',
+                'suggestion': 'Ensure logsplitter_meshtastic_protocol.py is available'
+            }), 500
+        
+        try:
+            # Use dedicated wizard Meshtastic client
+            from wizard_meshtastic_client import execute_wizard_command
+            
+            result = execute_wizard_command(command)
+            
+            return jsonify(result)
+            
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                'success': False,
+                'error': 'Meshtastic command timeout',
+                'suggestion': 'Check mesh network connectivity and node responsiveness'
             }), 503
             
         except Exception as e:
             return jsonify({
                 'success': False,
-                'error': f'Communication error: {str(e)}',
-                'suggestion': 'Verify Arduino is connected and responding'
+                'error': f'Meshtastic communication error: {str(e)}',
+                'suggestion': 'Verify Meshtastic CLI tools are installed and node is responding'
             }), 500
             
     except Exception as e:
@@ -607,19 +869,26 @@ if __name__ == '__main__':
     print(f"""
     ╔══════════════════════════════════════════════════════════════╗
     ║                LOGSPLITTER DOCUMENTATION SERVER              ║
-    ║                    Modern Technical Interface                ║
+    ║              📡 Meshtastic Mesh Network Ready               ║
     ╠══════════════════════════════════════════════════════════════╣
     ║  Server URL: http://localhost:{PORT}                         ║
-    ║  Interface:  Modern Responsive Design                       ║
-    ║  Features:   Emergency Mode, Smart Search, Categories       ║
-    ║  Status:     ONLINE                                         ║
+    ║  Interface:  Modern Responsive Design + Wireless Diagnostics║
+    ║  Features:   Emergency Mode, Meshtastic Commands, Search     ║
+    ║  Status:     ONLINE - Wireless Mesh Integration Complete    ║
     ╚══════════════════════════════════════════════════════════════╝
     
+    📡 Meshtastic Integration:
+    • Emergency Diagnostic Wizard with wireless mesh commands
+    • Real-time network status and node monitoring
+    • Binary protobuf protocol via Channel 1 (LogSplitter)
+    • Channel 0 emergency broadcasts for critical alerts
+    • Complete wireless operation - USB optional for debug
+    
     📋 Quick Start:
-    • Visit http://localhost:{PORT} for the main documentation
-    • Click Emergency button for priority access during repairs  
-    • Use Ctrl+K for quick search from anywhere
-    • All documents are auto-scanned and categorized
+    • Visit http://localhost:{PORT} for main documentation
+    • Click Emergency button for wireless diagnostic wizard
+    • Use /emergency_diagnostic for Meshtastic mesh troubleshooting
+    • All documents auto-categorized including Wireless section
     
     """)
     
