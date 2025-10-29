@@ -43,7 +43,7 @@
                 <div class="lcars-result-header">
                     <div class="lcars-result-title">
                         {% if result.doc.priority == 1 %}🚨{% endif %}
-                        <a href="{{ url_for('view_document', filename=result.doc.filename) }}">
+                        <a href="{{ url_for('view_document', doc_path=result.doc.url_safe_name) }}">
                             {{ result.doc.name }}
                         </a>
                         {% if result.score > 5 %}
@@ -69,7 +69,7 @@
                 {% endfor %}
                 
                 <div class="lcars-result-actions">
-                    <a href="{{ url_for('view_document', filename=result.doc.filename) }}" 
+                    <a href="{{ url_for('view_document', doc_path=result.doc.url_safe_name) }}" 
                        class="lcars-result-button">VIEW DOCUMENT</a>
                     <a href="{{ url_for('view_raw', filename=result.doc.filename) }}" 
                        class="lcars-result-button">VIEW SOURCE</a>

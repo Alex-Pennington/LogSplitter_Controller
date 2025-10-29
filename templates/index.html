@@ -15,6 +15,16 @@
         <div class="lcars-subtitle">Quick Access for Breakdowns & Repairs</div>
     </div>
     
+    <!-- Quick Access Buttons -->
+    <div style="display: flex; gap: 20px; margin: 20px 0;">
+        <a href="{{ url_for('telemetry_dashboard') }}" class="lcars-action-button" style="flex: 1; text-align: center; padding: 15px; font-size: 1.2rem; background: linear-gradient(135deg, #2196F3, #00BCD4); border: none; box-shadow: 0 0 20px rgba(33, 150, 243, 0.5);">
+            📡 REAL-TIME TELEMETRY
+        </a>
+        <a href="{{ url_for('emergency_diagnostic') }}" class="lcars-action-button" style="flex: 1; text-align: center; padding: 15px; font-size: 1.2rem; background: linear-gradient(135deg, #F44336, #FF5722); border: none; box-shadow: 0 0 20px rgba(244, 67, 54, 0.5);">
+            🚨 EMERGENCY DIAGNOSTIC
+        </a>
+    </div>
+    
     <!-- Emergency Search Bar -->
     <div class="lcars-search-bar lcars-emergency-search">
         <form action="{{ url_for('search') }}" method="GET" class="lcars-search-form">
@@ -37,7 +47,7 @@
             <div class="lcars-critical-category">{{ category }}</div>
             <div class="lcars-critical-docs">
                 {% for doc in docs %}
-                <a href="{{ url_for('view_document', filename=doc.filename) }}" class="lcars-critical-link">
+                <a href="{{ url_for('view_document', doc_path=doc.url_safe_name) }}" class="lcars-critical-link">
                     <div class="lcars-critical-card">
                         <div class="lcars-critical-title">{{ doc.name }}</div>
                         <div class="lcars-critical-preview">{{ doc.content_preview[:80] }}...</div>
@@ -56,7 +66,7 @@
         <div class="lcars-recent-docs">
             {% for doc in recent_docs %}
             <div class="lcars-recent-item">
-                <a href="{{ url_for('view_document', filename=doc.filename) }}">{{ doc.name }}</a>
+                <a href="{{ url_for('view_document', doc_path=doc.url_safe_name) }}">{{ doc.name }}</a>
                 <span class="lcars-recent-time">{{ doc.modified }}</span>
             </div>
             {% endfor %}
@@ -85,7 +95,7 @@
                     <div class="lcars-document-card">
                         <div class="lcars-card-header">
                             <div class="lcars-card-title">
-                                <a href="{{ url_for('view_document', filename=doc.filename) }}">
+                                <a href="{{ url_for('view_document', doc_path=doc.url_safe_name) }}">
                                     {{ doc.name }}
                                 </a>
                             </div>
@@ -100,7 +110,7 @@
                                 Modified: {{ doc.modified }}
                             </div>
                             <div class="lcars-card-actions">
-                                <a href="{{ url_for('view_document', filename=doc.filename) }}" class="lcars-action-button">VIEW</a>
+                                <a href="{{ url_for('view_document', doc_path=doc.url_safe_name) }}" class="lcars-action-button">VIEW</a>
                                 <a href="{{ url_for('view_raw', filename=doc.filename) }}" class="lcars-action-button">SOURCE</a>
                             </div>
                         </div>

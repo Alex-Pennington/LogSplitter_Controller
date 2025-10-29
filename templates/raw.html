@@ -23,7 +23,7 @@
         </div>
         
         <div class="lcars-raw-controls">
-            <a href="{{ url_for('view_document', filename=document.filename) }}" 
+            <a href="{{ url_for('view_document', doc_path=document.url_safe_name) }}" 
                class="lcars-control-button">VIEW RENDERED</a>
             <button onclick="copyToClipboard()" class="lcars-control-button">COPY SOURCE</button>
             <button onclick="downloadSource()" class="lcars-control-button">DOWNLOAD</button>
@@ -79,7 +79,7 @@
             
             <div class="lcars-navigation-group">
                 <a href="{{ url_for('index') }}" class="lcars-nav-button">RETURN TO INDEX</a>
-                <a href="{{ url_for('view_document', filename=document.filename) }}" 
+                <a href="{{ url_for('view_document', doc_path=document.url_safe_name) }}" 
                    class="lcars-nav-button">VIEW DOCUMENT</a>
             </div>
         </div>

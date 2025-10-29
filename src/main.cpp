@@ -1,850 +1,525 @@
-/**
- * LogSplitter Controller - Non-Networking Version
+/*
+ * LogSplitter Mesh Test Sketch
  * 
- * A modular, robust industrial control system featuring:
- * - Serial communication for control and monitoring
- * - Pressure monitoring with safety systems
- * - Complex sequence control with state machine
- * - Input debouncing and relay control
- * - EEPROM configuration management
- * - Command validation and security
+ * Dedicated Arduino sketch for testing mesh transport functionality
+ * Sends realistic telemetry data via A2/A3 pins to Meshtastic node
  * 
- * Author: Refactored from original networked design
- * Date: 2025
+ * Hardware:
+ * - Arduino UNO R4 WiFi
+ * - A2 pin → Meshtastic Controller Node RX
+ * - A3 pin ← Meshtastic Controller Node TX (optional)
+ * - USB Serial for debug output (115200 baud)
+ * 
+ * Data Flow:
+ * Arduino Serial (COM7) → Debug messages
+ * Arduino A2/A3 → Controller Node (COM13) → Mesh → Diagnostic Node (COM8) → LCARS
  */
 
 #include <Arduino.h>
-#include <EEPROM.h>
 #include <SoftwareSerial.h>
 
-// Module includes
-#include "constants.h"
-#include "logger.h"
-#include "telemetry_manager.h"
-#include "meshtastic_comm_manager.h"
-#include "pressure_manager.h"
-#include "sequence_controller.h"
-#include "relay_controller.h"
-#include "config_manager.h"
-#include "input_manager.h"
-#include "safety_system.h"
-#include "system_error_manager.h"
-#include "command_processor.h"
-#include "subsystem_timing_monitor.h"
-#include "arduino_secrets.h"
+// Pin Configuration
+const uint8_t MESHTASTIC_TX_PIN = A2;  // Arduino A2 → Meshtastic RX
+const uint8_t MESHTASTIC_RX_PIN = A3;  // Arduino A3 ← Meshtastic TX  
+const unsigned long MESHTASTIC_BAUD = 115200;
 
-// ============================================================================
-// Global Shared Buffers (Memory Optimization)
-// ============================================================================
+// Timing Configuration
+const unsigned long TELEMETRY_INTERVAL_MS = 1000;  // 1Hz telemetry
+const unsigned long HEARTBEAT_INTERVAL_MS = 10000; // 10s heartbeat
+const unsigned long SEQUENCE_DURATION_MS = 30000;  // 30s hydraulic cycle
 
-char g_message_buffer[SHARED_BUFFER_SIZE];
-char g_topic_buffer[TOPIC_BUFFER_SIZE];
-char g_command_buffer[COMMAND_BUFFER_SIZE];
-char g_response_buffer[SHARED_BUFFER_SIZE];
+// Protobuf Message Types (from telemetry.proto)
+const uint8_t MSG_TELEMETRY_DIGITAL_IO = 0x10;
+const uint8_t MSG_TELEMETRY_RELAYS = 0x11;
+const uint8_t MSG_TELEMETRY_PRESSURE = 0x12;
+const uint8_t MSG_TELEMETRY_SEQUENCE = 0x13;
+const uint8_t MSG_TELEMETRY_SAFETY = 0x14;
+const uint8_t MSG_TELEMETRY_SYSTEM = 0x15;
 
-// ============================================================================
-// System Components
-// ============================================================================
+// Global Objects
+SoftwareSerial meshSerial(MESHTASTIC_RX_PIN, MESHTASTIC_TX_PIN);
 
-PressureManager pressureManager;
-SequenceController sequenceController;
-RelayController relayController;
-ConfigManager configManager;
-InputManager inputManager;
-SafetySystem safetySystem;
-SystemErrorManager systemErrorManager;
-CommandProcessor commandProcessor;
-SubsystemTimingMonitor timingMonitor;
+// Timing Variables
+unsigned long lastTelemetryTime = 0;
+unsigned long lastHeartbeatTime = 0;
+unsigned long sequenceStartTime = 0;
+uint32_t messageCounter = 0;
 
-// Legacy telemetry manager - kept for compatibility
-TelemetryManager telemetryManager;
-
-// Meshtastic Communication Manager (replaces telemetry manager and handles all mesh communication)
-// Uses A4/A5 pins for protobuf communication with Meshtastic Serial Module
-
-// Global pointers for cross-module access
-RelayController* g_relayController = &relayController;
-
-// Global limit switch states for safety system
-bool g_limitExtendActive = false;   // Pin 6 - Cylinder fully extended
-bool g_limitRetractActive = false;  // Pin 7 - Cylinder fully retracted
-
-// Global debug and safety state variables
-bool g_debugEnabled = false;        // Debug output control
-bool g_echoEnabled = false;         // Keystroke echo when telemetry disabled
-bool g_emergencyStopActive = false; // Emergency stop current state
-bool g_emergencyStopLatched = false; // Emergency stop latched state
-
-// ============================================================================
-// System State
-// ============================================================================
-
-SystemState currentSystemState = SYS_INITIALIZING;
-unsigned long lastPublishTime = 0;
-unsigned long lastWatchdogReset = 0;
-unsigned long systemStartTime = 0;
-const unsigned long publishInterval = 30000; // 30 seconds for fallback metrics
-
-// State tracking for event-driven telemetry
-static SequenceState lastSequenceState = SEQ_IDLE;
-static bool lastSafetyActive = false;
-static bool lastEStopActive = false;
-static bool lastEngineRunning = true;
-
-// Telnet tracking removed - non-networking version
-
-// Serial command line buffer
-static uint8_t serialLinePos = 0;
-
-// ============================================================================
-// Watchdog and Safety
-// ============================================================================
-
-void resetWatchdog() {
-    // Simple watchdog implementation (you may need to adapt for your specific board)
-    lastWatchdogReset = millis();
-}
-
-void checkSystemHealth() {
-    unsigned long now = millis();
-    
-    // Check if main loop is running (simple watchdog)
-    if (now - lastWatchdogReset > MAIN_LOOP_TIMEOUT_MS) {
-        Serial.println("SYSTEM ERROR: Main loop timeout detected");
-        LOG_CRITICAL("Main loop timeout detected - system unresponsive");
-        
-        // EMERGENCY ALERT: Critical system failure
-        meshtasticComm.sendEmergencyAlert("CRITICAL", "System timeout - main loop unresponsive, emergency stop activated");
-        
-        // Generate detailed timing analysis for the timeout
-        char timingAnalysis[512];
-        timingMonitor.analyzeTimeout(timingAnalysis, sizeof(timingAnalysis));
-        LOG_CRITICAL("TIMEOUT ANALYSIS: %s", timingAnalysis);
-        
-        // Log detailed timing report to identify bottleneck
-        LOG_CRITICAL("=== TIMEOUT TIMING REPORT ===");
-        timingMonitor.logTimingReport();
-        
-        safetySystem.emergencyStop("main_loop_timeout");
-        
-        // Force system restart after emergency stop
-        delay(1000);
-        // You might want to add a proper system restart mechanism here
-    }
-}
-
-// ============================================================================
-// Debug Utilities
-// ============================================================================
-
-// Legacy debugPrintf function - now uses new Logger system
-// This maintains compatibility with existing code
-void debugPrintf(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(g_message_buffer, SHARED_BUFFER_SIZE, fmt, args);
-    va_end(args);
-    
-    // Route to new logging system as DEBUG level
-    Logger::log(LOG_DEBUG, "%s", g_message_buffer);
-}
-
-// Helper function for readable sequence state names
-const char* getSequenceStateName(SequenceState state) {
-    switch (state) {
-        case SEQ_IDLE: return "IDLE";
-        case SEQ_WAIT_START_DEBOUNCE: return "START_WAIT";
-        case SEQ_STAGE1_ACTIVE: return "EXTENDING";
-        case SEQ_STAGE1_WAIT_LIMIT: return "WAIT_EXTEND_LIMIT";
-        case SEQ_STAGE2_ACTIVE: return "RETRACTING";
-        case SEQ_STAGE2_WAIT_LIMIT: return "WAIT_RETRACT_LIMIT";
-        case SEQ_COMPLETE: return "COMPLETE";
-        case SEQ_ABORT: return "ABORTED";
-        case SEQ_MANUAL_EXTEND_ACTIVE: return "MANUAL_EXTEND";
-        case SEQ_MANUAL_RETRACT_ACTIVE: return "MANUAL_RETRACT";
-        default: return "UNKNOWN";
-    }
-}
-
-// ============================================================================
-// Mesh Test Mode - Generates realistic telemetry for testing
-// ============================================================================
-
-// Mesh test mode state
-bool meshTestModeActive = MESH_TEST_MODE_DEFAULT;
-unsigned long lastMeshTestTime = 0;
-unsigned long meshTestStartTime = 0;
-uint8_t meshTestCycleStep = 0;
-SoftwareSerial* meshTestSerial = nullptr;
-
-// Forward declarations for command processor access
-void enableMeshTestMode();
-void disableMeshTestMode();
-
-// Mock data generators for realistic telemetry
-struct MockTelemetryData {
-    // Digital I/O simulation
+// Mock Telemetry Data
+struct MockData {
+    // Digital I/O State
     bool manualExtend = false;
     bool manualRetract = false;
-    bool limitExtend = false; 
+    bool limitExtend = false;
     bool limitRetract = true;  // Start retracted
     bool sequenceStart = false;
     bool emergencyStop = false;
     
-    // Pressure simulation (realistic hydraulic cycle)
-    float mainPressure = 150.0f;  // Base idle pressure
-    float filterPressure = 120.0f;
-    
-    // Sequence simulation
-    SequenceState currentState = SEQ_IDLE;
-    uint8_t sequenceStep = 0;
-    unsigned long sequenceStartTime = 0;
-    
-    // System status simulation
-    uint16_t freeMemory = 12800;
-    uint16_t loopFrequency = 950;
-    uint8_t errorCount = 0;
-    bool safetyActive = false;
-    
-    // Relay states
+    // Relay State  
     bool relayExtend = false;
     bool relayRetract = false;
     bool engineStop = false;
+    
+    // Pressure Readings (PSI)
+    float mainPressure = 45.0;    // Idle pressure
+    float auxPressure = 15.0;     // Low pressure system
+    
+    // Sequence State
+    uint8_t currentState = 0;     // 0=IDLE, 1=EXTENDING, 2=EXTENDED, 3=RETRACTING
+    uint32_t sequenceTime = 0;    // Time in current sequence
+    
+    // System Metrics
+    uint32_t uptime = 0;
+    uint16_t cycleCount = 0;
+    uint8_t errorCount = 0;
 } mockData;
 
-void initializeMeshTestMode() {
-    if (meshTestSerial == nullptr) {
-        meshTestSerial = new SoftwareSerial(MESHTASTIC_RX_PIN, MESHTASTIC_TX_PIN);
-        meshTestSerial->begin(MESHTASTIC_BAUD);
+// Function Declarations
+void updateMockData(unsigned long now);
+void sendTelemetrySet();
+void sendDigitalIOTelemetry(uint32_t timestamp, uint8_t sequenceId);
+void sendRelayTelemetry(uint32_t timestamp, uint8_t sequenceId);
+void sendPressureTelemetry(uint32_t timestamp, uint8_t sequenceId);
+void sendSequenceTelemetry(uint32_t timestamp, uint8_t sequenceId);
+void sendHeartbeat();
+void handleSerialCommands();
+
+void setup() {
+    // Initialize Serial for debug output
+    Serial.begin(115200);
+    while (!Serial && millis() < 3000) {
+        delay(10);
     }
     
-    meshTestStartTime = millis();
-    meshTestCycleStep = 0;
-    mockData = {}; // Reset to defaults
-    mockData.limitRetract = true; // Start position
+    Serial.println();
+    Serial.println("🚀 LOGSPLITTER MESH TEST SKETCH v1.0");
+    Serial.println("=====================================");
+    Serial.println("Purpose: Test mesh transport via A2/A3 pins");
+    Serial.println();
     
-    Serial.println("🚀 MESH TEST MODE ACTIVATED");
-    Serial.println("   Generating realistic telemetry every 1 second");
-    Serial.println("   30-second hydraulic cycle simulation");
-    Serial.println("   Use 'mesh_test off' to disable");
+    // Initialize Meshtastic communication
+    meshSerial.begin(MESHTASTIC_BAUD);
+    Serial.print("📡 Mesh Serial initialized: A2/A3 @ ");
+    Serial.print(MESHTASTIC_BAUD);
+    Serial.println(" baud");
+    
+    // Initialize timing
+    sequenceStartTime = millis();
+    lastTelemetryTime = millis();
+    lastHeartbeatTime = millis();
+    
+    Serial.println("✅ Initialization complete");
+    Serial.println("🎯 Starting telemetry generation...");
+    Serial.println();
+    
+    // Send initial status
+    sendHeartbeat();
 }
 
-void updateMeshTestCycle() {
-    unsigned long elapsed = millis() - meshTestStartTime;
-    unsigned long cycleTime = elapsed % MESH_TEST_SEQUENCE_DURATION_MS;
+void loop() {
+    unsigned long now = millis();
+    
+    // Update mock telemetry data
+    updateMockData(now);
+    
+    // Send telemetry at regular intervals
+    if (now - lastTelemetryTime >= TELEMETRY_INTERVAL_MS) {
+        lastTelemetryTime = now;
+        sendTelemetrySet();
+    }
+    
+    // Send heartbeat periodically  
+    if (now - lastHeartbeatTime >= HEARTBEAT_INTERVAL_MS) {
+        lastHeartbeatTime = now;
+        sendHeartbeat();
+    }
+    
+    // Handle any incoming serial commands
+    handleSerialCommands();
+    
+    delay(10);  // Small delay for stability
+}
+
+void updateMockData(unsigned long now) {
+    mockData.uptime = now;
     
     // Simulate 30-second hydraulic cycle
+    unsigned long cycleTime = (now - sequenceStartTime) % SEQUENCE_DURATION_MS;
+    
     if (cycleTime < 2000) {
-        // Stage 1: Idle (0-2s)
-        mockData.currentState = SEQ_IDLE;
+        // Idle phase (0-2s)
+        mockData.currentState = 0;
         mockData.relayExtend = false;
         mockData.relayRetract = false;
-        mockData.mainPressure = 150.0f + random(-10, 20);  // Idle pressure variation
-        mockData.limitRetract = true;
         mockData.limitExtend = false;
-        
-    } else if (cycleTime < 4000) {
-        // Stage 2: Sequence Start (2-4s)
-        mockData.sequenceStart = true;
-        mockData.currentState = SEQ_STAGE1_ACTIVE;
-        mockData.relayExtend = true;
-        mockData.relayRetract = false;
+        mockData.limitRetract = true;
+        mockData.mainPressure = 45.0 + random(-5, 6);
         
     } else if (cycleTime < 12000) {
-        // Stage 3: Extending (4-12s) 
-        mockData.currentState = SEQ_STAGE1_ACTIVE;
-        mockData.sequenceStart = false;
+        // Extending phase (2-12s)
+        mockData.currentState = 1;
         mockData.relayExtend = true;
-        mockData.mainPressure = 1800.0f + random(-100, 200);  // High extend pressure
+        mockData.relayRetract = false;
+        mockData.limitExtend = false;
         mockData.limitRetract = false;
-        // Simulate gradual extension
-        if (cycleTime > 10000) {
-            mockData.limitExtend = true;  // Hit extend limit
-        }
+        mockData.mainPressure = 1800.0 + random(-50, 51);
         
-    } else if (cycleTime < 14000) {
-        // Stage 4: Extended Hold (12-14s)
-        mockData.currentState = SEQ_STAGE1_WAIT_LIMIT;
+    } else if (cycleTime < 15000) {
+        // Extended hold (12-15s)
+        mockData.currentState = 2;
         mockData.relayExtend = false;
-        mockData.mainPressure = 2200.0f + random(-50, 100);  // Peak pressure
+        mockData.relayRetract = false;
         mockData.limitExtend = true;
+        mockData.limitRetract = false;
+        mockData.mainPressure = 2200.0 + random(-100, 101);
         
-    } else if (cycleTime < 22000) {
-        // Stage 5: Retracting (14-22s)
-        mockData.currentState = SEQ_STAGE2_ACTIVE;
+    } else if (cycleTime < 25000) {
+        // Retracting phase (15-25s)
+        mockData.currentState = 3;
         mockData.relayExtend = false;
         mockData.relayRetract = true;
-        mockData.mainPressure = 1600.0f + random(-100, 150);  // Retract pressure
         mockData.limitExtend = false;
-        
-    } else if (cycleTime < 24000) {
-        // Stage 6: Retracted (22-24s)
-        mockData.currentState = SEQ_STAGE2_WAIT_LIMIT;
-        mockData.relayRetract = false;
-        mockData.mainPressure = 180.0f + random(-20, 40);  // Return to idle
-        mockData.limitRetract = true;
+        mockData.limitRetract = false;
+        mockData.mainPressure = 1200.0 + random(-50, 51);
         
     } else {
-        // Stage 7: Complete/Rest (24-30s)
-        mockData.currentState = SEQ_COMPLETE;
+        // Return to idle (25-30s)
+        mockData.currentState = 0;
         mockData.relayExtend = false;
         mockData.relayRetract = false;
-        mockData.mainPressure = 150.0f + random(-10, 20);  // Idle pressure
-        mockData.limitRetract = true;
         mockData.limitExtend = false;
+        mockData.limitRetract = true;
+        mockData.mainPressure = 45.0 + random(-5, 6);
     }
     
-    // Update filter pressure (follows main with offset)
-    mockData.filterPressure = mockData.mainPressure * 0.8f + random(-5, 15);
-    
-    // System variations
-    mockData.freeMemory = 12800 + random(-200, 100);
-    mockData.loopFrequency = 950 + random(-50, 30);
+    mockData.sequenceTime = cycleTime;
+    mockData.auxPressure = 12.0 + random(-2, 3);
 }
 
-void generateMeshTestTelemetry() {
-    if (!meshTestModeActive || meshTestSerial == nullptr) return;
-    
-    updateMeshTestCycle();
-    
-    // Create realistic protobuf telemetry messages
+void sendTelemetrySet() {
     uint32_t timestamp = millis();
-    uint8_t sequenceId = (timestamp / 1000) % 256;  // Rolling sequence
+    uint8_t sequenceId = (messageCounter++) % 256;
     
-    Serial.print("📡 Mesh Test Telemetry [");
-    Serial.print(getSequenceStateName(mockData.currentState));
-    Serial.print("] P:");
-    Serial.print(mockData.mainPressure, 1);
+    // Debug output to Serial
+    const char* stateNames[] = {"IDLE", "EXTENDING", "EXTENDED", "RETRACTING"};
+    Serial.print("📡 [");
+    Serial.print(messageCounter);
+    Serial.print("] ");
+    Serial.print(stateNames[mockData.currentState]);
+    Serial.print(" P:");
+    Serial.print(mockData.mainPressure, 0);
     Serial.print("psi E:");
     Serial.print(mockData.relayExtend ? "ON" : "OFF");
     Serial.print(" R:");
     Serial.print(mockData.relayRetract ? "ON" : "OFF");
+    Serial.print(" → A2");
     Serial.println();
     
     // Send Digital I/O Telemetry
-    {
-        uint8_t digitalData[12];
-        digitalData[0] = 0x10;  // MSG_TELEMETRY_DIGITAL_IO
-        digitalData[1] = sequenceId;
-        *((uint32_t*)(digitalData + 2)) = timestamp;
-        digitalData[6] = (mockData.manualExtend ? 0x01 : 0) |
-                         (mockData.manualRetract ? 0x02 : 0) |
-                         (mockData.limitExtend ? 0x04 : 0) |
-                         (mockData.limitRetract ? 0x08 : 0) |
-                         (mockData.sequenceStart ? 0x10 : 0) |
-                         (mockData.emergencyStop ? 0x80 : 0);
-        digitalData[7] = 0x00;  // Reserved
-        *((uint32_t*)(digitalData + 8)) = mockData.sequenceStartTime;
-        
-        meshTestSerial->write(digitalData, sizeof(digitalData));
-    }
+    sendDigitalIOTelemetry(timestamp, sequenceId);
     
     // Send Relay Telemetry
-    {
-        uint8_t relayData[10];
-        relayData[0] = 0x11;  // MSG_TELEMETRY_RELAYS
-        relayData[1] = sequenceId;
-        *((uint32_t*)(relayData + 2)) = timestamp;
-        relayData[6] = (mockData.relayExtend ? 0x01 : 0) |
-                       (mockData.relayRetract ? 0x02 : 0) |
-                       (mockData.engineStop ? 0x80 : 0);
-        relayData[7] = 0x03;  // relay_mask (R1, R2 monitored)
-        relayData[8] = 0x00;  // Reserved  
-        relayData[9] = 0x00;  // Reserved
-        
-        meshTestSerial->write(relayData, sizeof(relayData));
-    }
+    sendRelayTelemetry(timestamp, sequenceId);
     
-    // Send Main Pressure Telemetry
-    {
-        uint8_t pressureData[14];
-        pressureData[0] = 0x12;  // MSG_TELEMETRY_PRESSURE_MAIN
-        pressureData[1] = sequenceId;
-        *((uint32_t*)(pressureData + 2)) = timestamp;
-        *((float*)(pressureData + 6)) = mockData.mainPressure;
-        *((float*)(pressureData + 10)) = mockData.mainPressure * 0.2f; // Voltage
-        
-        meshTestSerial->write(pressureData, sizeof(pressureData));
-    }
+    // Send Pressure Telemetry
+    sendPressureTelemetry(timestamp, sequenceId);
     
-    // Send System Status Telemetry
-    {
-        uint8_t statusData[18];
-        statusData[0] = 0x16;  // MSG_TELEMETRY_SYSTEM_STATUS
-        statusData[1] = sequenceId;
-        *((uint32_t*)(statusData + 2)) = timestamp;
-        *((uint32_t*)(statusData + 6)) = millis();  // uptime
-        *((uint16_t*)(statusData + 10)) = mockData.freeMemory;
-        *((uint16_t*)(statusData + 12)) = mockData.loopFrequency;
-        statusData[14] = mockData.errorCount;
-        statusData[15] = (mockData.safetyActive ? 0x01 : 0) |
-                         (mockData.emergencyStop ? 0x02 : 0) |
-                         ((mockData.currentState & 0x0F) << 2);
-        statusData[16] = 0x00;  // Reserved
-        statusData[17] = 0x00;  // Reserved
-        
-        meshTestSerial->write(statusData, sizeof(statusData));
+    // Send Sequence Status (less frequently)
+    if (messageCounter % 5 == 0) {
+        sendSequenceTelemetry(timestamp, sequenceId);
     }
 }
 
-void enableMeshTestMode() {
-    if (!meshTestModeActive) {
-        meshTestModeActive = true;
-        initializeMeshTestMode();
-    }
+void sendDigitalIOTelemetry(uint32_t timestamp, uint8_t sequenceId) {
+    uint8_t data[12];
+    data[0] = MSG_TELEMETRY_DIGITAL_IO;
+    data[1] = sequenceId;
+    *((uint32_t*)(data + 2)) = timestamp;
+    data[6] = (mockData.manualExtend ? 0x01 : 0) |
+              (mockData.manualRetract ? 0x02 : 0) |
+              (mockData.limitExtend ? 0x04 : 0) |
+              (mockData.limitRetract ? 0x08 : 0) |
+              (mockData.sequenceStart ? 0x10 : 0) |
+              (mockData.emergencyStop ? 0x80 : 0);
+    data[7] = 0x00;  // Reserved
+    *((uint32_t*)(data + 8)) = mockData.sequenceTime;
+    
+    meshSerial.write(data, sizeof(data));
 }
 
-void disableMeshTestMode() {
-    if (meshTestModeActive) {
-        meshTestModeActive = false;
-        Serial.println("🛑 MESH TEST MODE DISABLED");
-    }
+void sendRelayTelemetry(uint32_t timestamp, uint8_t sequenceId) {
+    uint8_t data[10];
+    data[0] = MSG_TELEMETRY_RELAYS;
+    data[1] = sequenceId;
+    *((uint32_t*)(data + 2)) = timestamp;
+    data[6] = (mockData.relayExtend ? 0x01 : 0) |
+              (mockData.relayRetract ? 0x02 : 0) |
+              (mockData.engineStop ? 0x80 : 0);
+    data[7] = 0x03;  // relay_mask (R1, R2 monitored)
+    data[8] = 0x00;  // Reserved
+    data[9] = 0x00;  // Reserved
+    
+    meshSerial.write(data, sizeof(data));
 }
 
-// ============================================================================
-// Callbacks
-// ============================================================================
-
-void onInputChange(uint8_t pin, bool state, const bool* allStates) {
-    debugPrintf("Input change: pin %d -> %s\n", pin, state ? "ACTIVE" : "INACTIVE");
+void sendPressureTelemetry(uint32_t timestamp, uint8_t sequenceId) {
+    uint8_t data[16];
+    data[0] = MSG_TELEMETRY_PRESSURE;
+    data[1] = sequenceId;
+    *((uint32_t*)(data + 2)) = timestamp;
+    *((float*)(data + 6)) = mockData.mainPressure;
+    *((float*)(data + 10)) = mockData.auxPressure;
+    data[14] = 0x03;  // sensor_mask (both sensors active)
+    data[15] = 0x00;  // Reserved
     
-    // Update limit switch states for safety system
-    if (pin == LIMIT_EXTEND_PIN) {
-        g_limitExtendActive = state;
-        debugPrintf("Limit EXTEND: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // SAFETY: Turn off extend relay when limit switch activates
-        if (state) {  // Limit switch activated (cylinder fully extended)
-            relayController.setRelay(RELAY_EXTEND, false);
-            debugPrintf("SAFETY: Extend relay R%d turned OFF - cylinder at full extension\n", RELAY_EXTEND);
-        }
-        
-    } else if (pin == LIMIT_RETRACT_PIN) {
-        g_limitRetractActive = state;
-        debugPrintf("Limit RETRACT: %s\n", state ? "ACTIVE" : "INACTIVE");
-        
-        // SAFETY: Turn off retract relay when limit switch activates  
-        if (state) {  // Limit switch activated (cylinder fully retracted)
-            relayController.setRelay(RELAY_RETRACT, false);
-            debugPrintf("SAFETY: Retract relay R%d turned OFF - cylinder at full retraction\n", RELAY_RETRACT);
-        }
-    }
-    
-    // PRIORITY: Handle E-Stop before any other processing
-    if (pin == E_STOP_PIN) {
-        if (!state) {  // E-stop pressed (NC switch goes LOW)
-            LOG_CRITICAL("E-STOP ACTIVATED - Emergency shutdown initiated");
-            
-            // EMERGENCY ALERT: Broadcast to all mesh nodes on Channel 0
-            meshtasticComm.sendEmergencyAlert("CRITICAL", "E-STOP ACTIVATED - Hydraulic system emergency shutdown");
-            
-            safetySystem.activateEStop();
-            sequenceController.abort(); // Immediate sequence abort
-            sequenceController.disableSequence(); // Disable until E-stop cleared
-            return; // Skip all other processing
-        } else {
-            // E-stop released - but system should remain in safe state
-            LOG_INFO("E-STOP: Physical button released - system remains in safe state");
-            
-            // SAFETY ALERT: Inform mesh that E-stop button is released (but system still safe)
-            meshtasticComm.sendSafetyAlert("E-stop button released - system remains in safe state");
-            
-            return; // Don't process as normal input
-        }
-    }
-    
-    // Let sequence controller handle input first
-    bool handledBySequence = sequenceController.processInputChange(pin, state, allStates);
-    //debugPrintf("handledBySequence: %s\n", handledBySequence ? "ACTIVE" : "INACTIVE");
-    //debugPrintf("sequenceController: %s\n", sequenceController.isActive() ? "ACTIVE" : "INACTIVE");
-    
-    // Handle safety clear button (Pin 4) - allows operational recovery without clearing error history
-    if (pin == SAFETY_CLEAR_PIN && state) {  // Safety clear button pressed
-        bool systemCleared = false;
-        
-        // Clear E-stop state if active
-        if (safetySystem.isEStopActive()) {
-            LOG_INFO("SAFETY: Manager override - clearing E-stop state, preserving error history");
-            safetySystem.clearEStop();
-            systemCleared = true;
-        }
-        
-        // Clear general safety system if active
-        if (safetySystem.isActive()) {
-            LOG_INFO("SAFETY: Manager override - clearing safety system, preserving error history");
-            safetySystem.clearEmergencyStop();  // Clear safety state to allow operation
-            systemCleared = true;
-            // Note: Error list is NOT cleared - manager must clear errors separately via commands
-        }
-        
-        // Re-enable sequence controller if it was disabled due to timeout or E-stop
-        if (!sequenceController.isSequenceEnabled()) {
-            LOG_INFO("SEQ: Re-enabling sequence controller after safety clear");
-            sequenceController.enableSequence();
-            systemCleared = true;
-        }
-        
-        if (systemCleared) {
-            LOG_INFO("SAFETY: System fully restored to operational state");
-        } else {
-            LOG_INFO("SAFETY: Clear button pressed - system already operational");
-        }
-        
-        return;  // Safety clear handled, don't process as normal input
-    }
-    
-    if (!handledBySequence && !sequenceController.isActive()) {
-        // Handle simple pin->relay mapping when no sequence active
-        if (pin == 2) {
-            // SAFETY: Don't allow retract if already at retract limit
-            if (state && g_limitRetractActive) {
-                debugPrintf("SAFETY: Retract blocked - cylinder already at retract limit\n");
-            } else {
-                relayController.setRelay(RELAY_RETRACT, state);  // Pin 2 -> Retract
-            }
-        } else if (pin == 3) {
-            // SAFETY: Don't allow extend if already at extend limit
-            if (state && g_limitExtendActive) {
-                debugPrintf("SAFETY: Extend blocked - cylinder already at extend limit\n");
-            } else {
-                relayController.setRelay(RELAY_EXTEND, state);   // Pin 3 -> Extend
-            }
-        } 
-    }
+    meshSerial.write(data, sizeof(data));
 }
 
-// MQTT callback removed - non-networking version
-
-// ============================================================================
-// System Initialization
-// ============================================================================
-
-bool initializeSystem() {
-    Serial.begin(115200);
-    while (!Serial && millis() < 3000) { 
-        delay(10); 
-    }
+void sendSequenceTelemetry(uint32_t timestamp, uint8_t sequenceId) {
+    uint8_t data[14];
+    data[0] = MSG_TELEMETRY_SEQUENCE;
+    data[1] = sequenceId;
+    *((uint32_t*)(data + 2)) = timestamp;
+    data[6] = mockData.currentState;
+    data[7] = 0x00;  // Reserved
+    *((uint32_t*)(data + 8)) = mockData.sequenceTime;
+    *((uint16_t*)(data + 12)) = mockData.cycleCount;
     
-    // Initialize Meshtastic Communication Manager (A4/A5 pins in protobuf mode)
-    meshtasticComm.begin();
-    
-    Serial.println();
-    Serial.println("=== LogSplitter Controller v2.0 ===");
-    Serial.println("Initializing system...");
-    
-    systemStartTime = millis();
-    currentSystemState = SYS_INITIALIZING;
-    
-    // Initialize configuration first
-    configManager.begin();
-    if (!configManager.isConfigValid()) {
-        Serial.println("WARNING: Using default configuration");
-    }
-    
-    // Initialize pressure sensor
-    pressureManager.begin();
-    // Network manager removed - non-networking version
-    // Note: Individual sensor configuration can be added via pressureManager.getSensor() if needed
-    
-    // Initialize legacy telemetry manager for compatibility (will output to mesh test mode if enabled)
-    telemetryManager.begin(MESHTASTIC_RX_PIN, MESHTASTIC_TX_PIN, MESHTASTIC_BAUD);
-    
-    // Initialize relay controller
-    relayController.begin();
-    configManager.applyToRelayController(relayController);
-    
-    // Initialize sequence controller
-    configManager.applyToSequenceController(sequenceController);
-    
-    // Apply saved log level configuration
-    configManager.applyToLogger();
-    
-    // Initialize input manager
-    inputManager.begin(&configManager);
-    inputManager.setChangeCallback(onInputChange);
-    
-    // Initialize safety system
-    safetySystem.setRelayController(&relayController);
-    safetySystem.setSequenceController(&sequenceController);
-    safetySystem.begin();  // Initialize engine relay to running state
-    
-    // Initialize system error manager
-    systemErrorManager.begin();
-    
-    // Initialize command processor
-    commandProcessor.setConfigManager(&configManager);
-    commandProcessor.setPressureManager(&pressureManager);  // FIXED: Connect pressure manager
-    commandProcessor.setSequenceController(&sequenceController);
-    commandProcessor.setRelayController(&relayController);
-    commandProcessor.setSafetySystem(&safetySystem);
-    commandProcessor.setInputManager(&inputManager);
-    commandProcessor.setSystemErrorManager(&systemErrorManager);
-    commandProcessor.setTimingMonitor(&timingMonitor);
-    
-    // Connect command processor to Meshtastic communication manager
-    meshtasticComm.setCommandProcessor(&commandProcessor);
-    meshtasticComm.setErrorManager(&systemErrorManager);
-    
-    // Connect error manager to other components
-    configManager.setSystemErrorManager(&systemErrorManager);
-    sequenceController.setErrorManager(&systemErrorManager);
-    sequenceController.setInputManager(&inputManager);
-    sequenceController.setSafetySystem(&safetySystem);
-    
-    Serial.println("Core systems initialized");
-    
-    // Initialize logger (Serial only - NO telemetry to maximize protobuf throughput)
-    currentSystemState = SYS_RUNNING;
-    Logger::begin();
-    // NOTE: Telemetry now handled by Meshtastic protobuf protocol
-    Logger::setLogLevel(LOG_DEBUG);  // Default to debug level, can be configured later
-    Serial.println("Logger initialized - telemetry via Meshtastic protobuf (A4/A5)");
-    
-    // Initialize timing monitor
-    timingMonitor.begin();
-    LOG_INFO("Subsystem timing monitor initialized");
-    
-    currentSystemState = SYS_RUNNING;
-    lastPublishTime = millis();
-    
-    // Initialize Mesh Test Mode if enabled
-    if (meshTestModeActive) {
-        initializeMeshTestMode();
-    }
-    
-    Serial.println("=== System Ready ===");
-    Serial.println("Meshtastic mesh communication active on A4/A5 (protobuf mode)");
-    Serial.println("Emergency alerts broadcast on Channel 0, telemetry on Channel 1");
-    Serial.print("Node ID: ");
-    Serial.println(meshtasticComm.getNodeId());
-    return true;
+    meshSerial.write(data, sizeof(data));
 }
 
-// ============================================================================
-// Main System Loop
-// ============================================================================
-
-void updateSystem() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::MAIN_LOOP_TOTAL);
-    resetWatchdog();
+void sendHeartbeat() {
+    Serial.print("💓 Heartbeat - Uptime: ");
+    Serial.print(mockData.uptime / 1000);
+    Serial.print("s, Messages: ");
+    Serial.print(messageCounter);
+    Serial.print(", Cycles: ");
+    Serial.println(mockData.cycleCount);
     
-    // Update all subsystems with timing monitoring
-    // Meshtastic communication manager handles all mesh networking
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::MESHTASTIC_COMM);
-        meshtasticComm.update();
-    }
+    // Send system status telemetry
+    uint32_t timestamp = millis();
+    uint8_t sequenceId = (messageCounter++) % 256;
     
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::PRESSURE_MANAGER);
-        pressureManager.update();
-    }
+    uint8_t data[18];
+    data[0] = MSG_TELEMETRY_SYSTEM;
+    data[1] = sequenceId;
+    *((uint32_t*)(data + 2)) = timestamp;
+    *((uint32_t*)(data + 6)) = mockData.uptime;
+    *((uint16_t*)(data + 10)) = mockData.cycleCount;
+    data[12] = mockData.errorCount;
+    data[13] = 0x01;  // system_state (running)
+    *((float*)(data + 14)) = 3.3;  // mock voltage
     
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SEQUENCE_CONTROLLER);
-        sequenceController.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::RELAY_CONTROLLER);
-        relayController.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::INPUT_MANAGER);
-        inputManager.update();
-    }
-    
-    {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SYSTEM_ERROR_MANAGER);
-        systemErrorManager.update();
-    }
-    
-    // Update safety system with current pressure
-    if (pressureManager.isReady()) {
-        TIME_SUBSYSTEM(&timingMonitor, SubsystemID::SAFETY_SYSTEM);
-        safetySystem.update(pressureManager.getPressure());
-    }
-    
-    // Mesh Test Mode: Generate realistic telemetry every second
-    if (meshTestModeActive && (millis() - lastMeshTestTime >= MESH_TEST_INTERVAL_MS)) {
-        lastMeshTestTime = millis();
-        generateMeshTestTelemetry();
-    }
-    
-    // Check timing monitor health
-    timingMonitor.checkHealthStatus();
-    
-    checkSystemHealth();
+    meshSerial.write(data, sizeof(data));
 }
 
-void publishTelemetry() {
-    // Meshtastic protobuf telemetry is always active for maximum throughput
-    unsigned long now = millis();
-    
-    // Send mesh heartbeat every 30 seconds
-    static unsigned long lastHeartbeat = 0;
-    if (now - lastHeartbeat >= 30000) {
-        meshtasticComm.sendNodeStatus();
-        lastHeartbeat = now;
-    }
-    
-    // ===== IMMEDIATE SEQUENCE UPDATES (PROTOBUF ONLY) =====
-    // Only output sequence data when it actually changes
-    SequenceState currentSequenceState = sequenceController.getState();
-    if (currentSequenceState != lastSequenceState) {
-        // Send sequence telemetry via Meshtastic protobuf
-        uint8_t sequenceData[8];
-        sequenceData[0] = 0x16; // System status message type
-        sequenceData[1] = (uint8_t)currentSequenceState;
-        sequenceData[2] = 0; // Reserved
-        sequenceData[3] = 0; // Reserved
-        uint32_t uptime = millis() - systemStartTime;
-        memcpy(&sequenceData[4], &uptime, 4);
+void handleSerialCommands() {
+    if (Serial.available()) {
+        String command = Serial.readStringUntil('\n');
+        command.trim();
         
-        meshtasticComm.sendSystemStatusTelemetry(sequenceData, 8);
-        lastSequenceState = currentSequenceState;
-    }
-    
-    // ===== RATE LIMITED UPDATES (30 SECOND INTERVALS) =====
-    // All other telemetry is rate limited to reduce traffic
-    bool periodicUpdate = (now - lastPublishTime >= publishInterval);
-    if (!periodicUpdate) return;  // Exit early if not time for periodic update
-    
-    lastPublishTime = now;
-    
-    // Safety state monitoring (30 second rate limit)
-    bool currentSafetyActive = safetySystem.isActive();
-    bool currentEStopActive = safetySystem.isEStopActive();
-    bool currentEngineRunning = !safetySystem.isEngineStopped();
-    
-    // Only log safety if changed OR if this is a periodic update
-    if (currentSafetyActive != lastSafetyActive || currentEStopActive != lastEStopActive || 
-        currentEngineRunning != lastEngineRunning || periodicUpdate) {
-        
-        LOG_INFO("Safety: estop=%s engine=%s active=%s", 
-            currentEStopActive ? "true" : "false",
-            currentEngineRunning ? "true" : "false", 
-            currentSafetyActive ? "true" : "false");
-        
-        lastSafetyActive = currentSafetyActive;
-        lastEStopActive = currentEStopActive;
-        lastEngineRunning = currentEngineRunning;
-    }
-    
-    // System status summary (every 30 seconds)
-    LOG_INFO("System: uptime=%lus state=%s", 
-        (now - systemStartTime) / 1000,
-        getSequenceStateName(currentSequenceState));
-}
-
-void processSerialCommands() {
-    TIME_SUBSYSTEM(&timingMonitor, SubsystemID::COMMAND_PROCESSING_SERIAL);
-    while (Serial.available()) {
-        char c = Serial.read();
-        
-        // Handle Ctrl+K (ASCII 11) to toggle echo mode (protobuf telemetry always active)
-        if (c == 11) { // Ctrl+K
-            g_echoEnabled = !g_echoEnabled; // Just toggle echo mode
+        if (command == "help") {
+            Serial.println("📋 MESH TEST COMMANDS:");
+            Serial.println("=== SYSTEM CONTROL ===");
+            Serial.println("  help      - Show this help");
+            Serial.println("  status    - Show current status");  
+            Serial.println("  ping      - Test Arduino responsiveness");
+            Serial.println("  reboot    - Restart Arduino (software reset)");
+            Serial.println();
+            Serial.println("=== TELEMETRY CONTROL ===");
+            Serial.println("  send      - Send immediate telemetry set");
+            Serial.println("  burst 10  - Send 10 rapid telemetry messages");
+            Serial.println("  heartbeat - Send immediate heartbeat");
+            Serial.println("  stop      - Stop automatic telemetry");
+            Serial.println("  start     - Start automatic telemetry");
+            Serial.println();
+            Serial.println("=== SEQUENCE CONTROL ===");
+            Serial.println("  idle      - Force to IDLE state");
+            Serial.println("  extend    - Force to EXTENDING state"); 
+            Serial.println("  retract   - Force to RETRACTING state");
+            Serial.println("  cycle     - Complete cycle and restart");
+            Serial.println("  reset     - Reset sequence timer");
+            Serial.println();
+            Serial.println("=== TESTING ===");
+            Serial.println("  pressure <psi> - Set main pressure (e.g. 'pressure 1500')");
+            Serial.println("  relay <on|off> - Set extend relay state");
+            Serial.println("  pins      - Show current pin states");
+            Serial.println("  mesh      - Test mesh serial output");
             
-            // Send feedback to user console (Serial)
-            Serial.print("\r\n*** ECHO MODE ");
-            Serial.print(g_echoEnabled ? "ENABLED" : "DISABLED");
-            Serial.println(" (protobuf telemetry always active) ***");
-            if (g_echoEnabled) {
-                Serial.println("Interactive mode: keystrokes will be echoed");
-                Serial.print("> ");
-            }
+        } else if (command == "ping") {
+            Serial.println("🏓 PONG! Arduino is responsive");
+            Serial.print("   Uptime: ");
+            Serial.print(millis() / 1000);
+            Serial.println(" seconds");
             
-            // Send Meshtastic system status instead of ASCII
-            meshtasticComm.sendNodeStatus();
+        } else if (command == "status") {
+            Serial.println("📊 CURRENT STATUS:");
+            Serial.print("  Uptime: ");
+            Serial.print(mockData.uptime / 1000);
+            Serial.println("s");
+            Serial.print("  Messages sent: ");
+            Serial.println(messageCounter);
+            Serial.print("  Current state: ");
+            const char* stateNames[] = {"IDLE", "EXTENDING", "EXTENDED", "RETRACTING"};
+            Serial.println(stateNames[mockData.currentState]);
+            Serial.print("  Main pressure: ");
+            Serial.print(mockData.mainPressure, 1);
+            Serial.println(" PSI");
+            Serial.print("  Relays: Extend=");
+            Serial.print(mockData.relayExtend ? "ON" : "OFF");
+            Serial.print(" Retract=");
+            Serial.println(mockData.relayRetract ? "ON" : "OFF");
+            Serial.print("  Limits: Extend=");
+            Serial.print(mockData.limitExtend ? "ACTIVE" : "INACTIVE");
+            Serial.print(" Retract=");
+            Serial.println(mockData.limitRetract ? "ACTIVE" : "INACTIVE");
             
-            continue;
-        }
-        
-        if (c == '\r') continue; // Ignore CR
-        
-        // Echo keystrokes when in interactive mode (telemetry disabled)
-        if (g_echoEnabled && c != '\n') {
-            Serial.print(c);
-        }
-        
-        if (c == '\n') {
-            if (g_echoEnabled) Serial.println(); // Complete the line
-            g_command_buffer[serialLinePos] = '\0';
-            serialLinePos = 0;
+        } else if (command == "send") {
+            Serial.println("📡 Sending immediate telemetry set...");
+            sendTelemetrySet();
+            Serial.println("✅ Telemetry sent");
             
-            if (strlen(g_command_buffer) > 0) {
-                // Process command
-                bool success = commandProcessor.processCommand(g_command_buffer, false, g_response_buffer, SHARED_BUFFER_SIZE);
+        } else if (command.startsWith("burst ")) {
+            int count = command.substring(6).toInt();
+            if (count > 0 && count <= 100) {
+                Serial.print("🚀 Sending ");
+                Serial.print(count);
+                Serial.println(" burst telemetry messages...");
                 
-                if (strlen(g_response_buffer) > 0) {
-                    Serial.print("Response: ");
-                    Serial.println(g_response_buffer);
+                for (int i = 0; i < count; i++) {
+                    sendTelemetrySet();
+                    delay(50); // Small delay between messages
+                    Serial.print(".");
                 }
-                
-                if (!success) {
-                    Serial.println("Command failed. Type 'help' for available commands.");
-                }
-                
-                if (g_echoEnabled) Serial.print("> "); // Prompt for next command
+                Serial.println();
+                Serial.println("✅ Burst complete");
+            } else {
+                Serial.println("❌ Invalid count (1-100)");
             }
-        } else {
-            if (serialLinePos < COMMAND_BUFFER_SIZE - 1) {
-                g_command_buffer[serialLinePos++] = c;
+            
+        } else if (command == "heartbeat") {
+            Serial.println("💓 Sending immediate heartbeat...");
+            sendHeartbeat();
+            Serial.println("✅ Heartbeat sent");
+            
+        } else if (command == "idle") {
+            mockData.currentState = 0;
+            mockData.relayExtend = false;
+            mockData.relayRetract = false;
+            mockData.limitExtend = false;
+            mockData.limitRetract = true;
+            mockData.mainPressure = 45.0;
+            Serial.println("⏸️ Forced to IDLE state");
+            
+        } else if (command == "extend") {
+            mockData.currentState = 1;
+            mockData.relayExtend = true;
+            mockData.relayRetract = false;
+            mockData.limitExtend = false;
+            mockData.limitRetract = false;
+            mockData.mainPressure = 1800.0;
+            Serial.println("⬆️ Forced to EXTENDING state");
+            
+        } else if (command == "retract") {
+            mockData.currentState = 3;
+            mockData.relayExtend = false;
+            mockData.relayRetract = true;
+            mockData.limitExtend = false;
+            mockData.limitRetract = false;
+            mockData.mainPressure = 1200.0;
+            Serial.println("⬇️ Forced to RETRACTING state");
+            
+        } else if (command == "reset") {
+            sequenceStartTime = millis();
+            Serial.println("🔄 Sequence timer reset");
+            
+        } else if (command == "cycle") {
+            mockData.cycleCount++;
+            sequenceStartTime = millis();
+            Serial.println("⏭️ Cycle completed, starting new sequence");
+            
+        } else if (command.startsWith("pressure ")) {
+            float newPressure = command.substring(9).toFloat();
+            if (newPressure >= 0 && newPressure <= 3000) {
+                mockData.mainPressure = newPressure;
+                Serial.print("🔧 Main pressure set to ");
+                Serial.print(newPressure, 1);
+                Serial.println(" PSI");
+            } else {
+                Serial.println("❌ Invalid pressure (0-3000 PSI)");
             }
-        }
-    }
-}
-
-// Telnet command processing removed - non-networking version
-
-// ============================================================================
-// Arduino Main Functions
-// ============================================================================
-
-void setup() {
-    if (!initializeSystem()) {
-        Serial.println("CRITICAL ERROR: System initialization failed");
-        currentSystemState = SYS_ERROR;
-        while (true) {
-            delay(1000);
-            Serial.println("System halted - check connections and restart");
-        }
-    }
-}
-
-void loop() {
-    // Handle system states
-    switch (currentSystemState) {
-        case SYS_RUNNING:
-            updateSystem();
-            publishTelemetry();
-            // Serial commands available for local debugging (primary commands via Meshtastic)
-            processSerialCommands();
-            break;
             
-        case SYS_ERROR:
-            // In error state, only do basic safety monitoring
-            safetySystem.emergencyStop("system_error");
-            delay(1000);
-            break;
+        } else if (command.startsWith("relay ")) {
+            String relayState = command.substring(6);
+            if (relayState == "on") {
+                mockData.relayExtend = true;
+                Serial.println("🔧 Extend relay ON");
+            } else if (relayState == "off") {
+                mockData.relayExtend = false;
+                Serial.println("🔧 Extend relay OFF");
+            } else {
+                Serial.println("❌ Use 'relay on' or 'relay off'");
+            }
             
-        case SYS_SAFE_MODE:
-            // Safe mode: minimal operations, safety monitoring only
-            relayController.update();
-            safetySystem.update(pressureManager.getPressure());
-            // Meshtastic communication still active in safe mode for emergency coordination
-            meshtasticComm.update();
-            processSerialCommands(); // Local debugging commands still available
+        } else if (command == "pins") {
+            Serial.println("📌 PIN STATES:");
+            Serial.print("  A2 (Mesh TX): ");
+            Serial.println("OUTPUT");
+            Serial.print("  A3 (Mesh RX): ");
+            Serial.println("INPUT");
+            Serial.println("  Digital I/O simulation:");
+            Serial.print("    Manual Extend: ");
+            Serial.println(mockData.manualExtend ? "ACTIVE" : "INACTIVE");
+            Serial.print("    Manual Retract: ");
+            Serial.println(mockData.manualRetract ? "ACTIVE" : "INACTIVE");
+            Serial.print("    Limit Extend: ");
+            Serial.println(mockData.limitExtend ? "ACTIVE" : "INACTIVE");
+            Serial.print("    Limit Retract: ");
+            Serial.println(mockData.limitRetract ? "ACTIVE" : "INACTIVE");
+            
+        } else if (command == "mesh") {
+            Serial.println("🌐 Testing mesh serial output...");
+            Serial.println("   Sending test data to A2 pin...");
+            
+            // Send a test message to mesh serial
+            uint8_t testData[] = {0xFF, 0xAA, 0x55, 0x00, 0x11, 0x22, 0x33, 0x44};
+            meshSerial.write(testData, sizeof(testData));
+            
+            Serial.print("   Test data sent: ");
+            for (int i = 0; i < sizeof(testData); i++) {
+                Serial.print("0x");
+                Serial.print(testData[i], HEX);
+                Serial.print(" ");
+            }
+            Serial.println();
+            Serial.println("✅ Mesh test complete");
+            
+        } else if (command == "reboot") {
+            Serial.println("🔄 Rebooting Arduino in 3 seconds...");
+            Serial.println("   3...");
+            delay(1000);
+            Serial.println("   2...");
+            delay(1000);
+            Serial.println("   1...");
+            delay(1000);
+            Serial.println("   Restarting...");
             delay(100);
-            break;
+            // Software reset for ARM Cortex-M4
+            NVIC_SystemReset();
             
-        default:
-            currentSystemState = SYS_ERROR;
-            break;
+        } else if (command == "stop") {
+            // Implementation depends on adding a global telemetry enable flag
+            Serial.println("⏹️ Telemetry stopped (not implemented yet)");
+            
+        } else if (command == "start") {
+            // Implementation depends on adding a global telemetry enable flag  
+            Serial.println("▶️ Telemetry started (not implemented yet)");
+            
+        } else if (command.length() > 0) {
+            Serial.print("❓ Unknown command: '");
+            Serial.print(command);
+            Serial.println("'");
+            Serial.println("💡 Type 'help' for available commands");
+        }
     }
-    
-    // Small delay to prevent overwhelming the system
-    delay(1);
 }
